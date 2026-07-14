@@ -1,0 +1,14 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "intent-verify",
+  "description": "Catch intent drift: verify an AI change did what you actually asked, not what the diff claims.",
+  "owner": { "name": "Tharun Prabhakar" },
+  "plugins": [
+    {
+      "name": "intent-verify",
+      "description": "Request-anchored, cross-model, evidence-based drift verifier. Benchmark: recall 8/8, precision 8/8, differential 4/8 over diff-anchored review.",
+      "source": "./",
+      "category": "productivity"
+    }
+  ]
+}

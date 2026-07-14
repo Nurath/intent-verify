@@ -134,9 +134,18 @@ change, or say *"verify this did what I asked."* The skill:
 3. Dispatches the verifier subagent **on a different model**.
 4. Returns a per-criterion ledger + `MATCHES INTENT` / `DRIFTED` verdict.
 
-Packaged as a plugin (v2, planned): a `UserPromptSubmit` hook captures intent
-automatically, and one `plugin.json` install wires up the skill + verifier +
-hook. See [Roadmap](#roadmap).
+### Install as a plugin (v2)
+
+This repo is its own Claude Code marketplace. From Claude Code:
+
+```
+/plugin marketplace add TharunGitHub/intent-verify
+/plugin install intent-verify
+```
+
+Then the `UserPromptSubmit` hook auto-captures each request to `.intent/log.md`,
+the skill invokes on change-verification, and the verifier runs as a bundled
+subagent — no manual wiring. (Replace `TharunGitHub` with the actual GitHub owner.)
 
 ---
 
@@ -157,8 +166,16 @@ The concept is validated to the point of having a funded commercial product
 ## Repository layout
 
 ```
-SKILL.md                     the orchestration skill (v1)
-agents/verifier.md           the independent verifier subagent prompt
+.claude-plugin/
+  plugin.json                plugin manifest (name, version, hooks)
+  marketplace.json           marketplace listing (one-command install)
+skills/intent-verify/
+  SKILL.md                   the orchestration skill
+agents/
+  verifier.md                the independent verifier subagent prompt
+hooks/
+  hooks.json                 registers the UserPromptSubmit hook
+  capture-intent.sh / .ps1   auto-freezes your request to .intent/log.md (cross-platform)
 benchmark/
   cases.md                   every case documented (request, drift, expected verdict)
   impl/                      "confidently wrong" fixtures
@@ -207,7 +224,7 @@ sorttasks, tiebreak) to be the discriminators.
 - [x] **v1** — skill + verifier subagent + intent ledger (this repo)
 - [x] Controlled benchmark (recall, precision, differential)
 - [x] Field trial (precision on real code)
-- [ ] **v2 plugin** — `plugin.json` + `marketplace.json` + `UserPromptSubmit`
+- [x] **v2 plugin** — `plugin.json` + `marketplace.json` + `UserPromptSubmit`
       hook (auto-capture intent) + one-command install
 - [ ] Field recall on real *under-specified* tasks with a known intended answer
 
