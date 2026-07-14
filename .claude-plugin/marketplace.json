@@ -2,7 +2,7 @@
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "intent-verify",
   "description": "Catch intent drift: verify an AI change did what you actually asked, not what the diff claims.",
-  "owner": { "name": "Tharun Prabhakar" },
+  "owner": { "name": "Tharun Prabhakar", "url": "https://github.com/Nurath" },
   "plugins": [
     {
       "name": "intent-verify",

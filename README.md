@@ -139,13 +139,13 @@ change, or say *"verify this did what I asked."* The skill:
 This repo is its own Claude Code marketplace. From Claude Code:
 
 ```
-/plugin marketplace add TharunGitHub/intent-verify
+/plugin marketplace add Nurath/intent-verify
 /plugin install intent-verify
 ```
 
 Then the `UserPromptSubmit` hook auto-captures each request to `.intent/log.md`,
 the skill invokes on change-verification, and the verifier runs as a bundled
-subagent — no manual wiring. (Replace `TharunGitHub` with the actual GitHub owner.)
+subagent — no manual wiring.
 
 ---
 
