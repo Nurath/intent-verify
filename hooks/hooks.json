@@ -5,9 +5,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/capture-intent.sh\"",
-            "commandWindows": "pwsh -NoProfile -ExecutionPolicy Bypass -File \"$env:CLAUDE_PLUGIN_ROOT\\hooks\\capture-intent.ps1\"",
-            "timeout": 5,
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/capture-intent.js"],
+            "timeout": 10,
             "statusMessage": "intent-verify: capturing intent"
           }
         ]
