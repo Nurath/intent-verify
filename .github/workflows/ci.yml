@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Validate JSON manifests
+        run: |
+          python3 - <<'PY'
+          import json
+          for f in [".claude-plugin/plugin.json", ".claude-plugin/marketplace.json",
+                    "hooks/hooks.json", "models/registry.json", "benchmark/cases.json"]:
+              json.load(open(f))
+              print("valid:", f)
+          PY
+      - name: Hook selftest (node)
+        run: node hooks/capture-intent.js --selftest
+      - name: Shellcheck hook script
+        run: |
+          sudo apt-get update -q && sudo apt-get install -y -q shellcheck
+          shellcheck hooks/capture-intent.sh
+      - name: Unit tests
+        run: python3 -m unittest discover -s tests -v
+      - name: Benchmark — mock orchestration robustness
+        run: python3 benchmark/run_bench.py --mode mock --no-write
+
+  windows:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        shell: [powershell, pwsh]   # Windows PowerShell 5.1 AND PowerShell 7+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Hook selftest (node, exec-form path used by hooks.json)
+        run: node hooks/capture-intent.js --selftest
+      - name: PowerShell alternate hook captures a prompt (${{ matrix.shell }})
+        shell: ${{ matrix.shell }}
+        run: |
+          $OutputEncoding = New-Object System.Text.UTF8Encoding($false)
+          [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
+          $env:CLAUDE_PROJECT_DIR = "$env:RUNNER_TEMP\ivtest"
+          New-Item -ItemType Directory -Force -Path $env:CLAUDE_PROJECT_DIR | Out-Null
+          '{"prompt":"sort posts by date, newest first — préférence 中文"}' | & ${{ matrix.shell }} -NoProfile -ExecutionPolicy Bypass -File hooks/capture-intent.ps1
+          if ($LASTEXITCODE -ne 0) { throw "hook exited $LASTEXITCODE" }
+          $line = Get-Content "$env:CLAUDE_PROJECT_DIR\.intent\log.jsonl" -Raw -Encoding UTF8
+          $entry = $line | ConvertFrom-Json
+          if ($entry.prompt -notmatch 'newest first') { throw "prompt not captured: $line" }
+          if ($entry.prompt -notmatch '中文') { throw "unicode mangled: $line" }
+          Write-Host "ps1 hook OK under ${{ matrix.shell }}: $($entry.id)"
+      - name: Python hook + unit tests on Windows
+        run: python -m unittest discover -s tests -v
