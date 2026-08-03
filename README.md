@@ -61,7 +61,7 @@ into the blind spot it exists to catch:
 | **Criteria before code** | Confirmation bias | If the verifier reads the diff first, it reverse-engineers criteria the code already satisfies. Derive criteria from the request *first*. |
 | **Evidence required for PASS** | Lenient judge | "Looks right" is the exact failure. No criterion passes without captured runtime output. |
 
-Full skill text: [`SKILL.md`](SKILL.md). Verifier subagent: [`agents/verifier.md`](agents/verifier.md).
+Full skill text: [`skills/intent-verify/SKILL.md`](skills/intent-verify/SKILL.md). Verifier subagent: [`agents/verifier.md`](agents/verifier.md).
 
 ---
 
@@ -132,7 +132,10 @@ change, or say *"verify this did what I asked."* The skill:
    asks you to paste it).
 2. Derives acceptance criteria from the request.
 3. Dispatches the verifier subagent **on a different model**.
-4. Returns a per-criterion ledger + `MATCHES INTENT` / `DRIFTED` verdict.
+4. Validates the verifier's ledger mechanically (evidence-required PASS,
+   consistent verdict), then returns it + a verdict: `MATCHES INTENT` /
+   `DRIFTED` / `INCONCLUSIVE` (when the change couldn't honestly be exercised —
+   never laundered into a pass).
 
 ### Install as a plugin (v2)
 
@@ -143,9 +146,66 @@ This repo is its own Claude Code marketplace. From Claude Code:
 /plugin install intent-verify
 ```
 
-Then the `UserPromptSubmit` hook auto-captures each request to `.intent/log.md`,
-the skill invokes on change-verification, and the verifier runs as a bundled
-subagent — no manual wiring.
+Then the `UserPromptSubmit` hook auto-captures each request to the intent
+ledger, the skill invokes on change-verification, and the verifier runs as a
+bundled subagent — no manual wiring.
+
+The capture hook runs via `node` in exec form — the documented cross-platform
+pattern — so it works identically on macOS, Linux, and Windows (no Git Bash
+required). It does require `node` on PATH (present for every npm-based Claude
+Code install); without Node, wire one of the alternates in your settings
+instead, e.g. `{"type": "command", "command": "python3", "args":
+["${CLAUDE_PLUGIN_ROOT}/hooks/capture-intent.py"]}`. The `.sh` fallback chain
+degrades gracefully (node → python3 → python → jq → raw), keeping the size caps
+and rotation on every path — the jq/raw paths just carry a shorter redaction
+list. `hooks/capture-intent.py`, `.sh`, and `.ps1` are equivalent
+alternates for manual wiring. Capture details, all bounded by design:
+
+- Canonical ledger is `.intent/log.jsonl` (one JSON entry per prompt, with
+  `id`/`ts`/`kind`), plus a human-readable `log.md` mirror. JSONL means prompts
+  containing `---`/`##`/code fences can't corrupt entry boundaries.
+- Entries are capped (16k chars, `INTENT_VERIFY_MAX_PROMPT`) and files rotate
+  at 1 MiB (`INTENT_VERIFY_MAX_LOG`), so the ledger can't grow unboundedly or
+  blow up a verifier's context window.
+- Obvious credential shapes (GitHub/API/Slack/AWS tokens, private keys) are
+  redacted before writing. `.intent/` stays gitignored; redaction is
+  defense-in-depth, not a promise.
+- Prompts that merely *invoke* verification are tagged `verify-invocation`, so
+  the freeze step can't mistake "verify this did what I asked" for the request
+  under verification.
+
+---
+
+## Model compatibility (varying verifier intelligence)
+
+"Different model for the verifier" spans a ~60-point range on the
+[Artificial Analysis Intelligence Index](https://artificialanalysis.ai/evaluations/artificial-analysis-intelligence-index)
+— and verifier failure modes change with capability: shallow criteria, then
+format drift, then evidence-free verdicts, then fluent fabrication. v0.2 makes
+that explicit instead of assuming a frontier verifier:
+
+| Tier | AA index | Verifier role | Protocol |
+|---|---|---|---|
+| T1 ≥ 50 | Opus 5 · GPT-5.6 Sol · Kimi K3 · Opus 4.8 · Sonnet 5 | preferred | FULL |
+| T2 35–49.9 | Gemini 3.1 Pro · DeepSeek V4 Pro · GPT-5.4 mini | bounded diffs | FULL |
+| T3 20–34.9 | GPT-5 mini · Gemini 3 Flash · DeepSeek V3.2 | simple changes only | STRUCTURED (≤5 criteria, template ledger) |
+| T4 < 20 | — | never (fabrication risk is unvalidatable) | excluded by selection |
+
+`tools/select_verifier.py` implements the policy against
+`models/registry.json` (pinned snapshot, `as_of` dated): different model
+required, different family preferred, floor by change complexity, and a
+`weak-verifier` warning when the verifier trails the implementer by >25 points.
+Full rationale: [`docs/MODEL-COMPAT.md`](docs/MODEL-COMPAT.md).
+
+## Bounded by design (no verify↔fix loops)
+
+Everything that could loop is capped: re-verification stops after 2 rounds
+(then reports the persistent divergence instead of ping-ponging with a
+non-deterministic verifier), a malformed ledger gets exactly one re-request
+(then `INCONCLUSIVE`), the verifier has an execution budget (attempts per
+criterion, total commands, non-interactive, installs nothing) and is read-only
+— it can never "fix" the code it is judging. Verifier depth is always exactly
+one: no verifying the verifier.
 
 ---
 
@@ -170,38 +230,60 @@ The concept is validated to the point of having a funded commercial product
   plugin.json                plugin manifest (name, version, hooks)
   marketplace.json           marketplace listing (one-command install)
 skills/intent-verify/
-  SKILL.md                   the orchestration skill
+  SKILL.md                   the orchestration skill (bounded rounds, model floors)
 agents/
-  verifier.md                the independent verifier subagent prompt
+  verifier.md                the independent verifier subagent (budget, ledger grammar)
 hooks/
-  hooks.json                 registers the UserPromptSubmit hook
-  capture-intent.sh / .ps1   auto-freezes your request to .intent/log.md (cross-platform)
+  hooks.json                 registers the UserPromptSubmit hook (node, exec form)
+  capture-intent.js          canonical cross-platform capture (redact/cap/rotate)
+  capture-intent.py/.sh/.ps1 equivalent alternates for manual wiring
+models/
+  registry.json              AA Intelligence Index snapshot -> tiers, floors
+tools/
+  select_verifier.py         capability-aware verifier selection (policy as code)
+  validate_ledger.py         mechanical ledger/evidence/verdict validation
+docs/
+  MODEL-COMPAT.md            design: surviving weak verifier models
 benchmark/
-  cases.md                   every case documented (request, drift, expected verdict)
-  impl/                      "confidently wrong" fixtures
-    median.py ratelimit.py sortposts.py          (round 1)
-    omitted-intent/          5 description-truthful-but-omits-requirement cases (round 2)
-    correct/                 8 correct implementations for the precision test (round 3)
-  field/                     round 4 — real cost.py, Opus implementations
-  field-recall/              round 5 — real cost.py, Haiku implementations
-  results/
-    2026-07-14.md                          round 1 — mechanism validation
-    2026-07-14-round2-omitted-intent.md    round 2 — the differential edge
-    2026-07-14-round3-precision.md         round 3 — false-positive test (n=16 matrix)
-    2026-07-14-round4-field-trial.md       round 4 — field precision (real code)
-    2026-07-14-round5-field-recall.md      round 5 — field-recall attempt + thesis
+  cases.md / cases.json      every case documented / machine-readable
+  oracle.py                  real discriminating executions for the 16 controlled cases
+  run_bench.py               runnable harness: --mode mock (orchestration) / cli (real models)
+  impl/                      "confidently wrong" + correct fixtures (rounds 1-3)
+  field/ field-recall/       rounds 4-5 — real cost.py implementations
+  results/                   captured runs (2026-07-14 rounds 1-5, + generated)
+tests/                       54 unit tests: hooks contract, validator, selector, oracle
+.github/workflows/ci.yml     Linux + Windows (PS 5.1 & 7) CI, shellcheck, mock bench
 ```
 
 ---
 
 ## Reproduce
 
-Point [`agents/verifier.md`](agents/verifier.md) at each fixture in `benchmark/impl/`,
-supplying the matching original request from [`benchmark/cases.md`](benchmark/cases.md),
-running the verifier on a **model different from whatever wrote the code**. Compare
-to a baseline reviewer given only the code + commit message. Verifiers are
-non-deterministic; expect the omitted-intent cases (sort, search, validate,
-sorttasks, tiebreak) to be the discriminators.
+Two runnable paths (plus the original manual one):
+
+```bash
+# Orchestration robustness, offline + deterministic: simulated verifier
+# profiles (faithful/verbose/sloppy/lazy/fabricator) against all 16 controlled
+# cases, evidence backed by real fixture execution via benchmark/oracle.py.
+python3 benchmark/run_bench.py --mode mock
+
+# Real verifier skill, any model the `claude` CLI can reach — e.g. a smaller
+# model, to see where capability floors actually bite:
+python3 benchmark/run_bench.py --mode cli --verifier claude-opus-4-8
+python3 benchmark/run_bench.py --mode cli --verifier claude-haiku-4-5 --suite controlled
+```
+
+cli mode grants the verifier `Bash,Read,Grep,Glob` (it must run the fixtures to
+gather evidence) — that means executing the benchmark's deliberately-wrong but
+benign code; run it where you'd run any untrusted test suite.
+
+Both write a dated report under `benchmark/results/`. Manual reproduction still
+works: point [`agents/verifier.md`](agents/verifier.md) at each fixture in
+`benchmark/impl/`, supplying the matching original request from
+[`benchmark/cases.md`](benchmark/cases.md), running the verifier on a **model
+different from whatever wrote the code**. Verifiers are non-deterministic;
+expect the omitted-intent cases (sort, search, validate, sorttasks, tiebreak)
+to be the discriminators.
 
 ---
 
@@ -226,7 +308,15 @@ sorttasks, tiebreak) to be the discriminators.
 - [x] Field trial (precision on real code)
 - [x] **v2 plugin** — `plugin.json` + `marketplace.json` + `UserPromptSubmit`
       hook (auto-capture intent) + one-command install
+- [x] **v0.2 hardening** — cross-platform capture (node exec form; stock
+      Windows works), bounded ledger (JSONL, caps, rotation, redaction),
+      bounded verification (rounds, retries, verifier budget, read-only)
+- [x] **Capability-aware dispatch** — AA-index tiers/floors, STRUCTURED mode
+      for smaller models, machine-validated ledger + `INCONCLUSIVE`
+- [x] **Runnable benchmark + CI** — `run_bench.py` mock/cli modes, execution
+      oracle, 54 tests, Linux + Windows workflows
 - [ ] Field recall on real *under-specified* tasks with a known intended answer
+- [ ] Registry refresh automation (pull the AA snapshot instead of hand-pinning)
 
 ## Status
 
@@ -234,6 +324,12 @@ v1 prototype. Controlled benchmark n=16 (recall 8/8, precision 8/8, differential
 4/8). Field trial n=7 (Opus + Haiku, real code): precision 7/7, 0 false positives;
 field recall unmeasurable on clear specs. Refined thesis: the value is on
 ambiguous / under-specified requests.
+
+v0.2 hardens the prototype for real environments: capture works on stock
+Windows/macOS/Linux, every loop surface is bounded, verifier dispatch is
+capability-aware (AA-index tiers), the ledger contract is machine-validated
+with an honest `INCONCLUSIVE`, and the benchmark is runnable
+(`benchmark/run_bench.py`) with CI.
 
 ## License
 
