@@ -43,7 +43,11 @@ jobs:
       - name: Hook selftest (node, exec-form path used by hooks.json)
         run: node hooks/capture-intent.js --selftest
       - name: PowerShell alternate hook captures a prompt (${{ matrix.shell }})
-        shell: ${{ matrix.shell }}
+        # NOTE: the `shell:` key does NOT support the matrix context ("Unrecognized
+        # named-value: 'matrix'" -> invalid workflow, no run at all). The matrix value
+        # is applied inside `run:` below, where expressions ARE allowed, so the .ps1
+        # is still exercised under both Windows PowerShell 5.1 and pwsh 7.
+        shell: pwsh
         run: |
           $OutputEncoding = New-Object System.Text.UTF8Encoding($false)
           [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
