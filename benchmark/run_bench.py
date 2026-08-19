@@ -45,6 +45,15 @@ ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(ROOT, "tools"))
 
+# The report contains non-ASCII (e.g. the arrow in profile summaries) and Windows
+# consoles default to a legacy codepage (cp1252), where `print(report)` raises
+# UnicodeEncodeError and kills the run. Force UTF-8 on the streams we write.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):  # pragma: no cover - non-reconfigurable stream
+        pass
+
 import validate_ledger  # noqa: E402
 from oracle import CHECKS  # noqa: E402
 

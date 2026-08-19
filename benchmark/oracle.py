@@ -29,10 +29,17 @@ CHECKS = {
         ("newest post comes first",
          "m.sort_posts([{'date': '2024-01-01'}, {'date': '2025-06-01'}, {'date': '2023-12-31'}])[0]['date']", "2025-06-01"),
     ],
+    # NOTE: keep this input at >= 8 distinct items. `list(set(...))` yields an
+    # arbitrary order, so with only 3 items it has a ~1/3! chance of coincidentally
+    # matching insertion order -- which it DOES on CPython 3.14 (PYTHONHASHSEED=0),
+    # making the drifted fixture look correct and silently breaking the oracle's
+    # discrimination. 8 items drops that to ~1/8! and holds across seeds/versions.
     "dedupe": [
         ("duplicates removed with original order preserved",
-         "m.dedupe(['walt@x.com', 'zoe@y.org', 'amy@z.net', 'walt@x.com', 'zoe@y.org'])",
-         "['walt@x.com', 'zoe@y.org', 'amy@z.net']"),
+         "m.dedupe(['walt@x.com', 'zoe@y.org', 'amy@z.net', 'kim@a.io', 'raj@b.dev', "
+         "'eve@c.co', 'bob@d.ai', 'ann@e.sh', 'walt@x.com', 'zoe@y.org'])",
+         "['walt@x.com', 'zoe@y.org', 'amy@z.net', 'kim@a.io', 'raj@b.dev', "
+         "'eve@c.co', 'bob@d.ai', 'ann@e.sh']"),
     ],
     "search": [
         ("matching is case-insensitive",

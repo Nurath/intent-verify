@@ -58,3 +58,6 @@ jobs:
           Write-Host "ps1 hook OK under ${{ matrix.shell }}: $($entry.id)"
       - name: Python hook + unit tests on Windows
         run: python -m unittest discover -s tests -v
+
+      - name: Benchmark — mock orchestration (Windows console encoding regression)
+        run: python benchmark/run_bench.py --mode mock --no-write
