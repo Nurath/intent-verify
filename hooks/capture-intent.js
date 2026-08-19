@@ -188,9 +188,14 @@ if (require.main === module) {
   if (process.argv.includes('--selftest')) {
     selftest();
   } else {
+    const MAX_STDIN = 10 * 1024 * 1024;
     let raw = '';
     process.stdin.setEncoding('utf8');
-    process.stdin.on('data', (c) => { raw += c; if (raw.length > 10 * 1024 * 1024) { process.stdin.pause(); } });
+    // Bound memory WITHOUT pausing: a paused stream never emits 'end', so the
+    // capture+exit path would never run and we'd depend on the event loop
+    // happening to drain (silently dropping the prompt, or hanging if anything
+    // else kept the loop alive). Stop accumulating but keep draining to EOF.
+    process.stdin.on('data', (c) => { if (raw.length <= MAX_STDIN) raw += c; });
     process.stdin.on('end', () => {
       try { capture(raw, process.env); } catch (e) { debug(e.message); }
       process.exit(0);

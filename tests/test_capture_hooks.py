@@ -91,6 +91,34 @@ class TestNodeHook(HookContract, unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
 
 
+    def test_stdin_cap_does_not_break_the_stream_lifecycle(self):
+        """Regression: the >10MiB memory guard used process.stdin.pause().
+
+        A paused stream never emits 'end', so the capture+exit path never ran and
+        the prompt was silently DROPPED -- the process exited only because the
+        event loop happened to drain, and would stall if anything else kept the
+        loop alive. Bounding memory must not break the stream lifecycle.
+
+        stdin is a redirected file here, not a pipe: the drop is chunk-timing
+        dependent and reproduces deterministically on this transport (a hook must
+        not lose the prompt based on how stdin is delivered). Sized just past the
+        cap so the JSON still closes -- fixed drains to EOF and captures a
+        truncated entry; paused captures nothing.
+        """
+        payload = json.dumps({"prompt": "x" * (10 * 1024 * 1024 + 20000)})
+        src = os.path.join(self.dir, "payload.json")
+        with open(src, "w", encoding="utf-8") as f:
+            f.write(payload)
+        env = {**os.environ, "CLAUDE_PROJECT_DIR": self.dir}
+        with open(src, "rb") as fh:
+            r = subprocess.run(self.CMD, stdin=fh, capture_output=True,
+                               text=True, timeout=30, env=env)
+        self.assertEqual(r.returncode, 0, "hook must always exit 0")
+        self.assertEqual(r.stdout, "", "hook stdout is injected as context; must stay silent")
+        entries = read_jsonl(self.dir)
+        self.assertEqual(len(entries), 1, "oversized prompt must still reach the ledger")
+        self.assertTrue(entries[0]["truncated"])
+
 class TestPythonHook(HookContract, unittest.TestCase):
     CMD = [sys.executable, os.path.join(HOOKS, "capture-intent.py")]
 
