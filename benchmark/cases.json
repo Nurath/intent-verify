@@ -1,0 +1,213 @@
+{
+  "schema_version": 1,
+  "note": "Machine-readable index of benchmark/cases.md + fixture files. 'expected' is the ground-truth verdict an ideal intent-anchored verifier reaches. 'entry' is the function under test. 'differential' marks cases whose drift is invisible to diff-anchored review (truthful-but-omitting description).",
+  "cases": [
+    {
+      "id": "median",
+      "suite": "controlled",
+      "fixture": "impl/median.py",
+      "entry": "middle",
+      "expected": "DRIFTED",
+      "differential": false,
+      "request": "Add middle(nums) that returns the median of a list."
+    },
+    {
+      "id": "ratelimit",
+      "suite": "controlled",
+      "fixture": "impl/ratelimit.py",
+      "entry": "allow_login",
+      "expected": "DRIFTED",
+      "differential": false,
+      "request": "Rate-limit login to 5 attempts per minute per IP; different IPs are tracked independently."
+    },
+    {
+      "id": "sortposts",
+      "suite": "controlled",
+      "fixture": "impl/sortposts.py",
+      "entry": "sort_posts",
+      "expected": "DRIFTED",
+      "differential": true,
+      "request": "Sort posts by date, newest first."
+    },
+    {
+      "id": "dedupe",
+      "suite": "controlled",
+      "fixture": "impl/omitted-intent/dedupe.py",
+      "entry": "dedupe",
+      "expected": "DRIFTED",
+      "differential": false,
+      "request": "Remove duplicate emails from the list, keeping the original order."
+    },
+    {
+      "id": "search",
+      "suite": "controlled",
+      "fixture": "impl/omitted-intent/search.py",
+      "entry": "search",
+      "expected": "DRIFTED",
+      "differential": true,
+      "request": "Filter items to those containing the query, case-insensitively."
+    },
+    {
+      "id": "roundprice",
+      "suite": "controlled",
+      "fixture": "impl/omitted-intent/roundprice.py",
+      "entry": "round_price",
+      "expected": "DRIFTED",
+      "differential": false,
+      "request": "Round a price to 2 decimal places, rounding half up."
+    },
+    {
+      "id": "validate",
+      "suite": "controlled",
+      "fixture": "impl/omitted-intent/validate.py",
+      "entry": "valid_username",
+      "expected": "DRIFTED",
+      "differential": true,
+      "request": "A username is valid if it is 3 to 20 characters, trimming surrounding whitespace first."
+    },
+    {
+      "id": "sorttasks",
+      "suite": "controlled",
+      "fixture": "impl/omitted-intent/sorttasks.py",
+      "entry": "sort_tasks",
+      "expected": "DRIFTED",
+      "differential": true,
+      "request": "Sort tasks by priority, highest first; break ties by earliest due date."
+    },
+    {
+      "id": "median_ok",
+      "suite": "controlled",
+      "fixture": "impl/correct/median_ok.py",
+      "entry": "middle",
+      "expected": "MATCHES INTENT",
+      "differential": false,
+      "request": "Add middle(nums) that returns the median of a list."
+    },
+    {
+      "id": "ratelimit_ok",
+      "suite": "controlled",
+      "fixture": "impl/correct/ratelimit_ok.py",
+      "entry": "allow_login",
+      "expected": "MATCHES INTENT",
+      "differential": false,
+      "request": "Rate-limit login to 5 attempts per minute per IP; different IPs are tracked independently."
+    },
+    {
+      "id": "sortposts_ok",
+      "suite": "controlled",
+      "fixture": "impl/correct/sortposts_ok.py",
+      "entry": "sort_posts",
+      "expected": "MATCHES INTENT",
+      "differential": false,
+      "request": "Sort posts by date, newest first."
+    },
+    {
+      "id": "dedupe_ok",
+      "suite": "controlled",
+      "fixture": "impl/correct/dedupe_ok.py",
+      "entry": "dedupe",
+      "expected": "MATCHES INTENT",
+      "differential": false,
+      "request": "Remove duplicate emails from the list, keeping the original order."
+    },
+    {
+      "id": "search_ok",
+      "suite": "controlled",
+      "fixture": "impl/correct/search_ok.py",
+      "entry": "search",
+      "expected": "MATCHES INTENT",
+      "differential": false,
+      "request": "Filter items to those containing the query, case-insensitively."
+    },
+    {
+      "id": "roundprice_ok",
+      "suite": "controlled",
+      "fixture": "impl/correct/roundprice_ok.py",
+      "entry": "round_price",
+      "expected": "MATCHES INTENT",
+      "differential": false,
+      "request": "Round a price to 2 decimal places, rounding half up."
+    },
+    {
+      "id": "validate_ok",
+      "suite": "controlled",
+      "fixture": "impl/correct/validate_ok.py",
+      "entry": "valid_username",
+      "expected": "MATCHES INTENT",
+      "differential": false,
+      "request": "A username is valid if it is 3 to 20 characters, trimming surrounding whitespace first."
+    },
+    {
+      "id": "sorttasks_ok",
+      "suite": "controlled",
+      "fixture": "impl/correct/sorttasks_ok.py",
+      "entry": "sort_tasks",
+      "expected": "MATCHES INTENT",
+      "differential": false,
+      "request": "Sort tasks by priority, highest first; break ties by earliest due date."
+    },
+    {
+      "id": "field_gpt54",
+      "suite": "field",
+      "fixture": "field/task1-gpt5.4-cost.py",
+      "entry": "compute_call_cost",
+      "expected": "MATCHES INTENT",
+      "differential": false,
+      "request": "Add rates for the gpt-5.4 model — the full model, NOT the mini. gpt-5.4-mini must keep resolving to its own (mini) rates."
+    },
+    {
+      "id": "field_discount",
+      "suite": "field",
+      "fixture": "field/task2-discount-cost.py",
+      "entry": "compute_call_cost",
+      "expected": "MATCHES INTENT",
+      "differential": false,
+      "request": "Add a discount_pct parameter that discounts the LLM cost only; the total must reflect the discounted LLM line."
+    },
+    {
+      "id": "field_telephony",
+      "suite": "field",
+      "fixture": "field/task3-telephony-cost.py",
+      "entry": "compute_call_cost",
+      "expected": "MATCHES INTENT",
+      "differential": false,
+      "request": "Telephony bills per whole minute, rounding partial minutes up (61 seconds bills as 2 minutes)."
+    },
+    {
+      "id": "recall_gpt4omini",
+      "suite": "field-recall",
+      "fixture": "field-recall/task1-gpt4o-mini.py",
+      "entry": "compute_call_cost",
+      "expected": "MATCHES INTENT",
+      "differential": false,
+      "request": "Add the gpt-4o-mini model with its own rates; plain gpt-4o must keep its existing rates."
+    },
+    {
+      "id": "recall_platformfee",
+      "suite": "field-recall",
+      "fixture": "field-recall/task2-platform-fee.py",
+      "entry": "compute_call_cost",
+      "expected": "MATCHES INTENT",
+      "differential": false,
+      "request": "Add platform_fee_pct — a fee computed as a percentage of the total, added as a new line item."
+    },
+    {
+      "id": "recall_weekend",
+      "suite": "field-recall",
+      "fixture": "field-recall/task3-weekend-surcharge.py",
+      "entry": "compute_call_cost",
+      "expected": "MATCHES INTENT",
+      "differential": false,
+      "request": "Add a weekend_surcharge that multiplies telephony cost only by 1.5 on weekends."
+    },
+    {
+      "id": "recall_sumcosts",
+      "suite": "field-recall",
+      "fixture": "field-recall/task4-sum-costs.py",
+      "entry": "sum_costs",
+      "expected": "MATCHES INTENT",
+      "differential": false,
+      "request": "Add a sum_costs() aggregator that sums the 5 cost fields across calls, rounds, and returns zeros for an empty list."
+    }
+  ]
+}
