@@ -66,6 +66,7 @@ import textwrap
 HEADER = "INTENT-VERIFY LEDGER v1"
 VERDICTS = {"PASS", "FAIL", "NOT-EXERCISED"}
 STRUCTURED_BUDGET = 5
+NOTES_SHOWN = 10
 
 # Horizontal whitespace only. A single-line field's value must sit on the
 # field's own line: with \s here an empty "EVIDENCE-CMD:" swallowed the line
@@ -338,8 +339,12 @@ def _emit_manifest(manifest, notes, out):
         print(f"  {c['id']}. {c['text']}  " + (f"[quote: {c['quote']!r}]" if c["quote"] else "[no quote]"))
     for a in manifest["ambiguities"]:
         print(f"AMBIGUITY: {a}")
-    for n in notes:
+    # A hint, so it must stay readable: a long request has hundreds of sentences
+    # that are context and not requirements.
+    for n in notes[:NOTES_SHOWN]:
         print(f"NOTE: no criterion quotes this part of the request: {n}")
+    if len(notes) > NOTES_SHOWN:
+        print(f"NOTE: ... and {len(notes) - NOTES_SHOWN} more parts of the request that no criterion quotes")
     if out:
         with open(out, "w", encoding="utf-8", newline="\n") as f:
             json.dump(manifest, f, ensure_ascii=False, indent=2)

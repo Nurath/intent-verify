@@ -29,6 +29,10 @@ Departures from the text below, each deliberate:
   writes them, which is Change C.
 - **No `request_sha256` in the manifest (A).** Nothing would have read it.
 - **`--criteria` is spelled `--manifest-from` (A).**
+- **`--list` does not print a command that deletes a legacy ledger (B).** It
+  names the directory and says it can be deleted once its requests are no
+  longer needed. That output is read by an agent, and a ready-made delete
+  command for a user's files does not belong in front of one.
 - **The deriver's allowlist names two inert tools**, not one, so that it
   resolves both where `TodoWrite` exists and where it does not.
 - **Harness events are labelled when the ledger is read**, not when it is

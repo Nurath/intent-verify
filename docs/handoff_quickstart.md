@@ -52,7 +52,7 @@ only when someone runs the two update commands in the runbook and restarts.
 
 ## Test baseline (0.3.0)
 
-- `python3 -m unittest discover -s tests`: 180 tests. On Windows 18 skip (POSIX
+- `python3 -m unittest discover -s tests`: 181 tests. On Windows 18 skip (POSIX
   shell tests and one layout-specific test); on Linux and macOS the PowerShell
   classes skip instead.
 - `node hooks/capture-intent.js --selftest`: 25 of 25.

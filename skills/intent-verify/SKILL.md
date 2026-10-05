@@ -170,7 +170,8 @@ below.
    evidence-backed ledger, too little of the change was exercisable, or the
    request itself was incomplete). Also say: which request entries were frozen
    (id + first line); where the criteria came from (the independent deriver,
-   the user, or you); any ambiguity the user resolved; any `NOTE:` lines.
+   the user, or you); which criteria carry no quote, since those were inferred
+   and not stated; any ambiguity the user resolved; any `NOTE:` lines.
 
 ## Verification rounds are bounded (no verify↔fix loops)
 

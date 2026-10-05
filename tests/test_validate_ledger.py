@@ -333,6 +333,15 @@ class TestCommandLine(unittest.TestCase):
         self.assertIn("NOTE: no criterion quotes this part of the request: It felt slow on large blogs yesterday.", r.stdout)
         self.assertEqual([c["id"] for c in json.loads(written["manifest.json"])["criteria"]], [1, 2, 3])
 
+    def test_a_long_request_does_not_bury_the_report_in_notes(self):
+        """Run on its own design document, the hint printed 287 lines."""
+        request = REQUEST + " " + " ".join("Background sentence number %d says nothing new." % i for i in range(40))
+        r, _ = self._run("--check-manifest", "reply.txt", "--request", "request.md",
+                         **{"reply.txt": MANIFEST_REPLY, "request.md": request})
+        notes = [l for l in r.stdout.splitlines() if l.startswith("NOTE:")]
+        self.assertEqual(len(notes), 11)
+        self.assertIn("and 31 more parts", notes[-1])
+
     def test_ledger_is_checked_against_a_manifest_on_the_command_line(self):
         manifest = json.dumps(MANIFEST)
         full = L("INTENT-VERIFY LEDGER v1", "mode: FULL", *passing(1, "Posts are in date order"),
