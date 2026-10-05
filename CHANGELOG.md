@@ -55,6 +55,10 @@ and the three verdicts.
 - **Prefixed API keys were stored verbatim** (`sk-proj-…`, `sk-svcacct-…`,
   `sk-admin-…`, `sk-ant-api03-…`): the pattern required an unbroken
   alphanumeric run.
+- **The sh fallbacks redacted nothing on macOS.** Their `sed` rules began with
+  `\b`, which BSD sed does not treat as a word boundary, so no rule ever
+  matched there. They are plain POSIX ERE now. Present since 0.2.0; found by
+  the macOS CI leg this release adds.
 
 ### Fixed — benchmark runner (`--mode cli`)
 - A verifier timeout aborted the whole run, and a failed launch or silent crash

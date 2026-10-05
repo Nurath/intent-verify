@@ -54,13 +54,16 @@ fi
 # last-resort path cannot tell a verify-invocation from a task.
 max_log="${INTENT_VERIFY_MAX_LOG:-1048576}"
 redact_sed() {
+    # POSIX ERE only. BSD sed (macOS) does not treat \b as a word boundary, so
+    # with \b these rules matched nothing there. The boundary is an explicit
+    # captured character that the replacement puts back.
     sed -E \
-        -e 's/\bgithub_pat_[A-Za-z0-9_]{22,}/[REDACTED:github-pat]/g' \
-        -e 's/\bgh[pousr]_[A-Za-z0-9]{36,}/[REDACTED:github-token]/g' \
-        -e 's/\bsk-(proj|svcacct|admin|ant-[a-z]+[0-9]*)-[A-Za-z0-9_-]{20,}/[REDACTED:api-key]/g' \
-        -e 's/\bsk-(ant-)?[A-Za-z0-9]{20,}/[REDACTED:api-key]/g' \
-        -e 's/\bxox[baprs]-[A-Za-z0-9-]{10,}/[REDACTED:slack-token]/g' \
-        -e 's/\bAKIA[0-9A-Z]{16}/[REDACTED:aws-key-id]/g' 2>/dev/null || cat
+        -e 's/(^|[^[:alnum:]_])github_pat_[A-Za-z0-9_]{22,}/\1[REDACTED:github-pat]/g' \
+        -e 's/(^|[^[:alnum:]_])gh[pousr]_[A-Za-z0-9]{36,}/\1[REDACTED:github-token]/g' \
+        -e 's/(^|[^[:alnum:]_])sk-(proj|svcacct|admin|ant-[a-z]+[0-9]*)-[A-Za-z0-9_-]{20,}/\1[REDACTED:api-key]/g' \
+        -e 's/(^|[^[:alnum:]_])sk-(ant-)?[A-Za-z0-9]{20,}/\1[REDACTED:api-key]/g' \
+        -e 's/(^|[^[:alnum:]_])xox[baprs]-[A-Za-z0-9-]{10,}/\1[REDACTED:slack-token]/g' \
+        -e 's/(^|[^[:alnum:]_])AKIA[0-9A-Z]{16}/\1[REDACTED:aws-key-id]/g' 2>/dev/null || cat
 }
 prune_archives() {
     # Keep the 3 newest rotation archives of "$1". The glob expands in name order

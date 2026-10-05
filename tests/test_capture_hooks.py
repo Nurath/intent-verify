@@ -337,14 +337,15 @@ class TestShDegradedPaths(unittest.TestCase):
     @unittest.skipUnless(shutil.which("jq"), "jq not available")
     def test_jq_path_tags_and_redacts(self):
         os.symlink(shutil.which("jq"), os.path.join(self.farm, "jq"))
-        key = "sk-proj-" + "Ab1_" * 12
+        key, token = "sk-proj-" + "Ab1_" * 12, "ghp_" + "a" * 36
         self.run_sh(json.dumps({"prompt": "verify this did what I asked"}))
-        r = self.run_sh(json.dumps({"prompt": "verify this endpoint returns 404 using %s" % key}))
+        r = self.run_sh(json.dumps({"prompt": "verify this endpoint returns 404 using %s then %s" % (key, token)}))
         self.assertEqual(r.returncode, 0, r.stderr)
         entries = read_jsonl(self.dir)
         self.assertEqual([e["kind"] for e in entries], ["verify-invocation", "task"])
-        self.assertNotIn(key, entries[1]["prompt"])
-        self.assertIn("[REDACTED:api-key]", entries[1]["prompt"])
+        # sed here is whatever the platform ships: GNU on Linux, BSD on macOS.
+        self.assertEqual(entries[1]["prompt"],
+                         "verify this endpoint returns 404 using [REDACTED:api-key] then [REDACTED:github-token]")
 
 
 if __name__ == "__main__":
