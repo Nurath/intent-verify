@@ -1,0 +1,19 @@
+Use the Agent tool to run the `intent-verify:intent-verifier` agent once, in the foreground, with model sonnet. Give it exactly the text between the two rulers below as its prompt. When it has finished, reply with the single word DONE and nothing else; do not repeat or summarise its report.
+
+------------------------------------------------------------
+MODE: FULL
+RUN NONCE: caa7cc1aba80f7ae443a3c7b6043e767
+
+ORIGINAL REQUEST (frozen, ground truth):
+"Add middle(nums) that returns the median of a list."
+
+MANIFEST (fixed before anyone read the code; copy each one into your ledger under the same number with the same text):
+1. A function named middle exists and accepts a single list of numbers as its argument
+2. middle returns the median of the list it is given
+3. For a list with an odd number of elements, middle returns the middle value of the sorted list, even if the input is unsorted
+4. For a list with an even number of elements, middle returns the conventional median (the mean of the two middle values of the sorted list)
+5. middle does not alter the list passed in (e.g. does not sort it in place)
+
+CODE TO VERIFY: <repo>/benchmark/impl/median.py (a single Python module; use python, not python3).
+Run the code, then emit the ledger.
+------------------------------------------------------------

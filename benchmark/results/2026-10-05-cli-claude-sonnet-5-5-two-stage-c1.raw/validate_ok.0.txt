@@ -1,0 +1,12 @@
+{"ledger": 1,
+ "nonce": "057fdf0fb084667a8a3f958b9d52b4b5",
+ "mode": "FULL",
+ "criteria": [
+  {"id": 1, "text": "A username whose length is between 3 and 20 characters (inclusive) after trimming surrounding whitespace is valid", "verdict": "PASS", "cmd": "python -c \"from validate_ok import valid_username as v; print(v('abc'), v('a'*20), v('abcdefghij'))\"", "out": "True True True"},
+  {"id": 2, "text": "A username with fewer than 3 characters after trimming is invalid", "verdict": "PASS", "cmd": "python -c \"from validate_ok import valid_username as v; print(v('ab'), v(''), v('a'), v('   '))\"", "out": "False False False False"},
+  {"id": 3, "text": "A username with more than 20 characters after trimming is invalid", "verdict": "PASS", "cmd": "python -c \"from validate_ok import valid_username as v; print(v('a'*21), v('a'*100))\"", "out": "False False"},
+  {"id": 4, "text": "Leading and trailing whitespace is removed before the length is measured, so surrounding whitespace does not count toward the length (e.g. ' ab ' is invalid, and a 20-character name padded with spaces is valid)", "verdict": "PASS", "cmd": "python -c \"from validate_ok import valid_username as v; print(v(' ab '), v(' '+'a'*20+' '), v('  abc  '), v(' '*5+'a'*21+' '*5), v('\\t\\nabc\\n'))\"", "out": "False True True False True"}
+ ],
+ "final": "MATCHES INTENT"}
+
+OBSERVATIONS: python3 isn't installed here, so I used `python` (3.14.3). Each cmd was run as part of a single combined script, with the arguments shown.

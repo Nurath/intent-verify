@@ -1,0 +1,14 @@
+{"ledger": 1,
+ "nonce": "ca29aca2c2f5931b2923b5a8fc988a6c",
+ "mode": "FULL",
+ "criteria": [
+  {"id": 1, "text": "Posts are returned ordered by their date, with the most recent date first and the oldest last", "verdict": "FAIL",
+   "cmd": "cd benchmark/impl && python -c \"from sortposts import sort_posts; p=[{'id':1,'date':'2024-01-05'},{'id':2,'date':'2025-03-01'},{'id':3,'date':'2023-07-09'},{'id':4,'date':'2025-03-01'}]; r=sort_posts(p); print([x['date'] for x in r])\"",
+   "out": "['2023-07-09', '2024-01-05', '2025-03-01', '2025-03-01']"},
+  {"ledger_note": null, "id": 2, "text": "Sorting does not add or drop any posts: the same set of posts appears before and after sorting", "verdict": "PASS",
+   "cmd": "cd benchmark/impl && python -c \"from sortposts import sort_posts; p=[{'id':1,'date':'2024-01-05'},{'id':2,'date':'2025-03-01'},{'id':3,'date':'2023-07-09'},{'id':4,'date':'2025-03-01'}]; r=sort_posts(p); print(sorted(x['id'] for x in r)==sorted(x['id'] for x in p), len(r), len(p))\"",
+   "out": "True 4 4"}
+ ],
+ "final": "DRIFTED — criteria 1 failed"}
+
+OBSERVATIONS: The code uses `sorted(..., key=lambda p: p["date"])` with no `reverse=True`, so it sorts oldest first. That is the opposite of the "newest first" the request asked for. `python3` is not installed here, so I ran the code with `python`.

@@ -1,0 +1,10 @@
+{"ledger": 1,
+"nonce": "b956d2733acc58e51a6afc21fc9848ff",
+"mode": "FULL",
+"criteria": [
+{"id": 1, "text": "A price with more than 2 decimal places is rounded to the nearest hundredth (e.g. 1.004 gives 1.00 and 1.006 gives 1.01)", "verdict": "PASS", "cmd": "python -c \"from roundprice_ok import round_price as r; [print(repr(x), repr(r(x))) for x in [1.004,1.006,1.0049999]]\"", "out": "1.004 1.0\n1.006 1.01\n1.0049999 1.0"},
+{"id": 2, "text": "A price exactly halfway between two hundredths rounds up to the larger one (e.g. 1.005 gives 1.01 and 2.675 gives 2.68)", "verdict": "PASS", "cmd": "python -c \"from roundprice_ok import round_price as r; [print(repr(x), repr(r(x))) for x in [1.005,2.675,0.125,1.015]]\"", "out": "1.005 1.01\n2.675 2.68\n0.125 0.13\n1.015 1.02"},
+{"id": 3, "text": "A price that already has 2 or fewer decimal places is returned with the same value (e.g. 3.10 stays 3.10 and 5 stays 5.00)", "verdict": "PASS", "cmd": "python -c \"from roundprice_ok import round_price as r; [print(repr(x), repr(r(x))) for x in [3.10,5,2.5]]\"", "out": "3.1 3.1\n5 5.0\n2.5 2.5"}
+],
+"final": "MATCHES INTENT"}
+OBSERVATIONS: The function returns a float, so 3.10 prints as 3.1 and 5 as 5.0. The values are equal, but trailing zeros are not preserved. Negative prices were not tested.

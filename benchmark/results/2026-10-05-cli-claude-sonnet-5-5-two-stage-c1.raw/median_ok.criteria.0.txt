@@ -1,0 +1,8 @@
+{"manifest": 1,
+ "criteria": [
+   {"id": 1, "text": "A function named middle exists and takes a single list of numbers, nums", "quote": "Add middle(nums)"},
+   {"id": 2, "text": "For a list with an odd number of elements, middle returns the middle element of the list when sorted (e.g. middle([3, 1, 2]) == 2)", "quote": "returns the median of a list"},
+   {"id": 3, "text": "For a list with an even number of elements, middle returns the mean of the two middle elements of the sorted list (e.g. middle([4, 1, 3, 2]) == 2.5)", "quote": "returns the median of a list"},
+   {"id": 4, "text": "The result does not depend on the order of the input list (an unsorted list gives the same median as its sorted version)", "quote": "returns the median of a list"}
+ ],
+ "ambiguities": []}

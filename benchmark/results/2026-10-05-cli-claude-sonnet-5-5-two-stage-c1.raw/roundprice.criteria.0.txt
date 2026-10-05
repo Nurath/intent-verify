@@ -1,0 +1,8 @@
+{"manifest": 1,
+ "criteria": [
+  {"id": 1, "text": "The result of rounding a price has at most 2 decimal places (e.g. 3.14159 gives 3.14).", "quote": "Round a price to 2 decimal places"},
+  {"id": 2, "text": "A price not exactly halfway between two 2-decimal values rounds to the nearer one (e.g. 1.234 gives 1.23 and 1.236 gives 1.24).", "quote": "Round a price to 2 decimal places"},
+  {"id": 3, "text": "A price exactly halfway between two 2-decimal values rounds up to the higher one, using the decimal value as written (e.g. 1.005 gives 1.01, 2.675 gives 2.68, 0.125 gives 0.13).", "quote": "rounding half up"},
+  {"id": 4, "text": "A price that already has 2 or fewer decimal places is returned with the same value (e.g. 4.50 stays 4.50, 7 stays 7).", "quote": null}
+ ],
+ "ambiguities": []}

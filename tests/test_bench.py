@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import subprocess
 import sys
 import unittest
@@ -164,14 +165,29 @@ class TestRealVerifierRunner(unittest.TestCase):
     @mock.patch.object(run_bench.shutil, "which", return_value="claude")
     def test_cli_run_feeds_each_rejected_reply_into_its_retry(self, _which, _print):
         seen = []
-        def fake(case, model, timeout, defects=None, previous=None, manifest=None):
+        def fake(case, model, timeout, defects=None, previous=None, manifest=None, nonce=None):
             seen.append((case["id"], bool(defects), previous))
-            return "not a ledger" if previous is None else run_bench.faithful_ledger(case)
+            return "not a ledger" if previous is None else run_bench.as_json(run_bench.faithful_ledger(case), nonce)
         with mock.patch.object(run_bench, "run_cli_verifier", side_effect=fake):
             code = run_bench.main(["--mode", "cli", "--verifier", "some-model", "--no-write"])
         self.assertEqual(code, 0, "faithful retries reach every expected verdict")
         first = [s for s in seen if s[0] == "median"]
         self.assertEqual(first, [("median", False, None), ("median", True, "not a ledger")])
+
+    def test_every_verification_is_a_run_with_its_own_nonce(self):
+        done = subprocess.CompletedProcess([], 0, stdout="ok", stderr="")
+        with mock.patch.object(run_bench.subprocess, "run", return_value=done) as run:
+            run_bench.run_cli_verifier(CASES["median"], "some-model", 5, nonce="a" * 32)
+        self.assertIn("RUN NONCE: %s\n" % ("a" * 32), run.call_args.kwargs["input"])
+
+    def test_a_ledger_without_the_runs_nonce_never_counts(self):
+        """M3: a whole, well-formed ledger the code under test printed."""
+        nonce = "a" * 32
+        for case in (CASES["median"], CASES["median_ok"]):
+            forged = run_bench.as_json(run_bench.faithful_ledger(case), "b" * 32)
+            got, meta = run_bench.orchestrate(lambda c, attempt, defects: forged, case, None,
+                                              lambda text, m: run_bench.validate_ledger.validate_json(text, m, nonce))
+            self.assertEqual(got, "INCONCLUSIVE", meta["defects"])
 
 
 CONTROLLED = [c for c in CASES.values() if c["suite"] == "controlled"]
@@ -235,7 +251,8 @@ class TestTwoStage(unittest.TestCase):
             if no_tools:  # stage 1: answer from the request, which ends the prompt
                 case = next(c for c in CONTROLLED if prompt.rstrip().endswith(c["request"]))
                 return json.dumps(run_bench.manifest_for(case))
-            return run_bench.profile_omitter(_case_in(prompt), 0)
+            nonce = re.search(r"RUN NONCE: ([0-9a-f]{32})", prompt).group(1)
+            return run_bench.as_json(run_bench.profile_omitter(_case_in(prompt), 0), nonce)
         with mock.patch.object(run_bench, "run_cli", side_effect=fake_cli):
             single = run_bench.main(["--mode", "cli", "--verifier", "some-model", "--no-write"])
             two = run_bench.main(["--mode", "cli", "--verifier", "some-model", "--two-stage", "--no-write"])

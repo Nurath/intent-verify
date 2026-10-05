@@ -1,0 +1,7 @@
+{"manifest": 1,
+ "criteria": [
+   {"id": 1, "text": "A price with more than 2 decimal places is rounded to the nearest hundredth (e.g. 1.004 gives 1.00 and 1.006 gives 1.01)", "quote": "Round a price to 2 decimal places"},
+   {"id": 2, "text": "A price exactly halfway between two hundredths rounds up to the larger one (e.g. 1.005 gives 1.01 and 2.675 gives 2.68)", "quote": "rounding half up"},
+   {"id": 3, "text": "A price that already has 2 or fewer decimal places is returned with the same value (e.g. 3.10 stays 3.10 and 5 stays 5.00)", "quote": null}
+ ],
+ "ambiguities": []}

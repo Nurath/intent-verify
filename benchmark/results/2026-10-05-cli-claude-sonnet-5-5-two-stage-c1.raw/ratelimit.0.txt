@@ -1,0 +1,12 @@
+{"ledger": 1,
+ "nonce": "db5da1fcc45de27d99bbbf58c5ed0ff4",
+ "mode": "FULL",
+ "criteria": [
+  {"id": 1, "text": "A single IP can make up to 5 login attempts within a one-minute window without being rate-limited", "verdict": "PASS", "cmd": "cd benchmark/impl && PYTHONPATH=. python $TEMP/t.py  # time.time mocked; 5 calls allow_login('A')", "out": "1: [True, True, True, True, True]"},
+  {"id": 2, "text": "A 6th login attempt from the same IP within the same minute is rejected by the rate limiter", "verdict": "PASS", "cmd": "same script; 6th allow_login('A') after 5 allowed", "out": "2: False"},
+  {"id": 3, "text": "Login attempts from one IP that has exhausted its limit do not cause attempts from a different IP to be rate-limited", "verdict": "FAIL", "cmd": "same script; allow_login('B') after A exhausted its 5", "out": "3: False"},
+  {"id": 4, "text": "Each IP's attempts are counted separately, so attempts from other IPs do not count toward a given IP's limit of 5", "verdict": "FAIL", "cmd": "same script; A makes 3 attempts, then B makes 5", "out": "4: B x5 after A x3: [True, True, False, False, False]"},
+  {"id": 5, "text": "An IP that was rate-limited can attempt login again once the one-minute window has passed", "verdict": "PASS", "cmd": "same script; A exhausts limit, 6th rejected, then time advanced 61s and allow_login('A')", "out": "5a: False\n5b: True"}
+ ],
+ "final": "DRIFTED — criteria 3, 4 failed"}
+OBSERVATIONS: The `ip` argument of `allow_login` is never used. It keeps one global `_attempts` list, so the limit is global rather than per IP.

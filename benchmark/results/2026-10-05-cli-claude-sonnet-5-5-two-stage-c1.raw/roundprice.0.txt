@@ -1,0 +1,11 @@
+{"ledger": 1,
+ "nonce": "42e6dcb96eea5612ddb5e389bb93ff0a",
+ "mode": "FULL",
+ "criteria": [
+  {"id": 1, "text": "The result of rounding a price has at most 2 decimal places (e.g. 3.14159 gives 3.14).", "verdict": "PASS", "cmd": "python -c \"from roundprice import round_price as r; print(repr(r(3.14159)))\" (run in benchmark/impl/omitted-intent)", "out": "3.14159 -> 3.14"},
+  {"id": 2, "text": "A price not exactly halfway between two 2-decimal values rounds to the nearer one (e.g. 1.234 gives 1.23 and 1.236 gives 1.24).", "verdict": "PASS", "cmd": "python -c \"from roundprice import round_price as r; print(r(1.234), r(1.236))\" (run in benchmark/impl/omitted-intent)", "out": "1.234 -> 1.23\n1.236 -> 1.24"},
+  {"id": 3, "text": "A price exactly halfway between two 2-decimal values rounds up to the higher one, using the decimal value as written (e.g. 1.005 gives 1.01, 2.675 gives 2.68, 0.125 gives 0.13).", "verdict": "FAIL", "cmd": "python -c \"from roundprice import round_price as r; print(r(1.005), r(2.675), r(0.125))\" (run in benchmark/impl/omitted-intent)", "out": "1.005 -> 1.0\n2.675 -> 2.67\n0.125 -> 0.12"},
+  {"id": 4, "text": "A price that already has 2 or fewer decimal places is returned with the same value (e.g. 4.50 stays 4.50, 7 stays 7).", "verdict": "PASS", "cmd": "python -c \"from roundprice import round_price as r; print(r(4.50), r(7))\" (run in benchmark/impl/omitted-intent)", "out": "4.5 -> 4.5\n7 -> 7"}
+ ],
+ "final": "DRIFTED — criteria 3 failed"}
+OBSERVATIONS: `round_price` uses Python's built-in `round`, which rounds ties to even and works on the binary float value. As a result 0.125 gives 0.12, not 0.13. 1.005 and 2.675 fail for the binary-float reason: the stored floats sit just below the tie. Decimal('1.005') also gave 1.00, while Decimal('2.675') gave 2.68, which is a coincidence of banker's rounding. The function also raises a TypeError for string input. No half-up handling is present.

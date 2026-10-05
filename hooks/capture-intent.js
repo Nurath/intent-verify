@@ -12,6 +12,11 @@
  *   PostToolUse AskUserQuestion   the question and the user's answer: a scope
  *                                 decision that is not a prompt and would
  *                                 otherwise be missing from the record
+ *   SubagentStop intent-verify:intent-verifier
+ *                                 the verifier's final reply, byte for byte,
+ *                                 filed under the run whose nonce it carries,
+ *                                 so the session that wrote the code never
+ *                                 relays the evidence it is judged on
  *
  * Hook contract (do not violate):
  *   - NEVER exit non-zero: on UserPromptSubmit, exit 2 would REJECT the user's
@@ -29,6 +34,9 @@
  *   <data> = $INTENT_VERIFY_DATA, else $CLAUDE_PLUGIN_DATA (Claude Code sets it
  *            for plugin hooks), else ~/.claude/intent-verify
  *   <key>  = first 16 hex digits of sha256(normalised project path)
+ *   <data>/projects/<key>/runs/<nonce>/run.json    one verification run
+ *   <data>/projects/<key>/runs/<nonce>/reply-*.txt  the verifier's replies
+ *   <data>/projects/<key>/runs/_unmatched/          replies with no known nonce
  * One file per session, so "this session's requests" is a file and not a filter.
  * Session files untouched for INTENT_VERIFY_RETENTION_DAYS (default 30; 0 keeps
  * everything) are deleted. An entry is capped at INTENT_VERIFY_MAX_PROMPT
@@ -40,6 +48,11 @@
  *   capture-intent.js --freeze ID[,ID...] [--out FILE]
  * each with [--project DIR] [--data DIR]. The reader also reads a ledger left
  * in <project>/.intent/ by 0.2.x or by one of the alternate hooks.
+ *
+ *   capture-intent.js --begin-run [--session ID] [--project DIR] [--data DIR]
+ * starts a verification run and prints {"run": <dir>, "nonce": <hex>}. The
+ * skill puts the nonce in the verifier's dispatch and validates the reply this
+ * hook files under <dir> (validate_ledger.py --run <dir>).
  */
 'use strict';
 
@@ -85,6 +98,12 @@ const VERIFY_INVOCATION = /^\s*(?:\/\s*intent-verify(?=[:\s]|$)|intent-verify[\s
 // from the desktop app. Recognised when the ledger is READ, so entries written
 // by any version or runtime are covered.
 const HARNESS_SOURCE = /^\s*<(task-notification|agent-message|scheduled-task|ci-monitor-event)[\s>]/;
+
+// The verifier as SubagentStop names it: plugin-qualified. A matcher on the
+// bare agent name never fires for a plugin's agent (seen 2026-10-05, S2).
+const VERIFIER_AGENT = 'intent-verify:intent-verifier';
+const NONCE_IN_REPLY = /"nonce"\s*:\s*"([0-9a-f]{32})"/g;
+const UNMATCHED = '_unmatched';
 
 function intEnv(name, dflt, allowZero) {
   const v = parseInt(process.env[name], 10);
@@ -141,15 +160,53 @@ function sessionFile(root, project, sessionId) {
   return path.join(root, 'projects', projectKey(project), 'sessions', `${name}.jsonl`);
 }
 
-function append(root, project, entry) {
-  const file = sessionFile(root, project, entry.session_id);
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  const meta = path.join(path.dirname(path.dirname(file)), 'project.json');
+// project.json marks a directory this hook created; prune touches nothing else.
+function ensureProjectMeta(root, project) {
+  const dir = path.join(root, 'projects', projectKey(project));
+  fs.mkdirSync(dir, { recursive: true });
+  const meta = path.join(dir, 'project.json');
   if (!fs.existsSync(meta)) {
     try { fs.writeFileSync(meta, JSON.stringify({ path: normalizeProject(project) }) + '\n', 'utf8'); } catch (e) { debug(`project.json: ${e.message}`); }
   }
+}
+
+function append(root, project, entry) {
+  const file = sessionFile(root, project, entry.session_id);
+  ensureProjectMeta(root, project);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.appendFileSync(file, JSON.stringify(entry) + '\n', 'utf8');
   prune(root);
+}
+
+function runsDir(root, project) {
+  return path.join(root, 'projects', projectKey(project), 'runs');
+}
+
+// A verification run is a directory named by a random nonce. The skill puts
+// the nonce in the verifier's dispatch and the verifier copies it into its
+// JSON ledger. Output printed by the code under test cannot carry it.
+function beginRun(root, project, sessionId) {
+  const nonce = crypto.randomBytes(16).toString('hex');
+  ensureProjectMeta(root, project);
+  const dir = path.join(runsDir(root, project), nonce);
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'run.json'),
+    JSON.stringify({ nonce, created: new Date().toISOString(), session_id: sessionId || null }) + '\n', 'utf8');
+  return { run: dir.replace(/\\/g, '/'), nonce };
+}
+
+// The run a nonce belongs to, in any project under any root: the hook does not
+// rely on the skill having passed the same project directory or data root.
+function findRun(roots, nonce) {
+  for (const root of roots) {
+    let keys = [];
+    try { keys = fs.readdirSync(path.join(root, 'projects')); } catch { continue; }
+    for (const key of keys) {
+      const dir = path.join(root, 'projects', key, 'runs', nonce);
+      if (fs.existsSync(path.join(dir, 'run.json'))) return dir;
+    }
+  }
+  return null;
 }
 
 // Retention replaces rotation. At most once a day, delete session files nobody
@@ -164,21 +221,35 @@ function prune(root, now) {
   let removed = 0;
   try {
     fs.writeFileSync(stamp, new Date(now).toISOString() + '\n', 'utf8');
+    const stale = (p) => now - fs.statSync(p).mtimeMs > RETENTION_DAYS * DAY_MS;
     for (const key of fs.readdirSync(path.join(root, 'projects'))) {
       if (!fs.existsSync(path.join(root, 'projects', key, 'project.json'))) continue;
       const sessions = path.join(root, 'projects', key, 'sessions');
-      let names = [];
-      try { names = fs.readdirSync(sessions); } catch { continue; }
-      for (const name of names) {
+      for (const name of listDir(sessions)) {
         if (!name.endsWith('.jsonl')) continue;
         const file = path.join(sessions, name);
         try {
-          if (now - fs.statSync(file).mtimeMs > RETENTION_DAYS * DAY_MS) { fs.unlinkSync(file); removed++; }
+          if (stale(file)) { fs.unlinkSync(file); removed++; }
         } catch (e) { debug(`prune: ${e.message}`); }
+      }
+      // A run goes as a whole; unmatched replies go one by one.
+      const runs = path.join(root, 'projects', key, 'runs');
+      for (const name of listDir(runs)) {
+        const dir = path.join(runs, name);
+        const victims = name === UNMATCHED ? listDir(dir).map((n) => path.join(dir, n)) : [dir];
+        for (const victim of victims) {
+          try {
+            if (stale(victim)) { fs.rmSync(victim, { recursive: true, force: true }); removed++; }
+          } catch (e) { debug(`prune: ${e.message}`); }
+        }
       }
     }
   } catch (e) { debug(`prune: ${e.message}`); }
   return removed;
+}
+
+function listDir(dir) {
+  try { return fs.readdirSync(dir); } catch { return []; }
 }
 
 // -------------------------------------------------------------------- capture
@@ -210,6 +281,7 @@ function capture(rawInput, env, cwdOverride) {
   let payload;
   try { payload = JSON.parse(rawInput); } catch { return { skipped: 'unparseable-input' }; }
   if (payload && payload.hook_event_name === 'PostToolUse') return captureDecision(payload, env, cwdOverride);
+  if (payload && payload.hook_event_name === 'SubagentStop') return captureReply(payload, env, cwdOverride);
   const prompt = payload && payload.prompt;
   if (typeof prompt !== 'string' || prompt.trim() === '') return { skipped: 'no-prompt' };
   return store(null, payload, prompt, env, cwdOverride);
@@ -240,6 +312,34 @@ function captureDecision(payload, env, cwdOverride) {
     blocks.push(`Result as returned: ${(typeof resp === 'string' ? resp : JSON.stringify(resp)).slice(0, 2000)}`);
   }
   return store('decision', payload, blocks.join('\n\n'), env, cwdOverride);
+}
+
+// SubagentStop. Only the verifier's reply is kept, exactly as the harness
+// handed it over (S2: last_assistant_message equals the agent's final message
+// in its own transcript). It is filed under the run whose nonce it carries. A
+// reply carrying no known nonce goes to _unmatched, so the skill can tell "the
+// hook ran" from "the hook never ran". Nothing is printed: a SubagentStop hook
+// that blocks would keep the verifier running.
+function captureReply(payload, env, cwdOverride) {
+  if (payload.agent_type !== VERIFIER_AGENT) return { skipped: 'not-the-verifier' };
+  const text = payload.last_assistant_message;
+  if (typeof text !== 'string' || !text.trim()) return { skipped: 'no-reply' };
+  const roots = [writeRoot(env), ...readRoots(null, env)];
+  let dir = null;
+  for (const m of text.matchAll(NONCE_IN_REPLY)) {
+    dir = findRun(roots, m[1]);
+    if (dir) break;
+  }
+  if (!dir) {
+    const project = projectRoot(env, cwdOverride);
+    ensureProjectMeta(writeRoot(env), project);
+    dir = path.join(runsDir(writeRoot(env), project), UNMATCHED);
+  }
+  fs.mkdirSync(dir, { recursive: true });
+  const agent = String(payload.agent_id || 'agent').replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 40);
+  const file = path.join(dir, `reply-${Date.now().toString(36)}-${agent}.txt`);
+  fs.writeFileSync(file, text, 'utf8');
+  return { file };
 }
 
 // The hook input was too large to read in full, so this prompt is NOT in the
@@ -521,6 +621,30 @@ function selftest() {
   ok('prune-removes-only-stale-session-files-of-its-own-projects', removed === 1 && !fs.existsSync(stale) &&
      fs.existsSync(keepMe) && fs.existsSync(foreign) && fs.existsSync(sessionFile(data, project, 's1')) && prune(data) === 0);
 
+  // Runs: the verifier's reply is filed under the run whose nonce it carries.
+  const run = beginRun(data, project, 's1');
+  ok('begin-run-makes-a-run-named-by-its-nonce', /^[0-9a-f]{32}$/.test(run.nonce) &&
+     path.basename(run.run) === run.nonce && fs.existsSync(path.join(run.run, 'run.json')));
+  const fake = 'f'.repeat(32);
+  const reply = `I ran it.\n{"ledger": 1, "nonce": "${run.nonce}", "criteria": []}\n  the program printed "nonce": "${fake}"\n`;
+  const stop = (extra) => capture(JSON.stringify(Object.assign({ hook_event_name: 'SubagentStop',
+    agent_type: VERIFIER_AGENT, agent_id: 'a1', last_assistant_message: reply }, extra)), env);
+  r = stop();
+  ok('files-the-verifiers-reply-byte-for-byte-under-its-run',
+    r.file && path.dirname(r.file) === path.resolve(run.run) && fs.readFileSync(r.file, 'utf8') === reply);
+  ok('ignores-every-other-subagent', stop({ agent_type: 'intent-verifier' }).skipped === 'not-the-verifier' &&
+     stop({ agent_type: 'other-plugin:intent-verifier' }).skipped === 'not-the-verifier');
+  r = stop({ last_assistant_message: `{"ledger": 1, "nonce": "${fake}"}` });
+  ok('a-reply-with-no-known-nonce-is-kept-apart', r.file && path.basename(path.dirname(r.file)) === UNMATCHED);
+  const runs = path.dirname(run.run);
+  const oldRun = beginRun(data, project, 's0').run;
+  const oldReply = path.join(runs, UNMATCHED, 'reply-old.txt');
+  fs.writeFileSync(oldReply, 'x');
+  for (const p of [oldReply, oldRun]) fs.utimesSync(p, longAgo, longAgo);
+  fs.rmSync(path.join(data, '.pruned'), { force: true });
+  ok('prune-removes-stale-runs-and-unmatched-replies', prune(data) === 2 && !fs.existsSync(oldRun) &&
+     !fs.existsSync(oldReply) && fs.existsSync(run.run) && fs.existsSync(path.join(runs, UNMATCHED)));
+
   let pass = 0;
   for (const [name, good] of results) {
     process.stdout.write(`${good ? 'PASS' : 'FAIL'} ${name}\n`);
@@ -557,6 +681,10 @@ if (require.main === module) {
     }
     process.stdout.write((typeof entry.prompt === 'string' ? entry.prompt : '') + '\n');
     process.exit(0);
+  } else if (argv.includes('--begin-run')) {
+    const run = beginRun(arg('--data') || writeRoot(process.env), arg('--project') || projectRoot(process.env), arg('--session'));
+    process.stdout.write(JSON.stringify(run, null, 2) + '\n');
+    process.exit(0);
   } else if (argv.includes('--freeze')) {
     const ids = (arg('--freeze') || '').split(',').map((s) => s.trim()).filter(Boolean);
     const meta = freeze(roots, project, ids, arg('--out'));
@@ -591,4 +719,5 @@ if (require.main === module) {
   }
 }
 
-module.exports = { capture, markIncomplete, applyRedactions, list, freeze, prune, readProject, readRoots, sessionFile, projectKey, VERIFY_INVOCATION };
+module.exports = { capture, markIncomplete, applyRedactions, list, freeze, prune, readProject, readRoots, sessionFile, projectKey,
+  beginRun, findRun, VERIFY_INVOCATION, VERIFIER_AGENT };

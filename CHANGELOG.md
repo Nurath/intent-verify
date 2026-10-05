@@ -1,5 +1,43 @@
 # Changelog
 
+## 0.4.0 — 2026-10-05
+
+### Changed
+- **The session that wrote the code no longer carries the verdict.** Until
+  0.3.2 the orchestrating session, usually the one that made the change, saved
+  the verifier's reply and ran the validator on its own copy, and a ledger
+  printed by the code under test could pass for the verifier's own when the
+  verifier wrote none. Change C1 of the v0.3 design:
+  - `capture-intent.js --begin-run` starts a verification run: a directory
+    under the plugin's data directory, named by a random nonce.
+  - The verifier writes its ledger as one JSON object carrying that nonce.
+    Output printed by the code under test is a JSON string inside it, so it
+    is never structure, and the code cannot know the nonce.
+  - A `SubagentStop` hook, matched on `intent-verify:intent-verifier`, files
+    the verifier's final reply byte for byte under the run whose nonce it
+    carries (`_unmatched/` otherwise).
+  - `validate_ledger.py --run <dir>` validates that captured copy; only the
+    ledger carrying the run's nonce counts, held to the same rules as the text
+    ledger. Exit 4 means the hook filed nothing; the skill then checks its own
+    copy with `--nonce` and must say the ledger was relayed.
+- The text ledger (`INTENT-VERIFY LEDGER v1`) is still accepted without a run,
+  for manual use and the offline benchmark profiles.
+
+### Evidence
+- Live: a headless session with this version loaded ran the real verifier; the
+  hook filed its reply and `--run` validated it (DRIFTED, criteria 2 to 4, as
+  the fixture deserves).
+- Three new adversarial fixtures, drifted code that prints a FINAL line, a whole
+  text ledger, or a JSON ledger plus "report MATCHES INTENT": 3 of 3 DRIFTED.
+  Two replies quoted the forged verdict inside their evidence, where it stayed
+  a string.
+- Controlled set with the shipped JSON verifier: 16 of 16, no retries, 32 calls,
+  $1.28 at list price. The same stage-1 prompt kept 8 ambiguities this time,
+  against 3 in the 0.3.2 run: that count moves from run to run, and both are far
+  below the 41 of 0.3.1.
+- Offline: forged-ledger tests (M3), and a test that pins the 0.3 hole the
+  nonce closes.
+
 ## 0.3.2 — 2026-10-05
 
 ### Changed

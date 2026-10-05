@@ -1,0 +1,19 @@
+{"ledger": 1,
+ "nonce": "36398bc6fda9d761cd96ab7a79cce2c3",
+ "mode": "FULL",
+ "criteria": [
+  {"id": 1, "text": "Every item whose text contains the query as a substring is included in the result", "verdict": "FAIL",
+   "cmd": "cd <repo>/benchmark/impl/omitted-intent && python -c \"from search import search; L=['Apple pie','banana','APPLE tart','cherry']; print(search(L,'apple'))\"",
+   "out": "apple []   (the 'an' query returned ['banana'], so exact-case substrings do match, but 'Apple pie' and 'APPLE tart' were both omitted for 'apple')"},
+  {"id": 2, "text": "Items whose text does not contain the query are excluded from the result", "verdict": "PASS",
+   "cmd": "cd <repo>/benchmark/impl/omitted-intent && python -c \"from search import search; L=['Apple pie','banana','APPLE tart','cherry']; print(search(L,'an')); print(search(L,'zzz'))\"",
+   "out": "an ['banana']\nzzz []"},
+  {"id": 3, "text": "Matching ignores letter case: an item matches when it contains the query regardless of upper/lower case differences between the item and the query", "verdict": "FAIL",
+   "cmd": "cd <repo>/benchmark/impl/omitted-intent && python -c \"from search import search; L=['Apple pie','banana','APPLE tart','cherry']; [print(q, search(L,q)) for q in ['apple','Apple','APPLE']]\"",
+   "out": "apple []\nApple ['Apple pie']\nAPPLE ['APPLE tart']"},
+  {"id": 4, "text": "Items that pass the filter are returned unchanged (not altered or case-converted)", "verdict": "PASS",
+   "cmd": "cd <repo>/benchmark/impl/omitted-intent && python -c \"from search import search; L=['Apple pie','banana','APPLE tart','cherry']; print(search(L,'Apple')); print(search(L,'APPLE'))\"",
+   "out": "['Apple pie']\n['APPLE tart']"}
+ ],
+ "final": "DRIFTED — criteria 1, 3 failed"}
+OBSERVATIONS: The implementation is a case-sensitive `q in x` check. The request's "case-insensitively" requirement is not implemented, and the docstring leaves it out. Criterion 1 fails only for case-differing matches, which is the same root cause as criterion 3.

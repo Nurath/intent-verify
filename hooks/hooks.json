@@ -25,6 +25,19 @@
           }
         ]
       }
+    ],
+    "SubagentStop": [
+      {
+        "matcher": "intent-verify:intent-verifier",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/capture-intent.js"],
+            "timeout": 10
+          }
+        ]
+      }
     ]
   }
 }

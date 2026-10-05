@@ -431,6 +431,30 @@ class TestNodeHook(HookContract, unittest.TestCase):
         run_hook(self.CMD, json.dumps({"prompt": "anything"}), self.dir, extra_env={"INTENT_VERIFY_RETENTION_DAYS": "0"})
         self.assertTrue(os.path.exists(old))
 
+    def _stop(self, agent_type, reply):
+        return run_hook(self.CMD, json.dumps({"hook_event_name": "SubagentStop", "agent_type": agent_type,
+                                              "agent_id": "a1", "session_id": "A", "last_assistant_message": reply}),
+                        self.dir)
+
+    def test_the_verifiers_reply_is_filed_under_its_run_byte_for_byte(self):
+        """0.4.0: the hook, not the session that wrote the code, keeps the ledger."""
+        r = self._cli("--begin-run", "--session", "A")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        run = json.loads(r.stdout)
+        reply = 'I ran it.\n  {"ledger": 1, "nonce": "%s", "criteria": []}\r\nend — ok\n' % run["nonce"]
+        h = self._stop("intent-verify:intent-verifier", reply)
+        self.assertEqual((h.returncode, h.stdout), (0, ""), "a SubagentStop hook that prints or fails can keep the verifier running")
+        files = glob.glob(os.path.join(run["run"], "reply-*.txt"))
+        self.assertEqual(len(files), 1)
+        with open(files[0], encoding="utf-8", newline="") as f:
+            self.assertEqual(f.read(), reply)
+
+    def test_no_other_subagents_reply_is_kept(self):
+        run = json.loads(self._cli("--begin-run").stdout)
+        for agent in ("intent-verifier", "general-purpose", "other-plugin:intent-verifier"):
+            self.assertEqual(self._stop(agent, '{"nonce": "%s"}' % run["nonce"]).returncode, 0)
+        self.assertEqual(glob.glob(os.path.join(data_dir(self.dir), "projects", "*", "runs", "*", "reply-*")), [])
+
 
 class TestPythonHook(HookContract, unittest.TestCase):
     CMD = [sys.executable, os.path.join(HOOKS, "capture-intent.py")]

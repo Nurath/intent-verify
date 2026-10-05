@@ -12,12 +12,12 @@ made and what was left out), `docs/MODEL-COMPAT.md` (verifier tiers).
 
 | Part | File | Runs as | Job |
 |---|---|---|---|
-| Capture hook | `hooks/capture-intent.js`, registered by `hooks/hooks.json` | `node`, started by Claude Code on `UserPromptSubmit` and on `PostToolUse` for `AskUserQuestion` | Append one entry to the session's ledger. Never prints, never exits non-zero. |
-| Reader | the same file: `--list`, `--show`, `--freeze` | `node`, run from a shell by the orchestrating session | List a session's entries; write chosen entries to one request file. |
+| Capture hook | `hooks/capture-intent.js`, registered by `hooks/hooks.json` | `node`, started by Claude Code on `UserPromptSubmit`, on `PostToolUse` for `AskUserQuestion`, and on `SubagentStop` for `intent-verify:intent-verifier` | Append one entry to the session's ledger, or file the verifier's reply under its run. Never prints, never exits non-zero. |
+| Reader | the same file: `--list`, `--show`, `--freeze`, `--begin-run` | `node`, run from a shell by the orchestrating session | List a session's entries; write chosen entries to one request file; start a verification run. |
 | Skill | `skills/intent-verify/SKILL.md` | instructions to the orchestrating session | The procedure in section 2. |
 | Criteria agent | `agents/criteria.md` (`intent-criteria`) | subagent with no tool that reads files or runs commands | Request text in, criterion manifest out. |
-| Verifier agent | `agents/verifier.md` (`intent-verifier`) | subagent with `Read, Grep, Glob, Bash` | Request, manifest and code in; ledger with evidence out. |
-| Validator | `tools/validate_ledger.py` | `python`, run by the orchestrating session | Check a manifest against the request; check a ledger against a manifest. |
+| Verifier agent | `agents/verifier.md` (`intent-verifier`) | subagent with `Read, Grep, Glob, Bash` | Request, manifest, run nonce and code in; a JSON ledger with evidence, carrying the nonce, out. |
+| Validator | `tools/validate_ledger.py` | `python`, run by the orchestrating session | Check a manifest against the request; check the captured ledger (`--run`) against a manifest. |
 | Selector | `tools/select_verifier.py`, `models/registry.json` | `python` | Pick the verifier's model, tier and protocol. |
 | Benchmark | `benchmark/run_bench.py`, `oracle.py`, `cases.json` | `python` | Mock profiles offline; real models through the `claude` CLI. |
 | Alternate hooks | `hooks/capture-intent.py`, `.ps1`, `.sh` | wired by hand where Node is missing | Record prompts in the 0.2 in-project layout. Not used by the plugin. |
@@ -26,7 +26,8 @@ The orchestrating session is whichever Claude Code session the user asked to
 verify. It is usually also the session that wrote the code, which is why the
 parts above exist: each takes something away from it. The criteria agent takes
 away writing the criteria, the verifier takes away judging, the validator takes
-away deciding whether the ledger is acceptable.
+away deciding whether the ledger is acceptable, and the `SubagentStop` hook
+takes away carrying the verifier's reply to the validator.
 
 ## 2. Flow
 
@@ -49,9 +50,11 @@ sequenceDiagram
     O->>C: request text, nothing else
     C-->>O: manifest (criteria, quotes, ambiguities)
     O->>X: --check-manifest (every quote must occur in the request)
-    O->>V: request + manifest + code
-    V-->>O: ledger (verdict and evidence per criterion)
-    O->>X: ledger --manifest
+    O->>H: --begin-run (a run directory and its nonce)
+    O->>V: request + manifest + RUN NONCE + code
+    V-->>H: SubagentStop: the reply, filed under the run its nonce names
+    V-->>O: the same reply, not used for the verdict
+    O->>X: --run <dir> --manifest (only the ledger carrying the nonce counts)
     O-->>U: ledger, verdict, where the criteria came from, assumed readings
     O-->>U: one question, only if a failed criterion rests on an assumed reading
 ```
@@ -63,8 +66,11 @@ Variations the skill allows:
 - **The criteria agent cannot be dispatched, or returns no valid manifest after
   one re-request:** the orchestrating session writes the criteria and the
   report has to say they were not fixed independently.
-- **Round 2 after a fix:** from the verifier onward, with the same request and
-  the same manifest. There is no round 3.
+- **Round 2 after a fix:** from the verifier onward, in a new run, with the
+  same request and the same manifest. There is no round 3.
+- **The hook filed nothing for the run** (`--run` exits 4: an older Claude Code,
+  an alternate hook, or a reply without the nonce): the session saves the reply
+  itself and checks it with `--nonce`, and the report says it was relayed.
 
 ## 3. Storage
 
@@ -73,6 +79,9 @@ Variations the skill allows:
 ```
 <data>/projects/<key>/project.json             {"path": "<normalised project dir>"}
 <data>/projects/<key>/sessions/<session>.jsonl one JSON object per line
+<data>/projects/<key>/runs/<nonce>/run.json     {"nonce", "created", "session_id"}
+<data>/projects/<key>/runs/<nonce>/reply-<t>-<agent>.txt  a verifier reply, byte for byte
+<data>/projects/<key>/runs/_unmatched/          verifier replies carrying no known nonce
 <data>/.pruned                                  stamp: retention last ran
 ```
 
@@ -89,9 +98,14 @@ Variations the skill allows:
   (absolute, forward slashes, no trailing slash, lower case on Windows).
 - `<session>`: the session id with anything outside `[A-Za-z0-9_-]` replaced;
   `_nosession` when the payload had none.
-- **Retention:** at most once a day the hook deletes `*.jsonl` session files not
-  written to for `INTENT_VERIFY_RETENTION_DAYS` (default 30; 0 disables).
-  Nothing else is ever deleted.
+- **Runs:** `--begin-run` makes one, named by 16 random bytes in hex. The
+  `SubagentStop` hook looks for that nonce in the verifier's reply and searches
+  every root the reader would read, so a run started with another `--data` or
+  `--project` is still found.
+- **Retention:** at most once a day the hook deletes `*.jsonl` session files,
+  run directories and unmatched replies not written to for
+  `INTENT_VERIFY_RETENTION_DAYS` (default 30; 0 disables), and only inside
+  project directories it created. Nothing else is ever deleted.
 - **Legacy:** the reader also reads `<project>/.intent/log.jsonl` (0.2.x, or an
   alternate hook) and merges it. The Node hook never writes there.
 
@@ -99,7 +113,8 @@ Variations the skill allows:
 
 The skill keeps them in a scratch directory the orchestrating session chooses,
 never in the project and never in `<data>`: `request.md`, `criteria-reply.txt`,
-`manifest.json`, `ledger.txt`, `round`.
+`manifest.json`, `round`, and `ledger.txt` only when the hook filed nothing. The
+verifier's reply itself is in the run directory under `<data>` (3.1).
 
 ## 4. Contracts
 
@@ -144,11 +159,19 @@ quote touches, as notes.
 
 ### 4.3 Verifier ledger
 
-`INTENT-VERIFY LEDGER v1`: a header line, a `mode:` line, `CRITERION n:` blocks
+Since 0.4.0 the verifier writes one JSON object, `{"ledger": 1, "nonce", "mode",
+"criteria": [{"id", "text", "verdict", "cmd", "out", "reason"}], "final"}`; the
+template is in `agents/verifier.md`. `validate_json` takes the object whose
+`nonce` is the run's, rewrites it as the text ledger below and applies the same
+rules. A ledger the code under test printed cannot carry the nonce, and inside
+the object captured output is a JSON string, so neither can pass for the
+verifier's own.
+
+`INTENT-VERIFY LEDGER v1`, the text grammar of 0.1 to 0.3, is still accepted
+when no run is involved: a header line, a `mode:` line, `CRITERION n:` blocks
 each with one `VERDICT:` and either `EVIDENCE-CMD:` + `EVIDENCE-OUT:` or
-`REASON:`, and a `FINAL:` line. The template is in `agents/verifier.md`; the
-rules are in the docstring of `tools/validate_ledger.py`. The properties the
-tests pin down:
+`REASON:`, and a `FINAL:` line. The rules are in the docstring of
+`tools/validate_ledger.py`. The properties the tests pin down:
 
 - A reply holding any `VERDICT` line that is not `PASS` cannot validate as
   `MATCHES INTENT`, whatever else is in it.
@@ -171,13 +194,13 @@ still invalid after one re-request is `INCONCLUSIVE`.
 
 ### 4.5 Exit codes
 
-| Program | 0 | 1 | 2 | 3 |
-|---|---|---|---|---|
-| hook mode | always | never | never | never |
-| `--list` | always | | | |
-| `--show`, `--freeze` | found | | unknown or unsafe id | `--freeze` only: a part was truncated at capture |
-| `validate_ledger.py` | valid | invalid, defects on stdout | usage error or unreadable file | |
-| `run_bench.py` | ok | a regression, or a false MATCHES in a real run | `claude` CLI not found | |
+| Program | 0 | 1 | 2 | 3 | 4 |
+|---|---|---|---|---|---|
+| hook mode | always | never | never | never | never |
+| `--list`, `--begin-run` | always | | | | |
+| `--show`, `--freeze` | found | | unknown or unsafe id | `--freeze` only: a part was truncated at capture | |
+| `validate_ledger.py` | valid | invalid, defects on stdout | usage error or unreadable file | | `--run`: the hook filed no reply for the run |
+| `run_bench.py` | ok | a regression, or a false MATCHES in a real run | `claude` CLI not found | | |
 
 ## 5. What this needs from Claude Code
 
@@ -186,9 +209,10 @@ still invalid after one re-request is `INCONCLUSIVE`.
 | Plugin hooks in exec form (`command: node`, `args`) | capture on every platform | yes, since 0.2.0 |
 | `CLAUDE_PLUGIN_DATA` in a plugin hook's environment | where the ledger goes | yes (2.1.287) |
 | `session_id`, `prompt_id`, `transcript_path` in hook input | per-session files, linking decisions to prompts | yes |
-| `${CLAUDE_PLUGIN_ROOT}`, `${CLAUDE_PROJECT_DIR}`, `${CLAUDE_SESSION_ID}`, `${CLAUDE_PLUGIN_DATA}` filled into skill text | the skill's commands | documented; not observed directly |
-| An agent whose `tools` allowlist names only inert tools launches | the criteria agent's isolation | documented; not observed |
-| `PostToolUse` fires for `AskUserQuestion` with the answer | `decision` entries | documented in part; answer shape taken from a transcript |
+| `${CLAUDE_PLUGIN_ROOT}`, `${CLAUDE_PROJECT_DIR}`, `${CLAUDE_SESSION_ID}`, `${CLAUDE_PLUGIN_DATA}` filled into skill text | the skill's commands | yes (2.1.289, desktop app) |
+| An agent whose `tools` allowlist names only inert tools launches | the criteria agent's isolation | yes (2.1.289); `TodoWrite` no longer exists, `TaskStop` keeps it launching |
+| `PostToolUse` fires for `AskUserQuestion` with the answer | `decision` entries | yes (2.1.289, desktop app) |
+| `SubagentStop` fires for a plugin's agent, foreground and background, with `last_assistant_message` equal to its final message; the matcher is the plugin-qualified name | capturing the verifier's reply | yes (2.1.289, headless probe and a live verification) |
 | `omitClaudeMd` in agent frontmatter | keeps project instructions out of the criteria agent | documented (needs 2.1.271+) |
 
 The record of what was and was not checked is
@@ -251,6 +275,6 @@ holding each call's tokens, cost, turns, duration and session id.
 Listed with their evidence in the README under "Honest limitations". The ones
 that shape future work: the two-stage flow is measured once, on a set where
 single-stage was already perfect; stage 1 raises more questions than a quiet
-check should; the session that wrote the code still saves and validates the
-verifier's reply (Change C in the design); the alternate hooks still write
-inside the project.
+check should, and a second reading it misses gets no question; the verdict path
+is closed only while the plugin's `SubagentStop` hook runs; the alternate hooks
+still write inside the project and capture no verifier reply.
