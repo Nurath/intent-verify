@@ -234,12 +234,19 @@ forms must be POSIX ERE (BSD `sed` has no `\b`).
 ### Run it on real models
 
 `python3 benchmark/run_bench.py --mode cli --verifier <model> [--two-stage]`
-needs the `claude` CLI on PATH and logged in. Every reply is kept under
-`benchmark/results/<date>-cli-<model>[-two-stage].raw/`.
+needs the `claude` CLI on PATH and logged in. Each call runs in
+`claude -p --safe-mode`, so the runner's own CLAUDE.md, plugins, hooks and MCP
+servers stay out, and an installed intent-verify does not capture the
+benchmark's prompts. (`--bare` would also isolate the run, but it ignores OAuth
+logins.) Every reply is kept under
+`benchmark/results/<date>-cli-<model>[-two-stage].raw/`, beside a `usage.json`
+holding each call's tokens, cost, turns, duration and session id.
 
 ## 7. Known limits
 
-Listed with their evidence in the README under "Honest limitations". The three
-that shape future work: the two-stage flow is barely measured; the session that
-wrote the code still saves and validates the verifier's reply (Change C in the
-design); the alternate hooks still write inside the project.
+Listed with their evidence in the README under "Honest limitations". The ones
+that shape future work: the two-stage flow is measured once, on a set where
+single-stage was already perfect; stage 1 raises more questions than a quiet
+check should; the session that wrote the code still saves and validates the
+verifier's reply (Change C in the design); the alternate hooks still write
+inside the project.

@@ -1,0 +1,12 @@
+{"manifest": 1,
+ "criteria": [
+  {"id": 1, "text": "A function named middle exists and accepts a single list of numbers as its argument", "quote": "Add middle(nums)"},
+  {"id": 2, "text": "middle returns the median of the list it is given", "quote": "returns the median of a list"},
+  {"id": 3, "text": "For a list with an odd number of elements, middle returns the middle value once the elements are in sorted order, regardless of the input order", "quote": null},
+  {"id": 4, "text": "For a list with an even number of elements, middle returns the conventional median of the two central values in sorted order", "quote": null},
+  {"id": 5, "text": "middle does not modify the list passed in", "quote": null}
+ ],
+ "ambiguities": [
+  "What should middle return for an empty list: raise an error, or return a value such as None?",
+  "For an even-length list, should the result be the mean of the two central values (e.g. 2.5 for [1,2,3,4]), or one of the two central elements?"
+ ]}

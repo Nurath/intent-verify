@@ -1,20 +1,21 @@
 # intent-verify v0.3 — design proposal
 
 **Status:** Changes A and B and the smaller fixes were built in 0.3.0. Change C
-was not. The proposal below is kept as it was reviewed; this box records what
-came of it.
+was not. Later the same day the open platform checks passed and the two-stage
+flow was run on the controlled set. The proposal below is kept as it was
+reviewed; this box records what came of it.
 **Baseline:** v0.2.1 (PR #2). **Written:** 2026-10-05.
 
 ## What was built from this, and where it departs
 
-| Part | 0.3.0 |
+| Part | Status, 2026-10-05 |
 |---|---|
 | **A** criterion manifest, two-stage dispatch | Built: `agents/criteria.md`, `validate_ledger.py --check-manifest / --manifest / --manifest-from`, the skill's stage 1 and ambiguity question, `run_bench.py --two-stage`, the `omitter` mock profile. |
 | **B** ledger outside the project | Built for the plugin's hook: per-session files under the data directory, retention, legacy `.intent/` read as a fallback, `--show`. |
-| **C** verdict path without the implementer | Not built. C1 still needs spikes S2 and S3 and measurements M3 and M4. |
+| **C** verdict path without the implementer | Not built. C1 still needs spikes S2 and S3 and measurements M3 and M4. Decided: run S2 and M4 first, then decide. |
 | Smaller fixes | 1 to 4 built. 5 (`maxTurns`) not: it needs a number from real runs. |
-| Measurements M1–M5 | None run. Eight real-model runs as a smoke test instead: `benchmark/results/2026-10-05-two-stage-smoke.md`. |
-| Spikes | S5 (hook half) and S7 seen. S1, S4 and the skill half of S5 not run: `benchmark/results/2026-10-05-platform-spikes.md`. |
+| Measurements M1–M5 | M2 in part: the controlled set run two-stage, 16 of 16 (`benchmark/results/2026-10-05-cli-claude-sonnet-5-5-two-stage.md`), with no single-stage arm on current models. M1 and M3 to M5 not run; M1 as specified would likely tie at the set's ceiling. Before that, eight runs as a smoke test: `benchmark/results/2026-10-05-two-stage-smoke.md`. |
+| Spikes | S1, S4, S5 and S7 seen: `benchmark/results/2026-10-05-platform-spikes.md`. S2 and S3 (Change C) not run; S6 not needed. |
 
 Departures from the text below, each deliberate:
 

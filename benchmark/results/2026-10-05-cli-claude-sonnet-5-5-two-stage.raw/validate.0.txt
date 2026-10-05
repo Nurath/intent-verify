@@ -1,0 +1,57 @@
+```
+INTENT-VERIFY LEDGER v1
+mode: FULL
+
+CRITERION 1: A username whose trimmed length is between 3 and 20 characters is reported valid
+VERDICT: FAIL
+EVIDENCE-CMD: python -c "from validate import valid_username as v; print(repr('  '+'a'*20+'  '), v('  '+'a'*20+'  '))"  (run from benchmark/impl/omitted-intent, via a loop over several inputs)
+EVIDENCE-OUT:
+  '  aaaaaaaaaaaaaaaaaaaa  ' False
+  (the trimmed length is 20, so this should be valid, but it is reported invalid. Unpadded 'abc' and 'abcd' return True.)
+REASON: n/a
+
+CRITERION 2: Boundary lengths are inclusive: a trimmed username of exactly 3 characters and one of exactly 20 characters are both valid
+VERDICT: FAIL
+EVIDENCE-CMD: same loop; inputs 'abc', 'a'*20 and '  '+'a'*20+'  '
+EVIDENCE-OUT:
+  'abc' True
+  'aaaaaaaaaaaaaaaaaaaa' True
+  '  aaaaaaaaaaaaaaaaaaaa  ' False
+  (the unpadded boundaries pass, but a 20-character username with surrounding whitespace is wrongly rejected, so the trimmed boundary is not honored)
+REASON: n/a
+
+CRITERION 3: A username whose trimmed length is 2 or fewer characters is reported invalid
+VERDICT: FAIL
+EVIDENCE-CMD: same loop; input ' ab '
+EVIDENCE-OUT:
+  'ab' False
+  ' ab ' True
+  (the trimmed length is 2, so this should be invalid, but it is reported valid)
+REASON: n/a
+
+CRITERION 4: A username whose trimmed length is 21 or more characters is reported invalid
+VERDICT: PASS
+EVIDENCE-CMD: same loop; inputs 'a'*21 and '  '+'a'*21+'  '
+EVIDENCE-OUT:
+  'aaaaaaaaaaaaaaaaaaaaa' False
+  '  aaaaaaaaaaaaaaaaaaaaa  ' False
+  (both are correctly rejected. Only the padded case passes because the raw length is also over 20, not because of trimming.)
+REASON: n/a
+
+CRITERION 5: Length is measured after trimming leading and trailing whitespace, so surrounding whitespace does not count toward the length (e.g. ' abc ' is valid, and ' ab ' is invalid even though its raw length is 6)
+VERDICT: FAIL
+EVIDENCE-CMD: same loop; inputs ' abc ', ' ab ' and '  '+'a'*20+'  '
+EVIDENCE-OUT:
+  ' abc ' True
+  ' ab ' True
+  '  aaaaaaaaaaaaaaaaaaaa  ' False
+  (the code uses len(u) with no strip(). ' abc ' passes only because its raw length is 5. ' ab ' is wrongly valid.)
+REASON: n/a
+
+FINAL: DRIFTED — criteria 1, 2, 3, 5 failed
+```
+
+OBSERVATIONS:
+- The code never trims. `valid_username` checks `3 <= len(u) <= 20` on the raw string, which is exactly the trimming step the request asked for first.
+- The docstring says "between 3 and 20 characters" and leaves out the trimming requirement.
+- The fix is to use `len(u.strip())`. I did not modify anything.

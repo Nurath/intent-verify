@@ -1,0 +1,11 @@
+{"manifest": 1,
+ "criteria": [
+  {"id": 1, "text": "The result of rounding a price has at most 2 decimal places (e.g. 1.234 becomes 1.23).", "quote": "Round a price to 2 decimal places"},
+  {"id": 2, "text": "A price exactly halfway at the third decimal rounds up (e.g. 1.005 becomes 1.01 and 2.675 becomes 2.68, not the binary-float results 1.00 and 2.67).", "quote": "rounding half up"},
+  {"id": 3, "text": "A price already at 2 or fewer decimal places is returned with the same value (e.g. 4.50 stays 4.50, 3 stays 3.00).", "quote": null},
+  {"id": 4, "text": "A price below the halfway point rounds down and a price above it rounds up (e.g. 1.994 becomes 1.99, 1.996 becomes 2.00).", "quote": "Round a price to 2 decimal places"}
+ ],
+ "ambiguities": [
+  "How should halves round for negative prices: toward positive infinity (-1.005 becomes -1.00) or away from zero (-1.005 becomes -1.01)?",
+  "What input and output types are expected (float, Decimal, string, integer cents), and should the result be a number or a formatted string with exactly 2 decimals?"
+ ]}

@@ -83,8 +83,8 @@ method, and the captured verifier output are all on disk.
 
 The two July results were produced by the single-stage flow, in which the
 verifier was *told* to derive criteria before reading the code. The two-stage
-flow that 0.3 ships has had a first look and no more; see the end of this
-section.
+flow that 0.3 ships was run on the same controlled set in October; see the end
+of this section.
 
 ### Controlled benchmark (n=16, cross-model, evidence-required)
 
@@ -124,23 +124,41 @@ implementations produced *naturally* by Opus (×3) and Haiku (×4) with no trap 
 - **Field recall could not be measured**: all 7 natural implementations came out
   *correct*, so there was no drift to catch.
 
-### The two-stage flow — a first look, not a measurement
+### The two-stage flow (0.3) on the controlled set
 
-- **Offline, deterministic:** a simulated verifier that reports only what passes
-  and never mentions the criterion that would fail gets 2 false `MATCHES INTENT`
-  on the 8 drifted cases when its ledger is validated alone, and 0 when the
-  ledger is held to a manifest. Its ledgers are well-formed and every line in
-  them is true; only a list fixed beforehand catches the omission.
-- **Real models, 8 runs:** criteria derived from the request alone were valid on
-  the first reply for all three requests tried, and the verifier held to them
-  reached the expected verdict on 4 of 4 fixtures (2 drifted, 2 correct). The
-  manifest for the tie-break case contained the tie-break, which is the
-  requirement ordinary review missed in July.
+October 2026: the 16 July fixtures, one run each, Sonnet 5.5 deriving the
+criteria (with every tool disabled) and verifying, each call in
+`claude -p --safe-mode`.
 
-Read that second line with its caveats: one run per cell, two requests, and the
-agent deriving the criteria was told not to use tools without anything
-enforcing it. The record, and what the run showed that the design had not
-expected, is in
+|  | Actually WRONG (8) | Actually CORRECT (8) |
+|---|---|---|
+| **Flagged DRIFTED** | 8 ✅ caught | 0 ✅ no false alarm |
+| **Passed MATCHES INTENT** | 0 missed | 8 ✅ correct pass |
+
+- **No `INCONCLUSIVE`.** Criteria written without sight of the code asked for
+  nothing the correct code could not show.
+- **Right for the right reason.** Every planted drift had its own criterion in
+  the manifest, quoted from the request, and that criterion is the one that
+  failed. No other criterion failed on correct code.
+- **One retry in 16.** A verifier paraphrased a manifest criterion; the
+  validator rejected the ledger, and the retry copied the text exactly.
+- **Cost.** 33 model calls, 1.79M tokens, $1.33 at list price. Deriving the
+  criteria cost about 3.6k tokens a case; verifying cost 73k to 222k.
+- **Questions on every request.** Stage 1 raised 2 to 4 ambiguities on each of
+  the 16 one-line requests, 41 in all. None was about a planted drift and the
+  verdicts did not need them, because the harness asks no one. In a session the
+  skill puts every one of them to the user before verifying.
+
+What this does not show is that two-stage beats single-stage: single-stage was
+also 16 of 16 in July, so the set is at its ceiling for both. It shows that 0.3
+keeps that result while adding the mechanical coverage check. Report and every
+raw reply:
+[`benchmark/results/2026-10-05-cli-claude-sonnet-5-5-two-stage.md`](benchmark/results/2026-10-05-cli-claude-sonnet-5-5-two-stage.md).
+
+The same mechanism offline: a simulated verifier that reports only what passes,
+and never mentions the criterion that would fail, gets 2 false
+`MATCHES INTENT` on the 8 drifted cases when its ledger is validated alone, and
+0 when it is held to a manifest. An earlier eight-run first look is in
 [`benchmark/results/2026-10-05-two-stage-smoke.md`](benchmark/results/2026-10-05-two-stage-smoke.md).
 
 ---
@@ -412,22 +430,27 @@ to be the discriminators.
 - **The cross-model lever is unmeasured.** Every benchmark run used a verifier
   on a different model from the implementer; none compared that with a
   same-model verifier. The differential above isolates request-anchoring only.
-- **The two-stage flow is barely measured.** Eight real-model runs. The July
-  numbers above come from the single-stage flow and do not carry over.
-- **Three things 0.3 relies on have not been seen working on a live session:**
-  the criteria agent launching without file access, a `decision` being recorded
-  from an answered question, and the data directory being filled into the
-  skill's commands. Each fails safe — the skill falls back and says so, nothing
-  is recorded, the reader looks in the usual place — and each is a one-minute
-  check: [`benchmark/results/2026-10-05-platform-spikes.md`](benchmark/results/2026-10-05-platform-spikes.md).
+- **The two-stage flow is measured once.** 16 cases, one run each, one model for
+  both stages, on fixtures where single-stage was already perfect. It matched
+  July's result; it has not been shown to beat it.
+- **Stage 1 raises questions freely:** 2 to 4 ambiguities per one-line request
+  in that run, each put to the user. This is not tuned yet.
+- **The platform behaviour 0.3 relies on was seen once, on one machine:** the
+  criteria agent launching without file access, a `decision` recorded from an
+  answered question, and the data directory filled into the skill's commands,
+  in the Windows desktop app on Claude Code 2.1.289
+  ([record](benchmark/results/2026-10-05-platform-spikes.md)). If a later
+  version changes any of them, it fails safe: the skill falls back and says so,
+  nothing is recorded, or the reader looks in the usual place.
 - **A manifest makes coverage checkable, not complete.** Whether the criteria
   capture everything the request demands is still a model's judgement. The
   report shows the criteria and the parts of the request none of them quotes.
 - **Criteria can outrun the code.** Written without sight of the code, a
   criterion may ask for something the changed code has no way to show, and a
-  correct change would then come back `INCONCLUSIVE`. In the eight runs one
-  criterion went unexercised for this reason; the code in that run was wrong on
-  other criteria, so the verdict did not turn on it.
+  correct change would then come back `INCONCLUSIVE`. In the eight-run first
+  look one criterion went unexercised for this reason; the code in that run was
+  wrong on other criteria, so the verdict did not turn on it. In the 16-case
+  run it did not happen.
 - **The ledger is text with program output inside it.** A reply holding any
   verdict other than PASS cannot validate as `MATCHES INTENT`, whatever the
   program printed. A verifier that writes no ledger of its own and quotes one
@@ -463,10 +486,12 @@ to be the discriminators.
       capture gaps found by an independent review (see [CHANGELOG](CHANGELOG.md))
 - [x] **v0.3.0** — criterion manifest with two-stage dispatch; ledger outside
       the project, one file per session; answered questions recorded
-- [ ] Finish the three platform checks listed under Honest limitations
-- [ ] Measure the two-stage flow on the controlled set (criteria recall,
-      verdicts, cost), and how often correct code comes back `INCONCLUSIVE`
-- [ ] Cross-model ablation (same-model vs cross-model verifier, controlled set)
+- [x] The three platform checks (October 2026, one machine)
+- [x] Measure the two-stage flow on the controlled set: 16 of 16, no
+      `INCONCLUSIVE`
+- [ ] Fewer stage-1 questions (2 to 4 per one-line request today)
+- [ ] Cross-model ablation, on drift a model produced itself (the controlled
+      set's drift is planted, and both arms would likely sit at its ceiling)
 - [ ] A structured ledger bound to its run and captured by a hook, so the
       implementing session no longer handles the evidence
       ([design](docs/DESIGN-v0.3.md), Change C)
@@ -496,8 +521,8 @@ v0.3.0 makes two of the tool's promises mechanical. "Criteria before code" was
 an instruction to the verifier; the criteria are now fixed by an agent that
 cannot read the project, and a ledger that leaves one out is invalid. "Your
 prompts stay out of git" was a self-ignoring directory inside the project; the
-ledger is now outside it. The mechanisms are tested; the two-stage flow as a
-whole has been run on real models eight times.
+ledger is now outside it. The mechanisms are tested, and in its first full run
+the two-stage flow reached the expected verdict on all 16 controlled cases.
 
 ## License
 

@@ -1,0 +1,41 @@
+INTENT-VERIFY LEDGER v1
+mode: FULL
+
+CRITERION 1: The result of rounding a price has exactly 2 decimal places of precision (e.g. 1.234 becomes 1.23).
+VERDICT: PASS
+EVIDENCE-CMD: cd benchmark/impl/omitted-intent && python -c "from roundprice import round_price; [print(repr(x), repr(round_price(x))) for x in [1.234,1.006]]"
+EVIDENCE-OUT:
+  1.234 1.23
+  1.006 1.01
+(The result is a float, so "exactly 2 decimals" holds only as value precision. 1.234 gives 1.23 as required.)
+
+CRITERION 2: A price whose third decimal digit is exactly 5 with nothing after it rounds up (e.g. 1.005 becomes 1.01, 2.675 becomes 2.68, 0.125 becomes 0.13).
+VERDICT: FAIL
+EVIDENCE-CMD: cd benchmark/impl/omitted-intent && python -c "from roundprice import round_price; [print(repr(x), repr(round_price(x))) for x in [1.005,2.675,0.125]]"
+EVIDENCE-OUT:
+  1.005 1.0
+  2.675 2.67
+  0.125 0.12
+(All three give the wrong result. Expected 1.01, 2.68 and 0.13. 0.125 is exactly representable in binary, so it is a true tie, and Python's round() sends it to the even neighbour 0.12 instead of rounding half up. 1.005 and 2.675 are stored slightly below the tie, so they also round down.)
+
+CRITERION 3: A price whose discarded part is below half a cent rounds down (e.g. 1.004 becomes 1.00), and one above half a cent rounds up (e.g. 1.006 becomes 1.01).
+VERDICT: PASS
+EVIDENCE-CMD: cd benchmark/impl/omitted-intent && python -c "from roundprice import round_price; [print(repr(x), repr(round_price(x))) for x in [1.004,1.006]]"
+EVIDENCE-OUT:
+  1.004 1.0
+  1.006 1.01
+
+CRITERION 4: A price already at 2 or fewer decimal places is returned with the same value (e.g. 3.5 stays 3.50, 4.10 stays 4.10).
+VERDICT: PASS
+EVIDENCE-CMD: cd benchmark/impl/omitted-intent && python -c "from roundprice import round_price; [print(repr(x), repr(round_price(x))) for x in [3.5,4.10]]"
+EVIDENCE-OUT:
+  3.5 3.5
+  4.1 4.1
+(The values are unchanged. Displayed to 2 places they are 3.50 and 4.10.)
+
+FINAL: DRIFTED — criteria 2 failed
+
+OBSERVATIONS:
+- The code uses Python's built-in `round()`, which does banker's rounding (half to even) on binary floats. The request asked for half up. Ties such as 0.125 round to 0.12, and 2.5 stays 2.5. 0.375 → 0.38 only happens to match half-up because the even neighbour is 0.38.
+- A correct implementation would likely use `decimal.Decimal(str(x)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)`. That is a suggestion only. I did not modify any files.
+- My first few attempts failed with PowerShell permission prompts because of how I wrote the command. I ran the checks through Bash instead. The code ran in a single invocation, and the 11 inputs I tried were 1.234, 1.005, 2.675, 0.125, 1.004, 1.006, 3.5, 4.10, 0.375, 2.5 and 1.015.

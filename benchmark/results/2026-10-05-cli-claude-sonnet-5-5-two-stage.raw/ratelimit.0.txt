@@ -1,0 +1,37 @@
+```
+INTENT-VERIFY LEDGER v1
+mode: FULL
+
+CRITERION 1: Login attempts from a single IP are limited to 5 within a one-minute window; the 6th attempt within that minute is rejected (rate-limited)
+VERDICT: PASS
+EVIDENCE-CMD: cd /tmp && python t.py (time.time mocked; allow_login("1.1.1.1") called 6 times in the same instant)
+EVIDENCE-OUT: A 6th: False
+
+CRITERION 2: The first 5 login attempts from an IP within a minute are not blocked by the rate limit
+VERDICT: PASS
+EVIDENCE-CMD: cd /tmp && python t.py (5 calls to allow_login("1.1.1.1") on a fresh state)
+EVIDENCE-OUT: A first5: [True, True, True, True, True]
+
+CRITERION 3: Once an IP has hit the limit, it is blocked only for the rate-limited period; it can attempt login again after the minute window has passed
+VERDICT: PASS
+EVIDENCE-CMD: cd /tmp && python t.py (after the 6th attempt was rejected, mocked clock advanced 61s, then allow_login("1.1.1.1"))
+EVIDENCE-OUT: A after 61s: True
+
+CRITERION 4: Rate-limit counts for different IPs are independent: an IP that has exhausted its 5 attempts does not cause attempts from another IP to be rejected
+VERDICT: FAIL
+EVIDENCE-CMD: cd /tmp && python t.py (1.1.1.1 made 5 attempts, then allow_login("2.2.2.2") was called)
+EVIDENCE-OUT: B after A exhausted: False
+
+CRITERION 5: An IP's attempts count toward its own limit only, so a second IP making its own 5 attempts within the minute is allowed all 5
+VERDICT: FAIL
+EVIDENCE-CMD: cd /tmp && python t.py (1.1.1.1 made 3 attempts, then 2.2.2.2 made 5; also 1.1.1.1 made 5, then 2.2.2.2 made 5)
+EVIDENCE-OUT: B 5 after A used 3: [True, True, False, False, False]
+  B 5 after A used 5: [False, False, False, False, False]
+
+FINAL: DRIFTED — criteria 4, 5 failed
+```
+
+OBSERVATIONS:
+- `allow_login(ip)` never uses `ip`. It keeps one global `_attempts` list, so the limit is shared across all clients: 5 attempts per minute in total, not per IP. The first three criteria pass only because the tests used a single IP.
+- I replaced `time.time` with a controllable clock in a scratch script in `/tmp`. I changed no project files.
+- `python3` isn't installed here, so the run used `python`.

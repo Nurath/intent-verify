@@ -128,6 +128,29 @@ class TestRealVerifierRunner(unittest.TestCase):
         with mock.patch.object(run_bench.subprocess, "run", return_value=done):
             self.assertEqual(run_bench.run_cli_verifier(CASES["median"], "some-model", 5), "partial reply")
 
+    def test_runs_in_safe_mode_and_reads_the_json_envelope(self):
+        envelope = {"type": "result", "subtype": "success", "is_error": False, "result": "the reply",
+                    "session_id": "s1", "num_turns": 3, "duration_ms": 2500, "total_cost_usd": 0.01,
+                    "usage": {"input_tokens": 1, "cache_creation_input_tokens": 10,
+                              "cache_read_input_tokens": 100, "output_tokens": 5}}
+        done = subprocess.CompletedProcess([], 0, stdout=json.dumps(envelope), stderr="")
+        before = len(run_bench.USAGE)
+        with mock.patch.object(run_bench.subprocess, "run", return_value=done) as run:
+            self.assertEqual(run_bench.run_cli_verifier(CASES["median"], "some-model", 5), "the reply")
+        cmd = run.call_args.args[0]
+        self.assertIn("--safe-mode", cmd, "the runner's own CLAUDE.md, plugins and hooks stay out")
+        self.assertEqual(cmd[cmd.index("--output-format") + 1], "json")
+        self.assertEqual(len(run_bench.USAGE), before + 1)
+        self.assertEqual((run_bench.USAGE[-1]["stage"], run_bench.USAGE[-1]["tokens"]), (2, 116))
+
+    def test_an_error_envelope_is_unavailable_not_a_reply(self):
+        envelope = {"type": "result", "subtype": "error_max_turns", "is_error": True, "usage": {}}
+        done = subprocess.CompletedProcess([], 1, stdout=json.dumps(envelope), stderr="")
+        with mock.patch.object(run_bench.subprocess, "run", return_value=done):
+            with self.assertRaises(run_bench.VerifierUnavailable) as caught:
+                run_bench.run_cli_verifier(CASES["median"], "some-model", 5)
+        self.assertIn("error_max_turns", str(caught.exception))
+
     def test_retry_prompt_carries_the_defects_and_the_rejected_reply(self):
         done = subprocess.CompletedProcess([], 0, stdout="ok", stderr="")
         with mock.patch.object(run_bench.subprocess, "run", return_value=done) as run:

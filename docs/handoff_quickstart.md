@@ -52,7 +52,7 @@ only when someone runs the two update commands in the runbook and restarts.
 
 ## Test baseline (0.3.1)
 
-- `python3 -m unittest discover -s tests`: 181 tests. On Windows 18 skip (POSIX
+- `python3 -m unittest discover -s tests`: 183 tests. On Windows 18 skip (POSIX
   shell tests and one layout-specific test); on Linux and macOS the PowerShell
   classes skip instead.
 - `node hooks/capture-intent.js --selftest`: 26 of 26.
@@ -80,14 +80,22 @@ only when someone runs the two update commands in the runbook and restarts.
 
 ## Open items (2026-10-05)
 
-1. **Three platform checks**, one minute each, in the first session after
-   0.3 is installed: `benchmark/results/2026-10-05-platform-spikes.md`.
-2. **Measure the two-stage flow** on the controlled set: criteria recall,
-   verdicts, cost, and how often correct code comes back INCONCLUSIVE. Needs
-   the CLI logged in. So does the cross-model ablation (about 96 verifier runs),
-   which also needs a decision on which pair of models.
-3. **Change C** from the design: a ledger bound to its run and captured by a
-   hook. Not started; gated on two spikes and two measurements.
+Done later on 2026-10-05: the three platform checks passed, and the two-stage
+flow scored 16 of 16 on the controlled set
+(`benchmark/results/2026-10-05-cli-claude-sonnet-5-5-two-stage.md`).
+
+1. **Stage 1 asks too many questions.** In that run it raised 2 to 4
+   ambiguities on every one-line request, 41 over 16, and the verdicts needed
+   none of them. The skill puts each one to the user. Decide a rule before
+   more people hit it.
+2. **Change C: checks first, then decide** (decided 2026-10-05). Run spike S2
+   (does `SubagentStop` fire for the plugin's verifier with the complete
+   reply?) and measurement M4 (can verifiers write the JSON ledger reliably?).
+   Build C1 only if both hold. The design also lists S3, which matters only
+   for C2, and M3, which sizes the threat C1 removes.
+3. **Cross-model ablation** not run. On the controlled set the drift is planted
+   and both arms would likely sit at the ceiling. A fair test needs drift a
+   model produced itself, which is the field-recall work.
 4. **`models/registry.json` predates the current models.** The selector
    excludes unknown models unless `--assume-tier` is passed.
 5. **The alternate hooks** still use the in-project layout. Port them or retire

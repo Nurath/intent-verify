@@ -1,0 +1,13 @@
+{"manifest": 1,
+ "criteria": [
+  {"id": 1, "text": "Every returned item contains the query as a substring.", "quote": "items to those containing the query"},
+  {"id": 2, "text": "Every item that contains the query as a substring is returned; none are dropped.", "quote": "Filter items to those containing the query"},
+  {"id": 3, "text": "Matching ignores letter case: an item matches when it contains the query in any combination of upper and lower case (e.g. query 'abc' matches 'xABCx', and query 'ABC' matches 'xabcx').", "quote": "case-insensitively"},
+  {"id": 4, "text": "Items that do not contain the query (ignoring case) are excluded from the result.", "quote": "Filter items to those containing the query"},
+  {"id": 5, "text": "Returned items keep their original text (case is not altered by the matching).", "quote": null}
+ ],
+ "ambiguities": [
+  "Should the result preserve the original order of the items?",
+  "What should happen with an empty query: return all items, or none?",
+  "What are the items: plain strings, or objects/records where a particular field is searched?"
+ ]}

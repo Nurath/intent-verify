@@ -1,0 +1,32 @@
+INTENT-VERIFY LEDGER v1
+mode: FULL
+
+CRITERION 1: Tasks are ordered by priority, with higher-priority tasks appearing before lower-priority ones
+VERDICT: PASS
+EVIDENCE-CMD: python /tmp/t.py (imports sort_tasks from sorttasks_ok.py and runs it on 7 tasks: ids 1-7 with priorities 1,5,5,3,3,5,-2)
+EVIDENCE-OUT:
+  [3, 6, 2, 5, 4, 1, 7]
+  The priorities of that order are 5,5,5,3,3,1,-2, which is descending. The negative priority comes last.
+
+CRITERION 2: Among tasks with equal priority, the task with the earlier due date appears first
+VERDICT: PASS
+EVIDENCE-CMD: same run as criterion 1
+EVIDENCE-OUT:
+  [3, 6, 2, 5, 4, 1, 7]
+  Priority 5: ids 3 and 6 (due 2026-02-01) come before id 2 (due 2026-03-01).
+  Priority 3: id 5 (due 2026-04-01) comes before id 4 (due 2026-05-01).
+  Ids 3 and 6 have identical priority and due date. They kept their input order, which is a stable sort.
+
+CRITERION 3: Sorting does not drop or duplicate any tasks; the same set of tasks is returned
+VERDICT: PASS
+EVIDENCE-CMD: same run; the script compares the sorted ids and the lengths of the output and the input, then calls sort_tasks([])
+EVIDENCE-OUT:
+  True True
+  []
+
+FINAL: MATCHES INTENT
+
+OBSERVATIONS:
+- The tests used ISO-format date strings for `due`, which sort correctly as strings. The code does not parse dates, so other date formats given as strings would not sort chronologically. The request didn't specify a format.
+- Tasks with a missing `priority` or `due` key raise KeyError. The request didn't cover this case.
+- I wrote the scratch script to `/tmp/t.py`, not to the session scratchpad directory. It is outside the project tree, and no project files were modified.

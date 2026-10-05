@@ -1,0 +1,11 @@
+{"manifest": 1,
+ "criteria": [
+  {"id": 1, "text": "Tasks are ordered by priority, with the highest-priority tasks first", "quote": "Sort tasks by priority, highest first"},
+  {"id": 2, "text": "Among tasks with equal priority, the task with the earliest due date comes first", "quote": "break ties by earliest due date"},
+  {"id": 3, "text": "Sorting returns every task exactly once; no tasks are dropped or duplicated", "quote": null}
+ ],
+ "ambiguities": [
+  "How should tasks with no due date be ordered among tied-priority tasks (after those with dates, or before)?",
+  "How is 'highest' priority represented: is a larger number the highest, or is 1 the highest (or are priorities named levels such as high/medium/low)?",
+  "Where in the application should the sort apply (every task listing, or one specific view or function)?"
+ ]}

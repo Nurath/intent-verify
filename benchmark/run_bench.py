@@ -34,7 +34,8 @@ MODES
       With --two-stage the criteria are derived first, by agents/criteria.md,
       from the request alone and with every tool disabled; the verifier is then
       held to that manifest. Without it the verifier is handed the request and
-      the code together, as before.
+      the code together, as before. Every call runs in `claude -p --safe-mode`
+      and its tokens, cost and duration are recorded beside the raw replies.
 
 Writes a results file under benchmark/results/ unless --no-write.
 """
@@ -281,10 +282,18 @@ def _retry_note(defects, previous, what):
     return note + "\nEmit a corrected %s and nothing else." % what
 
 
+USAGE = []  # one record per model call, in call order; main() reads it per case
+
+
 def run_cli(prompt, model, timeout, no_tools=False):
     # Launch what PATH resolves to: on Windows the CLI can be a .cmd shim, which
-    # a bare "claude" cannot start (only .exe is tried).
-    cmd = [shutil.which("claude") or "claude", "-p", "--model", model, "--max-turns", "15"]
+    # a bare "claude" cannot start (only .exe is tried). --safe-mode leaves out
+    # the runner's own CLAUDE.md, plugins, hooks and MCP servers, so a result
+    # does not depend on whose machine produced it, and an installed
+    # intent-verify does not log every benchmark prompt. (--bare would too, but
+    # it ignores OAuth logins.)
+    cmd = [shutil.which("claude") or "claude", "-p", "--safe-mode", "--output-format", "json",
+           "--model", model, "--max-turns", "15"]
     cmd += ["--tools", ""] if no_tools else ["--allowedTools", "Bash,Read,Grep,Glob"]
     try:
         r = subprocess.run(cmd, input=prompt, capture_output=True, text=True,
@@ -295,7 +304,24 @@ def run_cli(prompt, model, timeout, no_tools=False):
         raise VerifierUnavailable("could not launch `claude`: %s" % e)
     if r.returncode != 0 and not (r.stdout or "").strip():
         raise VerifierUnavailable("exit %d: %s" % (r.returncode, (r.stderr or "").strip()[-300:]))
-    return r.stdout
+    try:
+        d = json.loads(r.stdout)
+    except ValueError:
+        d = None
+    if not (isinstance(d, dict) and d.get("type") == "result"):
+        return r.stdout  # not the CLI's envelope: judge the text as it came
+    u = d.get("usage") or {}
+    USAGE.append({
+        "stage": 1 if no_tools else 2, "session": d.get("session_id"), "subtype": d.get("subtype"),
+        "turns": d.get("num_turns"), "seconds": (d.get("duration_ms") or 0) / 1000.0,
+        "cost_usd": d.get("total_cost_usd") or 0,
+        "tokens": sum(u.get(k) or 0 for k in ("input_tokens", "cache_creation_input_tokens",
+                                              "cache_read_input_tokens", "output_tokens")),
+    })
+    if d.get("is_error"):
+        # Out of turns, or an API error: there is no reply to correct.
+        raise VerifierUnavailable("%s: %s" % (d.get("subtype"), str(d.get("result") or "")[-300:]))
+    return d.get("result") or ""
 
 
 def run_cli_verifier(case, model, timeout, defects=None, previous=None, manifest=None):
@@ -400,8 +426,12 @@ def main(argv=None):
         out.append("# Benchmark — %s — real verifier: %s%s (suite: %s, n=%d)\n" % (
             stamp, a.verifier, ", two-stage (criteria fixed first, by the same model)" if a.two_stage else "",
             a.suite, len(cases)))
+        out.append("Each call is `claude -p --safe-mode`: none of the runner's own CLAUDE.md, plugins,")
+        out.append("hooks or MCP servers are loaded. Tokens and cost are as the CLI reports them; the")
+        out.append("cost is at list price, whatever plan the runner is on.\n")
         rows = []
         for c in cases:
+            first_call = len(USAGE)
             manifest, stage1 = None, []
             if a.two_stage:
                 try:
@@ -421,17 +451,27 @@ def main(argv=None):
                     return text
                 got, meta = orchestrate(produce, c, manifest)
             meta["stage1"], meta["manifest"] = stage1, manifest
+            meta["calls"] = USAGE[first_call:]
             rows.append({"id": c["id"], "expected": c["expected"], "got": got, "meta": meta})
             print("%-18s expected=%-14s got=%-14s retries=%d" % (c["id"], c["expected"], got, meta["retries"]))
         s = score(rows)
         out.append("| metric | value |\n|---|---|")
         for k, v in s.items():
             out.append("| %s | %s |" % (k, v))
-        out.append("\n| case | expected | got | retries | manifest criteria | note |\n|---|---|---|---|---|---|")
+        calls = [u for r in rows for u in r["meta"]["calls"]]
+        if calls:
+            out.append("| model calls | %d |" % len(calls))
+            out.append("| tokens, all calls | %d |" % sum(u["tokens"] for u in calls))
+            out.append("| cost, USD at list price | %.2f |" % sum(u["cost_usd"] for u in calls))
+            out.append("| model time, minutes | %.1f |" % (sum(u["seconds"] for u in calls) / 60))
+        out.append("\n| case | expected | got | retries | manifest criteria | stage-1 tokens | stage-2 tokens | note |\n"
+                   "|---|---|---|---|---|---|---|---|")
         for r in rows:
             note = "; ".join(r["meta"]["defects"])[:160].replace("|", "/")
             size = len(r["meta"]["manifest"]["criteria"]) if r["meta"]["manifest"] else "-"
-            out.append("| %s | %s | %s | %d | %s | %s |" % (r["id"], r["expected"], r["got"], r["meta"]["retries"], size, note))
+            tokens = [sum(u["tokens"] for u in r["meta"]["calls"] if u["stage"] == n) for n in (1, 2)]
+            out.append("| %s | %s | %s | %d | %s | %d | %d | %s |" % (
+                r["id"], r["expected"], r["got"], r["meta"]["retries"], size, tokens[0], tokens[1], note))
         exit_bad = s["false_match"] > 0
 
     report = "\n".join(out) + "\n"
@@ -455,6 +495,8 @@ def main(argv=None):
                 for fname, text in files:
                     with open(os.path.join(raw_dir, fname), "w", encoding="utf-8") as f:
                         f.write(text or "")
+            with open(os.path.join(raw_dir, "usage.json"), "w", encoding="utf-8") as f:
+                json.dump({r["id"]: r["meta"]["calls"] for r in rows}, f, indent=1)
     return 1 if exit_bad else 0
 
 
