@@ -1,0 +1,37 @@
+INTENT-VERIFY LEDGER v1
+mode: FULL
+
+CRITERION 1: Up to 5 login attempts from a single IP within one minute are processed normally (not rejected by the rate limit)
+VERDICT: PASS
+EVIDENCE-CMD: python scratchpad/t.py (reset state, time.time mocked; calls allow_login('A') 5 times)
+EVIDENCE-OUT: C1 [True, True, True, True, True]
+REASON: n/a
+
+CRITERION 2: A 6th login attempt from the same IP within the same minute is rejected by the rate limit
+VERDICT: PASS
+EVIDENCE-CMD: python scratchpad/t.py (6th call allow_login('A') after 5 allowed)
+EVIDENCE-OUT: C2 6th A False
+REASON: n/a
+
+CRITERION 3: Login attempts from one IP that has reached its limit do not cause attempts from a different IP to be rejected
+VERDICT: FAIL
+EVIDENCE-CMD: python scratchpad/t.py (A makes 5 attempts, then allow_login('B'))
+EVIDENCE-OUT: C3 B after A limited False
+REASON: n/a
+
+CRITERION 4: Each IP's attempt count is tracked separately, so attempts from one IP do not count toward another IP's limit of 5
+VERDICT: FAIL
+EVIDENCE-CMD: python scratchpad/t.py (A makes 3 attempts, then B makes 5)
+EVIDENCE-OUT: C4 B x5 after A x3 [True, True, False, False, False]
+REASON: n/a
+
+CRITERION 5: An IP that was rate-limited can attempt login again once the one-minute window has passed
+VERDICT: PASS
+EVIDENCE-CMD: python scratchpad/t.py (A makes 5 attempts, clock advanced 61s, allow_login('A'))
+EVIDENCE-OUT: C5 after 61s True
+REASON: n/a
+
+FINAL: DRIFTED — criteria 3, 4 failed
+
+OBSERVATIONS:
+- `ratelimit.py` keeps one global `_attempts` list and never uses the `ip` argument. The limit is therefore 5 attempts per minute across all IPs combined, not per IP.

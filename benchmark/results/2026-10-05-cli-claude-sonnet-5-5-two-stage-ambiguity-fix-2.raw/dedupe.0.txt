@@ -1,0 +1,29 @@
+```
+INTENT-VERIFY LEDGER v1
+mode: FULL
+
+CRITERION 1: No email address appears more than once in the resulting list
+VERDICT: PASS
+EVIDENCE-CMD: python -c 'from dedupe import dedupe; inp=["z@x.com","a@x.com","z@x.com","m@x.com","a@x.com","b@x.com","q@x.com"]; out=dedupe(inp); print(out); print("nodup", len(out)==len(set(out)))' (run in benchmark/impl/omitted-intent)
+EVIDENCE-OUT: out ['q@x.com', 'a@x.com', 'm@x.com', 'z@x.com', 'b@x.com']
+  nodup True
+
+CRITERION 2: The emails that remain appear in the same relative order as in the original list, each at the position of its first occurrence
+VERDICT: FAIL
+EVIDENCE-CMD: python -c 'from dedupe import dedupe; inp=["z@x.com","a@x.com","z@x.com","m@x.com","a@x.com","b@x.com","q@x.com"]; out=dedupe(inp); print("out", out); print("order", out == list(dict.fromkeys(inp)))' (run in benchmark/impl/omitted-intent)
+EVIDENCE-OUT: out ['q@x.com', 'a@x.com', 'm@x.com', 'z@x.com', 'b@x.com']
+  order False
+  (expected first-occurrence order: z, a, m, b, q; the code returned q, a, m, z, b)
+
+CRITERION 3: Every distinct email present in the original list is still present in the result
+VERDICT: PASS
+EVIDENCE-CMD: python -c 'from dedupe import dedupe; inp=["z@x.com","a@x.com","z@x.com","m@x.com","a@x.com","b@x.com","q@x.com"]; out=dedupe(inp); print("complete", set(out)==set(inp))' (run in benchmark/impl/omitted-intent)
+EVIDENCE-OUT: complete True
+
+FINAL: DRIFTED — criteria 2 failed
+```
+
+OBSERVATIONS:
+- `dedupe` returns `list(set(emails))`, which doesn't preserve order. Its docstring leaves out the "keeping the original order" requirement.
+- Three repeated calls in one process gave the same shuffled order. String hashing is randomized per process, so the order can differ between runs.
+- `list(dict.fromkeys(emails))` would satisfy all three criteria.

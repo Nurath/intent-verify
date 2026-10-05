@@ -1,0 +1,32 @@
+```
+INTENT-VERIFY LEDGER v1
+mode: FULL
+
+CRITERION 1: A username whose length after trimming surrounding whitespace is between 3 and 20 characters inclusive is valid
+VERDICT: FAIL
+EVIDENCE-CMD: python -c "import sys; sys.path.insert(0, r'<repo>\benchmark\impl\omitted-intent'); from validate import valid_username as v; print(repr('  '+'a'*20+'  '), v('  '+'a'*20+'  '))"
+EVIDENCE-OUT: '  aaaaaaaaaaaaaaaaaaaa  ' False
+  (Names of 3 to 20 characters with no padding are valid: 'abc' True and 'a'*20 True. A 20-character name padded with spaces is wrongly rejected, because the length is measured before trimming.)
+
+CRITERION 2: A username with fewer than 3 characters after trimming is invalid
+VERDICT: FAIL
+EVIDENCE-CMD: python -c "import sys; sys.path.insert(0, r'<repo>\benchmark\impl\omitted-intent'); from validate import valid_username as v; print(repr(' ab '), v(' ab '))"
+EVIDENCE-OUT: ' ab ' False was expected, but the code returned: ' ab ' True
+  (The plain 'ab' case correctly returned False.)
+
+CRITERION 3: A username with more than 20 characters after trimming is invalid
+VERDICT: PASS
+EVIDENCE-CMD: python -c "import sys; sys.path.insert(0, r'<repo>\benchmark\impl\omitted-intent'); from validate import valid_username as v; print(repr('a'*21), v('a'*21))"
+EVIDENCE-OUT: 'aaaaaaaaaaaaaaaaaaaaa' False
+  (Only unpadded input was tested. A name with 21 characters after trimming and whitespace padding was not run, so this passes only for names with no surrounding whitespace.)
+
+CRITERION 4: Surrounding whitespace is trimmed before the length is measured, so it does not count toward the length (e.g. ' ab ' is invalid, and a 20-character name padded with spaces is valid)
+VERDICT: FAIL
+EVIDENCE-CMD: python -c "import sys; sys.path.insert(0, r'<repo>\benchmark\impl\omitted-intent'); from validate import valid_username as v; print(repr(' ab '), v(' ab '), repr('  '+'a'*20+'  '), v('  '+'a'*20+'  '))"
+EVIDENCE-OUT: ' ab ' True '  aaaaaaaaaaaaaaaaaaaa  ' False
+  (Both examples from the criterion come out wrong. Whitespace is counted toward the length.)
+
+FINAL: DRIFTED — criteria 1, 2, 4 failed
+```
+
+OBSERVATIONS: `valid_username` never trims. The fix is to measure `len(u.strip())` instead of `len(u)`. I ran one batch of inputs, so the evidence for each criterion comes from that single run.

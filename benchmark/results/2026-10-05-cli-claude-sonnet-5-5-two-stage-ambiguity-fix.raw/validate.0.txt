@@ -1,0 +1,33 @@
+INTENT-VERIFY LEDGER v1
+mode: FULL
+
+CRITERION 1: A username whose trimmed length is between 3 and 20 characters inclusive is valid
+VERDICT: PASS
+EVIDENCE-CMD: python -c "from validate import valid_username as v; print(v('abc'), v('a'*20))"
+EVIDENCE-OUT: abc True
+  aaaaaaaaaaaaaaaaaaaa True
+REASON: n/a
+
+CRITERION 2: A username whose trimmed length is fewer than 3 characters is invalid
+VERDICT: PASS
+EVIDENCE-CMD: python -c "from validate import valid_username as v; print(v('ab'))"
+EVIDENCE-OUT: ab False
+REASON: n/a
+
+CRITERION 3: A username whose trimmed length is more than 20 characters is invalid
+VERDICT: PASS
+EVIDENCE-CMD: python -c "from validate import valid_username as v; print(v('a'*21))"
+EVIDENCE-OUT: aaaaaaaaaaaaaaaaaaaaa False
+REASON: n/a
+
+CRITERION 4: Surrounding whitespace is removed before the length is measured, so it does not count toward the length (e.g. ' ab ' is invalid, and a 20-character name padded with spaces is valid)
+VERDICT: FAIL
+EVIDENCE-CMD: python -c "from validate import valid_username as v; print(v(' ab '), v(' '+'a'*20+' '), v('  '+'a'*20+'  '))"
+EVIDENCE-OUT: sp ab sp True
+  pad20 False
+  pad20 more False
+REASON: n/a
+
+FINAL: DRIFTED — criteria 4 failed
+
+OBSERVATIONS: The code never trims, so ' ab ' (length 4) is wrongly accepted and a space-padded 20-character name is wrongly rejected. Criteria 1–3 pass only because the test inputs had no surrounding whitespace. The outputs above are shown with my labels. The first column is a label I printed, not the code's output.

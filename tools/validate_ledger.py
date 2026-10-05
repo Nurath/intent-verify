@@ -35,11 +35,13 @@ A MANIFEST is the list of criteria fixed before anyone looked at the code
 (agents/criteria.md, or criteria the user supplied):
     {"manifest": 1,
      "criteria": [{"id": 1, "text": "...", "quote": "..." | null}, ...],
-     "ambiguities": ["..."]}
+     "ambiguities": [{"question": "...", "assumed": "...", "criteria": [1]}, ...]}
 --check-manifest validates a deriver's reply: ids run 1..N, each text is one
 line, and every quote really occurs in the request, so a criterion cannot be
-invented and attributed to the user. It also lists the parts of the request no
-criterion quotes; that is a hint, since it may be context or a missed
+invented and attributed to the user. An ambiguity must name existing criteria
+and the reading they assume; one that names none is dropped and counted, since
+no answer to it could change the verdict. It also lists the parts of the request
+no criterion quotes; that is a hint, since it may be context or a missed
 requirement.
 
 What it cannot do:
@@ -282,11 +284,33 @@ def check_manifest(text, request=None):
             defects.append(f"criterion {i}: its quote does not occur in the request: {quote!r}")
         criteria.append({"id": i, "text": " ".join(body.split()), "quote": quote})
 
-    ambiguities = obj.get("ambiguities") or []
-    if not isinstance(ambiguities, list) or not all(isinstance(a, str) for a in ambiguities):
-        defects.append("'ambiguities' must be a list of strings")
-        ambiguities = []
-    manifest = {"manifest": 1, "criteria": criteria, "ambiguities": [a.strip() for a in ambiguities if a.strip()]}
+    # An ambiguity counts only through the criteria whose check depends on it.
+    # One that names none cannot change the verdict, so nobody should be asked
+    # it: in the 0.3.1 controlled run the deriver raised 41 such questions on 16
+    # one-line requests, and the verdicts needed none of them.
+    ambiguities, unlinked = [], 0
+    raw_amb = obj.get("ambiguities") or []
+    if not isinstance(raw_amb, list):
+        defects.append("'ambiguities' must be a list")
+        raw_amb = []
+    ids = {c["id"] for c in criteria}
+    for j, a in enumerate(raw_amb, 1):
+        if isinstance(a, str) or (isinstance(a, dict) and not a.get("criteria")):
+            unlinked += 1
+            continue
+        question, assumed, linked = (a.get(k) for k in ("question", "assumed", "criteria")) if isinstance(a, dict) else (None,) * 3
+        if not isinstance(question, str) or not question.strip():
+            defects.append(f"ambiguity {j}: must be an object with 'question', 'assumed' and 'criteria'")
+        elif not isinstance(linked, list) or any(type(n) is not int or n not in ids for n in linked):
+            defects.append(f"ambiguity {j}: 'criteria' must list ids of this manifest's criteria, found {linked!r}")
+        elif not isinstance(assumed, str) or not assumed.strip():
+            defects.append(f"ambiguity {j}: 'assumed' must say which reading criteria {linked} were written for")
+        else:
+            ambiguities.append({"question": " ".join(question.split()), "assumed": " ".join(assumed.split()),
+                                "criteria": linked})
+    manifest = {"manifest": 1, "criteria": criteria, "ambiguities": ambiguities}
+    if unlinked:
+        manifest["unlinked_ambiguities"] = unlinked
     notes = _uncovered(manifest, request) if request is not None and not defects else []
     return manifest, defects, notes
 
@@ -338,7 +362,10 @@ def _emit_manifest(manifest, notes, out):
     for c in manifest["criteria"]:
         print(f"  {c['id']}. {c['text']}  " + (f"[quote: {c['quote']!r}]" if c["quote"] else "[no quote]"))
     for a in manifest["ambiguities"]:
-        print(f"AMBIGUITY: {a}")
+        print(f"AMBIGUITY: {a['question']} — criteria {', '.join(map(str, a['criteria']))} assume: {a['assumed']}")
+    if manifest.get("unlinked_ambiguities"):
+        print(f"DROPPED: {manifest['unlinked_ambiguities']} ambiguity question(s) that no criterion depends on; "
+              "no answer to them could change the verdict")
     # A hint, so it must stay readable: a long request has hundreds of sentences
     # that are context and not requirements.
     for n in notes[:NOTES_SHOWN]:

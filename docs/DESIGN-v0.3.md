@@ -12,10 +12,10 @@ reviewed; this box records what came of it.
 |---|---|
 | **A** criterion manifest, two-stage dispatch | Built: `agents/criteria.md`, `validate_ledger.py --check-manifest / --manifest / --manifest-from`, the skill's stage 1 and ambiguity question, `run_bench.py --two-stage`, the `omitter` mock profile. |
 | **B** ledger outside the project | Built for the plugin's hook: per-session files under the data directory, retention, legacy `.intent/` read as a fallback, `--show`. |
-| **C** verdict path without the implementer | Not built. C1 still needs spikes S2 and S3 and measurements M3 and M4. Decided: run S2 and M4 first, then decide. |
+| **C** verdict path without the implementer | Not built. Its two gating checks passed later on 2026-10-05: S2 (a plugin `SubagentStop` hook receives the agent's complete reply) and M4 (verifiers wrote a JSON ledger at least as reliably as text). Whether to build C1 is the open decision; S3 and M3 are still unrun. |
 | Smaller fixes | 1 to 4 built. 5 (`maxTurns`) not: it needs a number from real runs. |
-| Measurements M1–M5 | M2 in part: the controlled set run two-stage, 16 of 16 (`benchmark/results/2026-10-05-cli-claude-sonnet-5-5-two-stage.md`), with no single-stage arm on current models. M1 and M3 to M5 not run; M1 as specified would likely tie at the set's ceiling. Before that, eight runs as a smoke test: `benchmark/results/2026-10-05-two-stage-smoke.md`. |
-| Spikes | S1, S4, S5 and S7 seen: `benchmark/results/2026-10-05-platform-spikes.md`. S2 and S3 (Change C) not run; S6 not needed. |
+| Measurements M1–M5 | M2 in part: the controlled set run two-stage, 16 of 16 (`benchmark/results/2026-10-05-cli-claude-sonnet-5-5-two-stage.md`), with no single-stage arm on current models. M4 run: `benchmark/results/2026-10-05-m4-json-ledger.md`. M1, M3 and M5 not run; M1 as specified would likely tie at the set's ceiling. Before all that, eight runs as a smoke test: `benchmark/results/2026-10-05-two-stage-smoke.md`. |
+| Spikes | S1, S2, S4, S5 and S7 seen: `benchmark/results/2026-10-05-platform-spikes.md`. S3 not run (it matters only for C2); S6 not needed. |
 
 Departures from the text below, each deliberate:
 

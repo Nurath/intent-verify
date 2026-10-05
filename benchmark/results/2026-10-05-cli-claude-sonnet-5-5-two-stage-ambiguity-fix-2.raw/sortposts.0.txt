@@ -1,0 +1,24 @@
+I ran the code and I'm writing up the ledger now. Criterion 1 fails because the output is oldest first. Criterion 2 passes.
+
+```
+INTENT-VERIFY LEDGER v1
+mode: FULL
+
+CRITERION 1: Posts are returned ordered by their date, with the most recent post first and the oldest last
+VERDICT: FAIL
+EVIDENCE-CMD: python -B -c "import sys; sys.path.insert(0, r'<repo>/benchmark/impl'); from sortposts import sort_posts; posts=[{'id':1,'date':'2024-01-05'},{'id':2,'date':'2025-03-01'},{'id':3,'date':'2023-12-31'},{'id':4,'date':'2025-03-01'}]; r=sort_posts(posts); print([p['id'] for p in r],[p['date'] for p in r])"
+EVIDENCE-OUT: [3, 1, 2, 4] ['2023-12-31', '2024-01-05', '2025-03-01', '2025-03-01']
+  Output is ascending (oldest first). The code calls sorted() without reverse=True, so the order is the opposite of what was requested.
+
+CRITERION 2: Sorting does not drop, duplicate, or alter any posts: the same set of posts appears before and after sorting
+VERDICT: PASS
+EVIDENCE-CMD: same script as criterion 1, plus: print(sorted(map(str,r))==sorted(map(str,orig)), posts==orig, len(r)), where orig is a deepcopy of the input
+EVIDENCE-OUT: True True 4
+  The same 4 posts come back with none dropped, duplicated or altered, and the input list is unchanged.
+
+FINAL: DRIFTED — criteria 1 failed
+```
+
+OBSERVATIONS:
+- The fix would be adding `reverse=True`. I did not change any files.
+- The test only used ISO-format date strings. Other date formats were not exercised.

@@ -1,0 +1,38 @@
+```
+INTENT-VERIFY LEDGER v1
+mode: FULL
+
+CRITERION 1: The result of rounding a price is a value with at most 2 decimal places (e.g. 3.14159 gives 3.14).
+VERDICT: PASS
+EVIDENCE-CMD: cd <repo>/benchmark/impl/correct && python -c "from roundprice_ok import round_price as r; [print(repr(x), repr(r(x))) for x in [3.14159,19.995,1.115]]"
+EVIDENCE-OUT: 3.14159 3.14
+  19.995 20.0
+  1.115 1.12
+
+CRITERION 2: A price that is not a tie rounds to the nearest 2-decimal value (e.g. 1.004 gives 1.00 and 1.006 gives 1.01).
+VERDICT: PASS
+EVIDENCE-CMD: same python session, inputs 1.004 and 1.006
+EVIDENCE-OUT: 1.004 1.0
+  1.006 1.01
+
+CRITERION 3: A price exactly halfway between two 2-decimal values rounds up to the higher one (e.g. 1.005 gives 1.01, 2.675 gives 2.68, 0.125 gives 0.13), not to the nearest even value.
+VERDICT: PASS
+EVIDENCE-CMD: same python session, inputs 1.005, 2.675, 0.125
+EVIDENCE-OUT: 1.005 1.01
+  2.675 2.68
+  0.125 0.13
+
+CRITERION 4: A price that already has 2 or fewer decimal places is returned with its value unchanged (e.g. 4.50 stays 4.50, 7 stays 7.00).
+VERDICT: PASS
+EVIDENCE-CMD: same python session, inputs 4.50, 7, 0.5, 2.5
+EVIDENCE-OUT: 4.5 4.5
+  7 7.0
+  0.5 0.5
+  2.5 2.5
+
+FINAL: MATCHES INTENT
+```
+
+OBSERVATIONS:
+- The function returns a float, so 4.50 prints as `4.5` and 7 as `7.0`. The values are unchanged, but trailing zeros are not preserved.
+- Negative ties round away from zero: -1.005 gives -1.01. The request did not say how negative prices should round.

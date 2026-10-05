@@ -113,11 +113,12 @@ below.
 
      Exit 1 lists defects (an invented quote, a skipped number): re-request
      **once** naming them.
-   - **`AMBIGUITY:` lines** are places where the request has more than one
-     reading. Put each to the user before going further, append the answers to
-     `<scratch>/request.md` under a line `===== clarification at verification
-     time =====`, and run this step once more on the amended request. One round
-     of questions only.
+   - **`AMBIGUITY:` lines** name a point where the request has two readings,
+     the reading the criteria were written for, and the criteria that depend on
+     it. Do not stop to ask: verify against the assumed readings, and settle
+     them in the report (step 7). The check has already dropped every ambiguity
+     that no criterion depends on (`DROPPED:`), since no answer to it could
+     change the verdict.
    - **`NOTE:` lines** are parts of the request that no criterion quotes. They
      may be context or a requirement the deriver skipped; carry them into your
      report so the user can tell.
@@ -171,7 +172,20 @@ below.
    request itself was incomplete). Also say: which request entries were frozen
    (id + first line); where the criteria came from (the independent deriver,
    the user, or you); which criteria carry no quote, since those were inferred
-   and not stated; any ambiguity the user resolved; any `NOTE:` lines.
+   and not stated; each `AMBIGUITY:` with the reading assumed; any `NOTE:`
+   lines.
+   - **An ambiguity whose criteria all PASSed** needs nothing more than that
+     line: the change does what the assumed reading asks.
+   - **A criterion that depends on an ambiguity FAILED or was NOT-EXERCISED:**
+     read its evidence against the other reading. If the code fails that
+     reading too, the reading changes nothing: report the criterion as it
+     stands and ask nothing. Otherwise the verdict rests on the reading. Say
+     so, give the other reading, and ask the user which one they meant. If it
+     was the other one, append their
+     answer to `<scratch>/request.md` under a line `===== clarification at
+     verification time =====`, redo step 2 on the amended request, and run
+     stages 2 onward against the new manifest. One clarification only. Its
+     verdict replaces the first one; it is not a fix round.
 
 ## Verification rounds are bounded (no verify↔fix loops)
 
@@ -218,8 +232,9 @@ may run on the same model as the verifier.
 
 - Trivial changes with no runtime surface (docs, comments, formatting).
 - When the original request is too vague to yield observable criteria — say so;
-  freezing an ambiguous ask does not create ground truth. Step 2's ambiguity
-  questions are the way through when the user is there to answer them.
+  freezing an ambiguous ask does not create ground truth. Ask the user what
+  they meant before step 2: the ambiguity handling there covers a request with
+  two readings, not one with none.
 
 ## Safety
 

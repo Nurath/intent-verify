@@ -1,0 +1,10 @@
+{"ledger": 1,
+ "nonce": "4d33ff2b1877cf24",
+ "mode": "FULL",
+ "criteria": [
+  {"id": 1, "text": "The resulting list contains no email appearing more than once", "verdict": "PASS", "cmd": "cd benchmark/impl/correct && python3 (or python) - <<EOF: from dedupe_ok import dedupe; inp=['b@x.com','a@x.com','b@x.com','c@x.com','a@x.com','b@x.com']; out=dedupe(inp); print(len(out)==len(set(out)))", "out": "['b@x.com', 'a@x.com', 'c@x.com']\nc1 no dups: True"},
+  {"id": 2, "text": "The remaining emails appear in the same relative order as in the original list", "verdict": "PASS", "cmd": "Same script; compared out to a first-seen-order list built by a loop (append if not already present)", "out": "c2 order: True (result ['b@x.com', 'a@x.com', 'c@x.com'], not sorted, so first-seen order is preserved)"},
+  {"id": 3, "text": "Every distinct email in the original list still appears in the result (only repeats are removed)", "verdict": "PASS", "cmd": "Same script; checked set(out)==set(inp), and ran dedupe([]) and dedupe(['a'])", "out": "c3 all distinct present: True\n[] ['a']"}
+ ],
+ "final": "MATCHES INTENT"}
+OBSERVATIONS: Matching is exact and case-sensitive. 'A@x.com' and 'a@x.com' count as different emails. The request and manifest don't mention case, so I didn't count this as a failure. I did not run a case-variant input.

@@ -1,0 +1,27 @@
+INTENT-VERIFY LEDGER v1
+mode: FULL
+
+CRITERION 1: Up to 5 login attempts from a single IP within one minute are processed normally (not rejected by the rate limit)
+VERDICT: PASS
+EVIDENCE-CMD: cd benchmark/impl && PYTHONPATH=. python $TEMP/t.py (time.time mocked; 5 calls to allow_login("A"))
+EVIDENCE-OUT: A1-5 [True, True, True, True, True]
+
+CRITERION 2: A 6th login attempt from the same IP within the same minute is rejected by the rate limit
+VERDICT: PASS
+EVIDENCE-CMD: same script; 6th call allow_login("A")
+EVIDENCE-OUT: A6 False
+
+CRITERION 3: After the one-minute window has passed, an IP that was blocked can attempt to log in again
+VERDICT: PASS
+EVIDENCE-CMD: same script; A blocked, advanced mocked clock by 61s, allow_login("A")
+EVIDENCE-OUT: A after 61s True
+
+CRITERION 4: Login attempts from one IP do not count against the limit of a different IP: when one IP is blocked, another IP can still attempt to log in
+VERDICT: FAIL
+EVIDENCE-CMD: same script; A made 5 attempts and is blocked, then allow_login("B") was called
+EVIDENCE-OUT: B after A blocked False
+  B1..5 [False, False, False, False, False]
+
+FINAL: DRIFTED — criteria 4 failed
+
+OBSERVATIONS: `allow_login(ip)` never uses `ip`. It keeps one global `_attempts` list, so all IPs share a single limit. Criteria 1–3 pass only because the test used a single IP.

@@ -1,0 +1,31 @@
+```json
+{
+  "ledger": 1,
+  "nonce": "6d33d59a98eee827",
+  "mode": "STRUCTURED",
+  "criteria": [
+    {
+      "id": 1,
+      "text": "The resulting list contains no email appearing more than once",
+      "verdict": "PASS",
+      "cmd": "python -c \"def dedupe(emails): return list(dict.fromkeys(emails)); test1_input = ['a@example.com', 'b@example.com', 'a@example.com', 'c@example.com']; test1_output = dedupe(test1_input); print('Test 1 (no duplicates):', test1_output); print('All unique:', len(test1_output) == len(set(test1_output)))\"",
+      "out": "Test 1 (no duplicates): ['a@example.com', 'b@example.com', 'c@example.com']\nAll unique: True"
+    },
+    {
+      "id": 2,
+      "text": "The remaining emails appear in the same relative order as in the original list",
+      "verdict": "PASS",
+      "cmd": "python -c \"def dedupe(emails): return list(dict.fromkeys(emails)); test2_input = ['first@example.com', 'second@example.com', 'first@example.com', 'third@example.com']; test2_output = dedupe(test2_input); expected_order = ['first@example.com', 'second@example.com', 'third@example.com']; print('Test 2 output:', test2_output); print('Order preserved:', test2_output == expected_order)\"",
+      "out": "Test 2 output: ['first@example.com', 'second@example.com', 'third@example.com']\nOrder preserved: True"
+    },
+    {
+      "id": 3,
+      "text": "Every distinct email in the original list still appears in the result (only repeats are removed)",
+      "verdict": "PASS",
+      "cmd": "python -c \"def dedupe(emails): return list(dict.fromkeys(emails)); test3_input = ['x@example.com', 'y@example.com', 'x@example.com', 'z@example.com', 'y@example.com']; test3_output = dedupe(test3_input); test3_distinct = set(test3_input); test3_output_set = set(test3_output); print('All distinct retained:', test3_distinct == test3_output_set)\"",
+      "out": "All distinct retained: True"
+    }
+  ],
+  "final": "MATCHES INTENT"
+}
+```

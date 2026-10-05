@@ -1,0 +1,7 @@
+{"manifest": 1,
+ "criteria": [
+   {"id": 1, "text": "No email address appears more than once in the resulting list", "quote": "Remove duplicate emails"},
+   {"id": 2, "text": "The emails that remain appear in the same relative order as in the original list", "quote": "keeping the original order"},
+   {"id": 3, "text": "Every distinct email in the original list still appears in the result (only repeats are removed)", "quote": null}
+ ],
+ "ambiguities": []}

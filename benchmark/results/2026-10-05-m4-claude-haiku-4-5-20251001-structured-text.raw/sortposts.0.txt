@@ -1,0 +1,31 @@
+```
+INTENT-VERIFY LEDGER v1
+mode: STRUCTURED
+
+CRITERION 1: Posts are returned/displayed ordered by their date, with the most recent date first and the oldest last.
+VERDICT: FAIL
+EVIDENCE-CMD: python <tmp>
+EVIDENCE-OUT: Input posts:
+  {'id': 1, 'date': '2026-01-01'}
+  {'id': 2, 'date': '2026-12-31'}
+  {'id': 3, 'date': '2026-06-15'}
+
+Sorted result:
+  Position 0: {'id': 1, 'date': '2026-01-01'}
+  Position 1: {'id': 3, 'date': '2026-06-15'}
+  Position 2: {'id': 2, 'date': '2026-12-31'}
+
+First (position 0) date: 2026-01-01
+Last (position 2) date: 2026-12-31
+Is newest first (descending)? False
+Is oldest first (ascending)? True
+
+CRITERION 2: Sorting does not add or drop any posts; the same set of posts appears, only reordered.
+VERDICT: PASS
+EVIDENCE-CMD: python <tmp>
+EVIDENCE-OUT: Original post count: 3
+Result post count: 3
+Same posts (by id)? True
+
+FINAL: DRIFTED — criterion 1 failed
+```

@@ -1,0 +1,12 @@
+{"ledger": 1,
+ "nonce": "745b1af0d7d90ed8",
+ "mode": "FULL",
+ "criteria": [
+  {"id": 1, "text": "Every returned item contains the query as a substring.", "verdict": "PASS", "cmd": "python search_ok.py harness: r=search(items,'aBc'); all('abc' in x.lower() for x in r)", "out": "5 True [] []"},
+  {"id": 2, "text": "Every item that contains the query as a substring is returned; none are dropped.", "verdict": "PASS", "cmd": "same harness: [x for x in items if 'abc' in x.lower() and x not in r]", "out": "5 True [] []  (dropped list is empty). Also search(items,'abc') -> ['xABCx', 'xabcx', 'Abc', 'AbCdef']"},
+  {"id": 3, "text": "Matching ignores letter case: an item matches when it contains the query in any combination of upper and lower case (e.g. query 'abc' matches 'xABCx', and query 'ABC' matches 'xabcx').", "verdict": "PASS", "cmd": "search(items,'abc') and search(items,'ABC') with items including 'xABCx','xabcx','Abc','AbCdef'", "out": "1 ['xABCx', 'xabcx', 'Abc', 'AbCdef']\n2 ['xABCx', 'xabcx', 'Abc', 'AbCdef']"},
+  {"id": 4, "text": "Items that do not contain the query (ignoring case) are excluded from the result.", "verdict": "PASS", "cmd": "search(items,'abc') with non-matching items 'ab','zzz','Hello World','' present", "out": "1 ['xABCx', 'xabcx', 'Abc', 'AbCdef']  (ab, zzz, Hello World, '' and the accented item are absent). Also search(['Hello World','HELLO','world'],'o w') -> ['Hello World']"},
+  {"id": 5, "text": "Returned items keep their original text (case is not altered by the matching).", "verdict": "PASS", "cmd": "search(items,'abc') output inspected; also search(['ABC','abc'],'b')", "out": "Returned 'xABCx','Abc','AbCdef' with original casing; 6 ['ABC', 'abc']"}
+ ],
+ "final": "MATCHES INTENT"}
+OBSERVATIONS: An empty query matches every item, which is standard substring behavior. The request did not address this case. The accented-character item displayed as '�BC' only because of console encoding. It was correctly excluded from the 'abc' results.

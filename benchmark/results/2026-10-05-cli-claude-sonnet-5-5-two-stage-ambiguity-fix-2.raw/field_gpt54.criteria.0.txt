@@ -1,0 +1,7 @@
+{"manifest": 1,
+ "criteria": [
+  {"id": 1, "text": "The model name gpt-5.4 resolves to a rate entry (rates are defined for it)", "quote": "Add rates for the gpt-5.4 model"},
+  {"id": 2, "text": "The rates that gpt-5.4 resolves to are the full model's own rates, not the rates used for gpt-5.4-mini", "quote": "the full model, NOT the mini"},
+  {"id": 3, "text": "gpt-5.4-mini still resolves to its own mini rates, unchanged by the addition of gpt-5.4", "quote": "gpt-5.4-mini must keep resolving to its own (mini) rates"}
+ ],
+ "ambiguities": []}

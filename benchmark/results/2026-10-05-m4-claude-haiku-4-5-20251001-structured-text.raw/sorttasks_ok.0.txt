@@ -1,0 +1,30 @@
+```
+INTENT-VERIFY LEDGER v1
+mode: STRUCTURED
+
+CRITERION 1: Tasks are ordered by priority, with higher-priority tasks appearing before lower-priority ones
+VERDICT: PASS
+EVIDENCE-CMD: python "<tmp>"
+EVIDENCE-OUT: Test 1 input: [{'name': 'A', 'priority': 1, ...}, {'name': 'B', 'priority': 3, ...}, {'name': 'C', 'priority': 2, ...}]
+  Output priorities: [3, 2, 1]
+  Is descending (highest first)? True
+
+CRITERION 2: Among tasks with equal priority, the task with the earlier due date appears first
+VERDICT: PASS
+EVIDENCE-CMD: python "<tmp>"
+EVIDENCE-OUT: Test 2 input: [{'name': 'A', 'priority': 2, 'due': '2026-03-01'}, {'name': 'B', 'priority': 2, 'due': '2026-01-01'}, {'name': 'C', 'priority': 2, 'due': '2026-02-01'}]
+  Output due dates: ['2026-01-01', '2026-02-01', '2026-03-01']
+  Is ascending (earliest first)? True
+
+CRITERION 3: Sorting does not drop or duplicate any tasks; the same set of tasks is returned
+VERDICT: PASS
+EVIDENCE-CMD: python "<tmp>"
+EVIDENCE-OUT: Test 3 input count: 4
+  Output count: 4
+  Input tasks: ['A', 'B', 'C', 'D']
+  Output tasks: ['A', 'B', 'C', 'D']
+  Same count? True
+  Same tasks? True
+
+FINAL: MATCHES INTENT
+```

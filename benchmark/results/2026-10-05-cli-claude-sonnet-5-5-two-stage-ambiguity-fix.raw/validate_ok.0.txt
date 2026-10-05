@@ -1,0 +1,38 @@
+```
+INTENT-VERIFY LEDGER v1
+mode: FULL
+
+CRITERION 1: A username whose length after trimming surrounding whitespace is between 3 and 20 characters inclusive is valid
+VERDICT: PASS
+EVIDENCE-CMD: python -c "from validate_ok import valid_username as v; ..." (cases 'abc', 'a'*20, '  abc  ', '\t\nabc\n')
+EVIDENCE-OUT: 'abc' True (expected True)
+  'aaaaaaaaaaaaaaaaaaaa' True (expected True)
+  '  abc  ' True (expected True)
+  '\t\nabc\n' True (expected True)
+
+CRITERION 2: A username whose trimmed length is fewer than 3 characters is invalid
+VERDICT: PASS
+EVIDENCE-CMD: python -c "from validate_ok import valid_username as v; ..." (cases 'ab', '', '  ab  ', '   a   ')
+EVIDENCE-OUT: 'ab' False (expected False)
+  '' False (expected False)
+  '  ab  ' False (expected False)
+  '   a   ' False (expected False)
+
+CRITERION 3: A username whose trimmed length is more than 20 characters is invalid
+VERDICT: PASS
+EVIDENCE-CMD: python -c "from validate_ok import valid_username as v; ..." (cases 'a'*21, '  '+'a'*21+'  ')
+EVIDENCE-OUT: 'aaaaaaaaaaaaaaaaaaaaa' False (expected False)
+  '  aaaaaaaaaaaaaaaaaaaaa  ' False (expected False)
+
+CRITERION 4: Length is measured after trimming leading and trailing whitespace, so padding spaces neither make a too-short name valid nor a 20-character name invalid
+VERDICT: PASS
+EVIDENCE-CMD: python -c "from validate_ok import valid_username as v; ..." (cases '   a   ', '  ab  ', ' '+'a'*20+' ')
+EVIDENCE-OUT: '   a   ' False (expected False)
+  '  ab  ' False (expected False)
+  ' aaaaaaaaaaaaaaaaaaaa ' True (expected True)
+
+FINAL: MATCHES INTENT
+```
+
+OBSERVATIONS:
+- `python3` isn't installed here, so I ran the code with `python`.

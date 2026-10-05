@@ -1,0 +1,25 @@
+```
+INTENT-VERIFY LEDGER v1
+mode: FULL
+
+CRITERION 1: Tasks with a higher priority appear before tasks with a lower priority in the sorted result
+VERDICT: PASS
+EVIDENCE-CMD: python scratchpad/v.py (calls sort_tasks on 5 tasks with priorities id1=2, id2=2, id3=5, id4=1, id5=2)
+EVIDENCE-OUT: [3, 1, 2, 5, 4]
+  Priority 5 (id 3) comes first, priority 1 (id 4) comes last, and the priority-2 tasks are in between.
+
+CRITERION 2: Among tasks with equal priority, the task with the earlier due date appears first
+VERDICT: FAIL
+EVIDENCE-CMD: python scratchpad/v.py (same run)
+EVIDENCE-OUT: [3, 1, 2, 5, 4]
+  The priority-2 tasks came out as ids 1, 2, 5, with due dates 2026-03-01, 2026-01-01 and 2026-02-01. The required order is 2, 5, 1. The output kept the input order, so the due date was ignored.
+
+CRITERION 3: Sorting returns every task exactly once, with none dropped or duplicated
+VERDICT: PASS
+EVIDENCE-CMD: python scratchpad/v.py (same run)
+EVIDENCE-OUT: 5 [1, 2, 3, 4, 5]
+
+FINAL: DRIFTED — criteria 2 failed
+```
+
+OBSERVATIONS: The sort key in `sorttasks.py` is only `-t["priority"]`. It never uses `due`, so ties keep their input order. The fix is to sort on `(-priority, due)`. The ISO date strings compare correctly as text.

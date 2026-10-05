@@ -1,0 +1,40 @@
+```
+INTENT-VERIFY LEDGER v1
+mode: STRUCTURED
+
+CRITERION 1: A username whose trimmed length is between 3 and 20 characters is valid
+VERDICT: PASS
+EVIDENCE-CMD: python test_validate.py (tested with 'testuser', 8 characters)
+EVIDENCE-OUT: PASS: Criterion 1: 8 chars (middle range) -> True (expected True)
+
+CRITERION 2: A username with a trimmed length of exactly 3 characters is valid (lower bound inclusive)
+VERDICT: PASS
+EVIDENCE-CMD: python test_validate.py (tested with 'abc', exactly 3 characters)
+EVIDENCE-OUT: PASS: Criterion 2: exactly 3 chars -> True (expected True)
+
+CRITERION 3: A username with a trimmed length of exactly 20 characters is valid (upper bound inclusive)
+VERDICT: PASS
+EVIDENCE-CMD: python test_validate.py (tested with 'a' * 20, exactly 20 characters)
+EVIDENCE-OUT: PASS: Criterion 3: exactly 20 chars -> True (expected True)
+
+CRITERION 4: A username with a trimmed length of 2 or fewer characters is not valid
+VERDICT: PASS
+EVIDENCE-CMD: python test_validate.py (tested with 'ab' and 'a')
+EVIDENCE-OUT: PASS: Criterion 4a: 2 chars -> False (expected False)
+  PASS: Criterion 4b: 1 char -> False (expected False)
+
+CRITERION 5: A username with a trimmed length of 21 or more characters is not valid
+VERDICT: PASS
+EVIDENCE-CMD: python test_validate.py (tested with 21 and 30 character strings)
+EVIDENCE-OUT: PASS: Criterion 5: 21 chars -> False (expected False)
+  PASS: Criterion 5: 30 chars -> False (expected False)
+
+CRITERION 6: Leading and trailing whitespace is removed before the length is measured, so surrounding whitespace does not count toward the length (e.g. ' ab ' is invalid, ' abc ' is valid)
+VERDICT: PASS
+EVIDENCE-CMD: python test_validate.py (tested with ' ab ' and ' abc ' and '  testuser  ')
+EVIDENCE-OUT: PASS: Criterion 6a: " ab " (2 chars after trim, invalid) -> False (expected False)
+  PASS: Criterion 6b: " abc " (3 chars after trim, valid) -> True (expected True)
+  PASS: Criterion 6c: spaces around valid username -> True (expected True)
+
+FINAL: MATCHES INTENT
+```

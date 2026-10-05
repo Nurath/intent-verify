@@ -1,0 +1,9 @@
+{"ledger": 1,
+ "nonce": "5e6bb4450521a46d",
+ "mode": "FULL",
+ "criteria": [
+  {"id": 1, "text": "Posts are returned/displayed ordered by their date, with the most recent date first and the oldest last", "verdict": "PASS", "cmd": "cd benchmark/impl/correct && python - <<EOF (import sort_posts from sortposts_ok; call it on 5 posts with ISO dates, including one duplicate date and out-of-order input; print the result and compare its dates to sorted(dates, reverse=True)) EOF", "out": "[(2, '2025-03-01'), (4, '2025-03-01'), (5, '2024-11-20'), (1, '2024-01-05'), (3, '2023-12-31')]\nTrue"},
+  {"id": 2, "text": "Sorting does not drop or duplicate any posts: the same set of posts appears before and after sorting", "verdict": "PASS", "cmd": "Same python script: compare sorted ids before and after, compare lengths, and call sort_posts([])", "out": "True True\n[]"}
+ ],
+ "final": "MATCHES INTENT"}
+OBSERVATIONS: The tests used ISO-format date strings, which sort correctly as text. I did not test other date formats such as "5 Jan 2024" or "01/05/2024". The code sorts on whatever type `p["date"]` holds, so string dates in those formats would sort wrongly. Ties keep their original order because Python's sort is stable (ids 2 and 4 stayed in that order).

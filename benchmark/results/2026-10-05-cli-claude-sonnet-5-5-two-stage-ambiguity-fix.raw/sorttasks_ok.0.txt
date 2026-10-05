@@ -1,0 +1,23 @@
+```
+INTENT-VERIFY LEDGER v1
+mode: FULL
+
+CRITERION 1: Tasks come back ordered by priority, with the highest-priority tasks first
+VERDICT: PASS
+EVIDENCE-CMD: python -c "from sorttasks_ok import sort_tasks; ..." on 7 tasks with priorities 1, 2 and 3 given in mixed order
+EVIDENCE-OUT: Priorities in the returned order: 3, 3, 3, 2, 1, 1, 1 (highest first).
+
+CRITERION 2: Among tasks with equal priority, the one with the earliest due date comes first
+VERDICT: PASS
+EVIDENCE-CMD: same command as criterion 1
+EVIDENCE-OUT: Priority 3 tasks came back as due 2026-02-01, 2026-02-01, 2026-03-01 (input order was 03-01, then 02-01). Priority 1 tasks came back as 2026-01-02, 2026-01-05, 2026-01-05, which is earliest first.
+
+CRITERION 3: Sorting returns all the tasks that were given; none are dropped or duplicated
+VERDICT: PASS
+EVIDENCE-CMD: same command as criterion 1, also comparing the input and output as sorted lists and calling sort_tasks([])
+EVIDENCE-OUT: Input length 7, output length 7, and the sorted input equals the sorted output (True). The input included an exact duplicate task (a, 1, 2026-01-05), and both copies were kept. sort_tasks([]) returned [].
+
+FINAL: MATCHES INTENT
+```
+
+OBSERVATIONS: I only tested ISO-format date strings, which sort correctly as text. Tasks with a missing `priority` or `due` key would raise a KeyError, but the request doesn't cover that case.

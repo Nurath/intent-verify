@@ -1,0 +1,29 @@
+```
+INTENT-VERIFY LEDGER v1
+mode: STRUCTURED
+
+CRITERION 1: The result of rounding a price has at most 2 decimal places (e.g. 1.234 becomes 1.23).
+VERDICT: PASS
+EVIDENCE-CMD: python << 'EOF' ... round_price(1.234) ... EOF
+EVIDENCE-OUT: Criterion 1 (1.234): 1.23
+
+CRITERION 2: A price exactly halfway at the third decimal rounds up (e.g. 1.005 becomes 1.01 and 2.675 becomes 2.68, not the binary-float results 1.00 and 2.67).
+VERDICT: PASS
+EVIDENCE-CMD: python << 'EOF' ... round_price(1.005) and round_price(2.675) ... EOF
+EVIDENCE-OUT: Criterion 2a (1.005): 1.01
+  Criterion 2b (2.675): 2.68
+
+CRITERION 3: A price already at 2 or fewer decimal places is returned with the same value (e.g. 4.50 stays 4.50, 3 stays 3.00).
+VERDICT: PASS
+EVIDENCE-CMD: python << 'EOF' ... round_price(4.50) and round_price(3) ... EOF
+EVIDENCE-OUT: Criterion 3a (4.50): 4.5
+  Criterion 3b (3): 3.0
+
+CRITERION 4: A price below the halfway point rounds down and a price above it rounds up (e.g. 1.994 becomes 1.99, 1.996 becomes 2.00).
+VERDICT: PASS
+EVIDENCE-CMD: python << 'EOF' ... round_price(1.994) and round_price(1.996) ... EOF
+EVIDENCE-OUT: Criterion 4a (1.994): 1.99
+  Criterion 4b (1.996): 2.0
+
+FINAL: MATCHES INTENT
+```

@@ -1,0 +1,21 @@
+```
+INTENT-VERIFY LEDGER v1
+mode: FULL
+
+CRITERION 1: Posts are returned ordered by their date, with the most recent date first and the oldest last
+VERDICT: FAIL
+EVIDENCE-CMD: python -c "from sortposts import sort_posts; p=[{'id':1,'date':'2024-01-05'},{'id':2,'date':'2025-03-01'},{'id':3,'date':'2023-07-09'},{'id':4,'date':'2025-03-01'}]; r=sort_posts(p); print([x['date'] for x in r])"
+EVIDENCE-OUT: ['2023-07-09', '2024-01-05', '2025-03-01', '2025-03-01']
+  The output is oldest first; the request asked for newest first. The code has no reverse=True.
+
+CRITERION 2: Sorting keeps every post: none are dropped or duplicated in the sorted result
+VERDICT: PASS
+EVIDENCE-CMD: python -c "from sortposts import sort_posts; p=[{'id':1,'date':'2024-01-05'},{'id':2,'date':'2025-03-01'},{'id':3,'date':'2023-07-09'},{'id':4,'date':'2025-03-01'}]; r=sort_posts(p); print(sorted(x['id'] for x in r), len(r))"
+EVIDENCE-OUT: [1, 2, 3, 4] 4
+
+FINAL: DRIFTED — criteria 1 failed
+```
+
+OBSERVATIONS:
+- `sort_posts` sorts ascending, which is the opposite of what was asked. Adding `reverse=True` would fix it.
+- `python3` isn't installed in this environment, so I ran the checks with `python`.

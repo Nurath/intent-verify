@@ -1,0 +1,33 @@
+```json
+{
+  "ledger": 1,
+  "nonce": "d2c6093d6422d698",
+  "mode": "STRUCTURED",
+  "criteria": [
+    {
+      "id": 1,
+      "text": "Only items that contain the query are returned; items that do not contain it are excluded",
+      "verdict": "PASS",
+      "cmd": "search(['apple', 'apricot', 'banana'], 'ap')",
+      "out": "['apple', 'apricot']\nExpected: ['apple', 'apricot']\nMatch: True"
+    },
+    {
+      "id": 2,
+      "text": "Matching ignores letter case: an item matches whether its text and the query differ in upper/lower case (e.g. query 'abc' matches 'ABC' and 'xAbCx')",
+      "verdict": "FAIL",
+      "cmd": "search(['Apple', 'APPLE', 'banana'], 'apple')",
+      "out": "[]\nExpected (case-insensitive): ['Apple', 'APPLE']\nMatch: False"
+    },
+    {
+      "id": 3,
+      "text": "A match is a substring match: an item matches when the query appears anywhere within it, not only when it equals the query",
+      "verdict": "PASS",
+      "cmd": "search(['xAbCx', 'hello', 'world'], 'AbC')",
+      "out": "['xAbCx']\nExpected (substring match): ['xAbCx']\nMatch: True"
+    }
+  ],
+  "final": "DRIFTED — criteria 2 failed"
+}
+```
+
+OBSERVATIONS: The implementation uses a simple `q in x` substring check, which correctly handles substring matching (criterion 3) and basic containment (criterion 1), but fails the case-insensitive requirement stated in the original request. Criterion 2 fails: when searching for 'apple' in ['Apple', 'APPLE', 'banana'], the function returns an empty list because Python's `in` operator is case-sensitive. The original request explicitly requires "case-insensitively," which this implementation does not satisfy.

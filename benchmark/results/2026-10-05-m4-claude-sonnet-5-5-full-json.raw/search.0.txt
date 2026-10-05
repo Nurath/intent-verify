@@ -1,0 +1,10 @@
+{"ledger": 1,
+ "nonce": "790a9457b165611f",
+ "mode": "FULL",
+ "criteria": [
+  {"id": 1, "text": "Only items that contain the query are returned; items that do not contain it are excluded", "verdict": "PASS", "cmd": "python -c \"import sys; sys.path.insert(0,'<repo>/benchmark/impl/omitted-intent'); from search import search; print(search(['ABC','xAbCx','abc','zzz','ab'],'abc'))\"", "out": "['abc']"},
+  {"id": 2, "text": "Matching ignores letter case: an item matches whether its text and the query differ in upper/lower case (e.g. query 'abc' matches 'ABC' and 'xAbCx')", "verdict": "FAIL", "cmd": "python -c \"import sys; sys.path.insert(0,'<repo>/benchmark/impl/omitted-intent'); from search import search; print(search(['ABC','xAbCx','abc','zzz','ab'],'abc')); print(search(['Hello','HELLO'],'HELLO'))\"", "out": "['abc']\n['HELLO']  (query 'abc' did not match 'ABC' or 'xAbCx'; query 'HELLO' did not match 'Hello')"},
+  {"id": 3, "text": "A match is a substring match: an item matches when the query appears anywhere within it, not only when it equals the query", "verdict": "PASS", "cmd": "python -c \"import sys; sys.path.insert(0,'<repo>/benchmark/impl/omitted-intent'); from search import search; print(search(['foo bar','FOO','xfoox'],'foo'))\"", "out": "['foo bar', 'xfoox']"}
+ ],
+ "final": "DRIFTED — criteria 2 failed"}
+OBSERVATIONS: The code uses a case-sensitive `q in x` and never lowercases or casefolds either side. The request explicitly asked for case-insensitive matching.

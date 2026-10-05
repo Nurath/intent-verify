@@ -329,7 +329,7 @@ class TestCommandLine(unittest.TestCase):
         r, written = self._run("--check-manifest", "reply.txt", "--request", "request.md", "--out", "manifest.json",
                                **{"reply.txt": MANIFEST_REPLY, "request.md": REQUEST})
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        self.assertIn("AMBIGUITY: 'date' - created or last edited?", r.stdout)
+        self.assertIn("AMBIGUITY: 'date' - created or last edited? — criteria 1 assume: created", r.stdout)
         self.assertIn("NOTE: no criterion quotes this part of the request: It felt slow on large blogs yesterday.", r.stdout)
         self.assertEqual([c["id"] for c in json.loads(written["manifest.json"])["criteria"]], [1, 2, 3])
 
@@ -370,8 +370,9 @@ MANIFEST = {"manifest": 1, "ambiguities": [], "criteria": [
     {"id": 2, "text": "The newest post comes first", "quote": "newest first"},
     {"id": 3, "text": "No post is dropped", "quote": "Keep every post"},
 ]}
+AMBIGUITY = {"question": "'date' - created or last edited?", "assumed": "created", "criteria": [1]}
 MANIFEST_REPLY = "Here you go:\n\n```json\n" + json.dumps(
-    dict(MANIFEST, ambiguities=["'date' - created or last edited?"]), indent=1) + "\n```\nLet me know!\n"
+    dict(MANIFEST, ambiguities=[AMBIGUITY]), indent=1) + "\n```\nLet me know!\n"
 
 
 class TestHarnessIndent(unittest.TestCase):
@@ -408,8 +409,30 @@ class TestManifest(unittest.TestCase):
         manifest, defects, notes = vl.check_manifest(MANIFEST_REPLY, REQUEST)
         self.assertEqual(defects, [])
         self.assertEqual(manifest["criteria"], MANIFEST["criteria"])
-        self.assertEqual(manifest["ambiguities"], ["'date' - created or last edited?"])
+        self.assertEqual(manifest["ambiguities"], [AMBIGUITY])
         self.assertEqual(notes, ["It felt slow on large blogs yesterday."])
+
+    def test_an_ambiguity_no_criterion_depends_on_is_dropped(self):
+        """No answer to it could change the verdict, so nobody should be asked
+        it. The 0.3.1 deriver raised 41 of these on 16 one-line requests."""
+        reply = json.dumps(dict(MANIFEST, ambiguities=[
+            "What should an empty list return?",
+            {"question": "Where should the code live?", "assumed": "anywhere", "criteria": []},
+            AMBIGUITY]))
+        manifest, defects, _ = vl.check_manifest(reply, REQUEST)
+        self.assertEqual(defects, [])
+        self.assertEqual(manifest["ambiguities"], [AMBIGUITY])
+        self.assertEqual(manifest["unlinked_ambiguities"], 2)
+
+    def test_an_ambiguity_must_name_real_criteria_and_the_reading_they_assume(self):
+        cases = {
+            "ids of this manifest's criteria": dict(AMBIGUITY, criteria=[7]),
+            "which reading criteria": dict(AMBIGUITY, assumed=" "),
+            "must be an object with": {"assumed": "created", "criteria": [1]},
+        }
+        for expected, ambiguity in cases.items():
+            _, defects, _ = vl.check_manifest(json.dumps(dict(MANIFEST, ambiguities=[ambiguity])), REQUEST)
+            self.assertTrue(any(expected in d for d in defects), (expected, defects))
 
     def test_a_quote_must_come_from_the_request(self):
         """Otherwise a criterion could be invented and attributed to the user."""
@@ -438,7 +461,7 @@ class TestManifest(unittest.TestCase):
             "ids must run 1..N": json.dumps({"manifest": 1, "criteria": [{"id": 2, "text": "x", "quote": None}]}),
             "one non-empty line": json.dumps({"manifest": 1, "criteria": [{"id": 1, "text": "a\nb", "quote": None}]}),
             "piece of the request, or null": json.dumps({"manifest": 1, "criteria": [{"id": 1, "text": "x", "quote": ""}]}),
-            "list of strings": json.dumps({"manifest": 1, "criteria": [{"id": 1, "text": "x", "quote": None}], "ambiguities": "none"}),
+            "'ambiguities' must be a list": json.dumps({"manifest": 1, "criteria": [{"id": 1, "text": "x", "quote": None}], "ambiguities": "none"}),
         }
         for expected, doc in cases.items():
             _, defects, _ = vl.check_manifest(doc, REQUEST)

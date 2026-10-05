@@ -207,11 +207,12 @@ class VerifierUnavailable(Exception):
     INCONCLUSIVE and the suite moves on."""
 
 
-def orchestrate(produce, case, manifest=None):
+def orchestrate(produce, case, manifest=None, check=None):
     """Reference implementation of the skill's validation step: validate (against
     the manifest when there is one), one bounded re-request naming the defects,
     then classify. Returns (verdict, meta); meta["attempts"] holds every raw
-    reply so a real run can be audited."""
+    reply so a real run can be audited. `check` replaces the text-ledger
+    validator, with the same signature (m4_json_ledger.py uses it)."""
     retries = 0
     last_defects = None
     attempts = []
@@ -221,7 +222,7 @@ def orchestrate(produce, case, manifest=None):
         except VerifierUnavailable as e:
             return "INCONCLUSIVE", {"retries": retries, "defects": ["verifier unavailable: %s" % e], "attempts": attempts}
         attempts.append(text)
-        ledger, defects = validate_ledger.validate(text, manifest)
+        ledger, defects = (check or validate_ledger.validate)(text, manifest)
         if not defects:
             return validate_ledger.verdict_of(ledger), {"retries": retries, "defects": [], "attempts": attempts}
         retries += 1 if attempt < MAX_RETRIES else 0
@@ -353,6 +354,7 @@ def main(argv=None):
                     help="[cli] derive a criterion manifest from the request alone first, then hold the verifier to it")
     ap.add_argument("--timeout", type=int, default=600, help="[cli] per-case seconds")
     ap.add_argument("--no-write", action="store_true", help="don't write a results file")
+    ap.add_argument("--label", help="[cli] suffix for the results file name, so a re-run keeps the earlier one")
     a = ap.parse_args(argv)
 
     cases = json.loads(_read(os.path.join(HERE, "cases.json")))["cases"]
@@ -464,6 +466,12 @@ def main(argv=None):
             out.append("| tokens, all calls | %d |" % sum(u["tokens"] for u in calls))
             out.append("| cost, USD at list price | %.2f |" % sum(u["cost_usd"] for u in calls))
             out.append("| model time, minutes | %.1f |" % (sum(u["seconds"] for u in calls) / 60))
+        manifests = [r["meta"]["manifest"] for r in rows if r["meta"]["manifest"]]
+        if manifests:
+            out.append("| ambiguities kept: each names the criteria that depend on it | %d |"
+                       % sum(len(m["ambiguities"]) for m in manifests))
+            out.append("| ambiguities dropped: no criterion depends on them | %d |"
+                       % sum(m.get("unlinked_ambiguities", 0) for m in manifests))
         out.append("\n| case | expected | got | retries | manifest criteria | stage-1 tokens | stage-2 tokens | note |\n"
                    "|---|---|---|---|---|---|---|---|")
         for r in rows:
@@ -481,6 +489,7 @@ def main(argv=None):
             name = "mock-orchestration"
         else:
             name = "cli-" + re.sub(r"[^A-Za-z0-9._-]", "_", a.verifier) + ("-two-stage" if a.two_stage else "")
+            name += "-" + re.sub(r"[^A-Za-z0-9._-]", "_", a.label) if a.label else ""
         dest = os.path.join(HERE, "results", "%s-%s.md" % (stamp, name))
         with open(dest, "w", encoding="utf-8") as f:
             f.write(report)

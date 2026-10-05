@@ -1,0 +1,44 @@
+INTENT-VERIFY LEDGER v1
+mode: FULL
+
+CRITERION 1: The result of rounding a price is expressed to 2 decimal places (e.g. 3.14159 gives 3.14, and 5 gives 5.00 in value, i.e. no more than 2 decimal digits of precision)
+VERDICT: PASS
+EVIDENCE-CMD: python3 -c "from roundprice_ok import round_price as r; [print(x, repr(r(x))) for x in [3.14159,5]]"  (run in benchmark/impl/correct)
+EVIDENCE-OUT:
+  3.14159 3.14
+  5 5.0
+
+CRITERION 2: A price whose third decimal digit is exactly 5 with nothing after it rounds up (e.g. 1.005 gives 1.01, 2.675 gives 2.68, 0.125 gives 0.13)
+VERDICT: PASS
+EVIDENCE-CMD: same script, inputs 1.005, 2.675, 0.125, 1.015
+EVIDENCE-OUT:
+  1.005 1.01
+  2.675 2.68
+  0.125 0.13
+  1.015 1.02
+
+CRITERION 3: A price whose remainder beyond 2 decimals is below one half rounds down (e.g. 1.004 gives 1.00, 2.674 gives 2.67)
+VERDICT: PASS
+EVIDENCE-CMD: same script, inputs 1.004, 2.674
+EVIDENCE-OUT:
+  1.004 1.0
+  2.674 2.67
+
+CRITERION 4: A price whose remainder beyond 2 decimals is above one half rounds up (e.g. 1.006 gives 1.01)
+VERDICT: PASS
+EVIDENCE-CMD: same script, input 1.006
+EVIDENCE-OUT:
+  1.006 1.01
+
+CRITERION 5: A price already at 2 or fewer decimal places is returned unchanged in value (e.g. 4.50 stays 4.50, 7 stays 7.00)
+VERDICT: PASS
+EVIDENCE-CMD: same script, inputs 4.50, 7, 0.5, 2.5
+EVIDENCE-OUT:
+  4.5 4.5
+  7 7.0
+  0.5 0.5
+  2.5 2.5
+
+FINAL: MATCHES INTENT
+
+OBSERVATIONS: Negative input -1.005 gives -1.01, which is round-half-away-from-zero (ROUND_HALF_UP in Decimal terms). The request doesn't cover negative prices. The function returns a float, so 2-decimal formatting is by value only, which matches the manifest wording.

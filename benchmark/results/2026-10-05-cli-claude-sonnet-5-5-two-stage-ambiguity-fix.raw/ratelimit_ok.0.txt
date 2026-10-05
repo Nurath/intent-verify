@@ -1,0 +1,38 @@
+```
+INTENT-VERIFY LEDGER v1
+mode: FULL
+
+CRITERION 1: Up to 5 login attempts from a single IP within a one-minute window are processed normally (not rejected by the rate limit)
+VERDICT: PASS
+EVIDENCE-CMD: python t.py (imports ratelimit_ok; print([allow_login('a') for _ in range(5)]))
+EVIDENCE-OUT: c1 [True, True, True, True, True]
+
+CRITERION 2: A 6th login attempt from the same IP within the same minute is rejected by the rate limit
+VERDICT: PASS
+EVIDENCE-CMD: python t.py (continuing with IP 'a': allow_login('a') twice after the first 5 calls)
+EVIDENCE-OUT: c2 False False
+
+CRITERION 3: Once the one-minute window has passed, the same IP can attempt login again
+VERDICT: PASS
+EVIDENCE-CMD: python t.py (time.time patched to t0+59, then t0+61; allow_login('a'))
+EVIDENCE-OUT: c3 at +59 False
+  c3 at +61 True
+
+CRITERION 4: Login attempts from one IP being exhausted or blocked does not affect another IP, which can still attempt login up to its own 5 per minute
+VERDICT: PASS
+EVIDENCE-CMD: python t.py (IP 'a' already exhausted; then [allow_login('b') for _ in range(6)])
+EVIDENCE-OUT: c4 [True, True, True, True, True, False]
+
+CRITERION 5: The rate limit applies to the login endpoint/action
+VERDICT: PASS
+EVIDENCE-CMD: python t.py (dir(ratelimit_ok) listing of public names)
+EVIDENCE-OUT: funcs ['LIMIT', 'WINDOW', 'allow_login', 'defaultdict', 'time']
+  The module's only public function is allow_login(ip), which returns True or False, so the limit applies to the login action. No endpoint is wired up here, so a caller must invoke it.
+
+FINAL: MATCHES INTENT
+```
+
+OBSERVATIONS:
+- `python3` was not installed, so I ran the tests with `python`.
+- The code uses a sliding window, not a fixed one. At 59s the 6th attempt was still rejected, and at 61s it was allowed.
+- The state is in-memory and not thread-safe. The request did not ask for either.

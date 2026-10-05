@@ -1,0 +1,45 @@
+```json
+{
+  "ledger": 1,
+  "nonce": "7baa0a1b146cb1d6",
+  "mode": "STRUCTURED",
+  "criteria": [
+    {
+      "id": 1,
+      "text": "Every returned item contains the query as a substring.",
+      "verdict": "PASS",
+      "cmd": "search(['apple', 'banana', 'apricot', 'cherry'], 'ap')",
+      "out": "Result: ['apple', 'apricot']\nAll results contain 'ap'? True"
+    },
+    {
+      "id": 2,
+      "text": "Every item that contains the query as a substring is returned; none are dropped.",
+      "verdict": "PASS",
+      "cmd": "search(['apple', 'banana', 'apricot', 'cherry'], 'ap')",
+      "out": "Result: ['apple', 'apricot']\nExpected (all with 'ap'): ['apple', 'apricot']\nComplete? True"
+    },
+    {
+      "id": 3,
+      "text": "Matching ignores letter case: an item matches when it contains the query in any combination of upper and lower case (e.g. query 'abc' matches 'xABCx', and query 'ABC' matches 'xabcx').",
+      "verdict": "PASS",
+      "cmd": "search(['APPLE', 'apple', 'Apple', 'banana'], 'APP')",
+      "out": "Result: ['APPLE', 'apple', 'Apple']\nMatches all case variants? True"
+    },
+    {
+      "id": 4,
+      "text": "Items that do not contain the query (ignoring case) are excluded from the result.",
+      "verdict": "PASS",
+      "cmd": "search(['hello', 'world', 'xyz', 'test'], 'nothere')",
+      "out": "Result: []\nIs empty? True"
+    },
+    {
+      "id": 5,
+      "text": "Returned items keep their original text (case is not altered by the matching).",
+      "verdict": "PASS",
+      "cmd": "search(['Hello', 'WORLD', 'PyThOn', 'test'], 'or')",
+      "out": "Result: ['WORLD']\nOriginal case preserved? Yes"
+    }
+  ],
+  "final": "MATCHES INTENT"
+}
+```

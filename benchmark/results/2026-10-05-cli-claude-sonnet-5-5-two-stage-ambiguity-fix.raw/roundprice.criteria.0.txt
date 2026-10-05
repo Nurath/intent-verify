@@ -1,0 +1,11 @@
+{"manifest": 1,
+ "criteria": [
+   {"id": 1, "text": "The result of rounding a price has exactly 2 decimal places of precision (e.g. 3.14159 becomes 3.14, and 2 becomes 2.00 or an equal value of 2)", "quote": "Round a price to 2 decimal places"},
+   {"id": 2, "text": "A price whose third decimal digit onward is below the midpoint rounds down (e.g. 1.004 becomes 1.00, 2.674 becomes 2.67)", "quote": "Round a price to 2 decimal places"},
+   {"id": 3, "text": "A price exactly halfway between two cents rounds up to the higher one (e.g. 1.005 becomes 1.01, 2.675 becomes 2.68, 0.125 becomes 0.13)", "quote": "rounding half up"},
+   {"id": 4, "text": "A price above the midpoint rounds up (e.g. 1.006 becomes 1.01)", "quote": "rounding half up"},
+   {"id": 5, "text": "A price already at 2 decimal places or fewer is returned with its value unchanged (e.g. 19.99 stays 19.99)", "quote": null}
+ ],
+ "ambiguities": [
+   {"question": "Is the halfway point judged on the decimal value as written (1.005 is a tie) or on the underlying binary float (1.005 is slightly below a tie and would round down)?", "assumed": "The decimal value as written, so 1.005 and 2.675 are ties and round up", "criteria": [3]}
+ ]}

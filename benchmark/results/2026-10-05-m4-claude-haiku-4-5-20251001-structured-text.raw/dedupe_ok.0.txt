@@ -1,0 +1,27 @@
+```
+INTENT-VERIFY LEDGER v1
+mode: STRUCTURED
+
+CRITERION 1: The resulting list contains no email appearing more than once
+VERDICT: PASS
+EVIDENCE-CMD: python with dedupe(['alice@example.com', 'bob@example.com', 'alice@example.com', 'charlie@example.com', 'bob@example.com'])
+EVIDENCE-OUT: Output: ['alice@example.com', 'bob@example.com', 'charlie@example.com']
+  Verified: len(output) == len(set(output)) → True (no duplicates present)
+
+CRITERION 2: The remaining emails appear in the same relative order as in the original list
+VERDICT: PASS
+EVIDENCE-CMD: python with dedupe(['a@test.com', 'b@test.com', 'c@test.com', 'a@test.com', 'b@test.com'])
+EVIDENCE-OUT: Output: ['a@test.com', 'b@test.com', 'c@test.com']
+  Expected order (first-seen): ['a@test.com', 'b@test.com', 'c@test.com']
+  Match verified: True
+
+CRITERION 3: Every distinct email in the original list still appears in the result (only repeats are removed)
+VERDICT: PASS
+EVIDENCE-CMD: python with dedupe(['user1@example.com', 'user2@example.com', 'user1@example.com', 'user3@example.com', 'user2@example.com'])
+EVIDENCE-OUT: Output: ['user1@example.com', 'user2@example.com', 'user3@example.com']
+  Distinct in input: {'user1@example.com', 'user2@example.com', 'user3@example.com'}
+  Distinct in output: {'user1@example.com', 'user2@example.com', 'user3@example.com'}
+  Sets equal: True
+
+FINAL: MATCHES INTENT
+```

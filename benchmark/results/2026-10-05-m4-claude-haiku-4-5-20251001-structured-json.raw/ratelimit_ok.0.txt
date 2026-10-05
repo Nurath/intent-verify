@@ -1,0 +1,45 @@
+```json
+{
+  "ledger": 1,
+  "nonce": "97a5a843a4e54e87",
+  "mode": "STRUCTURED",
+  "criteria": [
+    {
+      "id": 1,
+      "text": "Up to 5 login attempts from a single IP within one minute are processed normally (not rejected by the rate limit)",
+      "verdict": "PASS",
+      "cmd": "python test_ratelimit.py",
+      "out": "TEST 1: First 5 attempts from IP1 should all be allowed\n  Attempt 1: True\n  Attempt 2: True\n  Attempt 3: True\n  Attempt 4: True\n  Attempt 5: True"
+    },
+    {
+      "id": 2,
+      "text": "A 6th login attempt from the same IP within the same minute is rejected by the rate limit",
+      "verdict": "PASS",
+      "cmd": "python test_ratelimit.py",
+      "out": "TEST 2: 6th attempt from IP1 within same minute should be rejected\n  Attempt 6: False"
+    },
+    {
+      "id": 3,
+      "text": "Once a single IP has hit the limit, a different IP can still make login attempts that are not rejected by the rate limit",
+      "verdict": "PASS",
+      "cmd": "python test_ratelimit.py",
+      "out": "TEST 3: IP2 should still be allowed to login when IP1 is rate-limited\n  IP2 first attempt: True"
+    },
+    {
+      "id": 4,
+      "text": "Attempts from one IP do not count toward the attempt total of any other IP",
+      "verdict": "PASS",
+      "cmd": "python test_ratelimit.py",
+      "out": "TEST 4: Multiple attempts from IP2 and IP3 should work independently\n  IP2 attempt 2: True\n  IP2 attempt 3: True\n  IP2 attempt 4: True\n  IP2 attempt 5: True\n  IP3 attempt 1: True\n  IP3 attempt 2: True\n  IP3 attempt 3: True\n  IP3 attempt 4: True\n  IP3 attempt 5: True\n  IP2 attempt 6: False\n  IP3 attempt 6: False"
+    },
+    {
+      "id": 5,
+      "text": "After the one-minute window passes, a rate-limited IP can attempt login again",
+      "verdict": "PASS",
+      "cmd": "python test_ratelimit.py",
+      "out": "TEST 5: After 60+ seconds, rate-limited IP1 should be able to login again\n  Waiting 61 seconds...\n  IP1 attempt after window expires: True"
+    }
+  ],
+  "final": "MATCHES INTENT"
+}
+```

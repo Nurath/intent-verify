@@ -1,0 +1,32 @@
+```
+INTENT-VERIFY LEDGER v1
+mode: FULL
+
+CRITERION 1: The model name gpt-5.4 resolves to a rate entry (rates are defined for it)
+VERDICT: PASS
+EVIDENCE-CMD: python (load task1-gpt5.4-cost.py, call _llm_rates_for_model("gpt-5.4", CostRates()) and compute_call_cost(model="gpt-5.4"))
+EVIDENCE-OUT: gpt-5.4 (1.25, 0.125, 6.0)
+  openai/gpt-5.4 (1.25, 0.125, 6.0)
+  gpt-5.4-2026-03-05 (1.25, 0.125, 6.0)
+  compute_call_cost -> {'llm_usd': 7.25, ...}
+
+CRITERION 2: The rates that gpt-5.4 resolves to are the full model's own rates, not the rates used for gpt-5.4-mini
+VERDICT: PASS
+EVIDENCE-CMD: same script, comparing gpt-5.4 against gpt-5.4-mini lookups
+EVIDENCE-OUT: gpt-5.4 (1.25, 0.125, 6.0) versus gpt-5.4-mini (0.75, 0.075, 4.5). The two tuples differ, and gpt-5.4 does not get the mini rates.
+
+CRITERION 3: gpt-5.4-mini still resolves to its own mini rates, unchanged by the addition of gpt-5.4
+VERDICT: PASS
+EVIDENCE-CMD: same script, looking up gpt-5.4-mini variants
+EVIDENCE-OUT: gpt-5.4-mini (0.75, 0.075, 4.5)
+  gpt-5.4-mini-2026-03-17 (0.75, 0.075, 4.5)
+  openai/gpt-5.4-mini (0.75, 0.075, 4.5)
+
+FINAL: MATCHES INTENT
+```
+
+OBSERVATIONS:
+- `rates_from_settings()` does not map any `gpt5_4_*` fields. If it is used, the gpt-5.4 rates stay at the dataclass defaults and cannot be tuned through settings.
+- I couldn't compare the mini rates against the pre-change file. They equal the values the file documents (0.75 / 0.075 / 4.5).
+- The module docstring still lists the supported models without gpt-5.4.
+- Loading the file with `importlib` needed `sys.modules` registration. That is a loader quirk, not a code defect.

@@ -16,7 +16,8 @@ not be run. They are marked as such and not assumed.
 | S1 | Does an agent whose allowlist names only inert tools launch, with no way to read files? | **Seen** (later run, below). The installed `intent-criteria` agent launched and returned a manifest. Asked to list its tools, it named `TaskStop` and `SubagentHandback` (which the harness gives every subagent) and said none could read a file or run a command. `TodoWrite`, the other tool in its allowlist, does not exist in this version; the agent launches while at least one listed tool does. The run used about 14k tokens. |
 | S4 | Does `PostToolUse` fire for `AskUserQuestion`, carrying the answer? | **Seen** (later run, below). Two questions answered in one call in the desktop app produced one `decision` entry holding both questions, every option with its description, and both answers. The answer's shape had first been taken from a real session transcript, `{questions, answers: {<question>: <label>}}`; the hook keeps an answer in any other shape as text. |
 | S7 | Can prompts the harness submits be told from typed ones? | **Seen in our own ledgers.** Of 706 captured entries, 85 began `<task-notification>`, 16 `<agent-message>`, 2 `<system-reminder>` and 1 `<scheduled-task>`; a later session also showed `<ci-monitor-event>`. |
-| S2, S3 | `SubagentStop` payload, and block-to-retry | Not run. Nothing in 0.3.0 depends on them; they gate Change C. |
+| S2 | Does a plugin's `SubagentStop` hook fire for the plugin's own agent, foreground and background, with the complete final text? | **Seen** (later run, below). A probe plugin loaded with `--plugin-dir` in a headless session ran its agent once in the foreground and once in the background. The hook fired for both. `agent_type` is the plugin-qualified name (`ivprobe:echo`): a matcher on that name fired, a matcher on the bare name (`echo`) never did. `last_assistant_message` was byte-identical to the agent's final message in its own transcript (`agent_transcript_path`): 3,073 characters with indentation, a Windows path with backslashes, quotes, non-ASCII text, ledger keyword lines and an end marker intact. `stop_hook_active` was false. |
+| S3 | Block-to-retry from `SubagentStop` | Not run. It matters only for C2. |
 | S6 | Can a subagent read a file under the data directory without a prompt? | Not needed. The request is handed to subagents inline. |
 
 One more thing was observed that no spike asked about: the harness delivers a
@@ -29,4 +30,6 @@ CRITERION blocks found"). 0.3.0 removes an indent shared by every line.
 After a restart with 0.3.1 installed (Claude Code 2.1.289), S1, S4 and the
 skill half of S5 were run from the desktop app; the table above has the
 results. The restarted session's hook was already writing to the plugin data
-directory. All three were seen once, on one Windows machine.
+directory. S2 was run headless with a probe plugin (`claude -p --plugin-dir`,
+user settings left out so no installed plugin interfered). Each was seen once,
+on one Windows machine.

@@ -35,12 +35,22 @@ Rules:
 - `quote` is the stretch of the request that commits to the criterion, copied
   character for character. A few words are enough. It is checked mechanically:
   a quote that does not occur in the request makes your whole reply invalid.
-- Where the request can reasonably be read in more than one way, and two
-  careful people would build different things from it, do not pick one
-  silently. Put the point under `ambiguities` as a short question, most
-  consequential first, four at most. A detail the request simply leaves to the
-  implementer is not an ambiguity. Still write criteria for everything that is
-  unambiguous.
+- Where something the request commits to can be read in two ways, and the
+  reading decides how one of your criteria is checked, write that criterion for
+  the reading a careful reader would pick, and record the point under
+  `ambiguities`: the question, the reading you assumed, and the ids of the
+  criteria that depend on it. Three at most, most consequential first. Nobody
+  is asked before the check runs. The user hears about it only if one of those
+  criteria fails or cannot be run.
+- Anything the request leaves open is not an ambiguity: empty input, error
+  handling, where the code lives, formats or fields it never mentions. You write
+  no criterion for those, so no answer could change the verdict. An ambiguity
+  that names no criterion is discarded.
+- Nor is a point with an ordinary reading: what most people asking this would
+  mean, by the everyday sense of the words or the usage of the field the request
+  comes from. Write the criterion for that reading and say nothing. Record a
+  point only when you would expect careful people to split between two
+  readings, and never one where either reading would satisfy your criterion.
 - Each criterion is one line. Number them 1, 2, 3 … with no gaps.
 
 Reply with one JSON object and nothing else:
@@ -51,5 +61,9 @@ Reply with one JSON object and nothing else:
    {"id": 1, "text": "<one observable fact>", "quote": "<exact words from the request>"},
    {"id": 2, "text": "<an implied fact>", "quote": null}
  ],
- "ambiguities": ["<a question, or leave the list empty>"]}
+ "ambiguities": [
+   {"question": "<the point with two readings>", "assumed": "<the reading your criteria use>", "criteria": [1]}
+ ]}
 ```
+
+`ambiguities` is usually empty: `"ambiguities": []`.

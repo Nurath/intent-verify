@@ -1,0 +1,23 @@
+```
+INTENT-VERIFY LEDGER v1
+mode: FULL
+
+CRITERION 1: Posts are returned ordered by their date, with the most recent date first
+VERDICT: PASS
+EVIDENCE-CMD: cd <repo>/benchmark/impl/correct && python -c "from sortposts_ok import sort_posts; posts=[{'id':1,'date':'2024-01-05'},{'id':2,'date':'2025-03-01'},{'id':3,'date':'2023-12-31'},{'id':4,'date':'2025-03-01'},{'id':5,'date':'2024-11-09'}]; r=sort_posts(posts); print([(p['id'],p['date']) for p in r]); print('desc', all(r[i]['date']>=r[i+1]['date'] for i in range(len(r)-1)))"
+EVIDENCE-OUT: [(2, '2025-03-01'), (4, '2025-03-01'), (5, '2024-11-09'), (1, '2024-01-05'), (3, '2023-12-31')]
+  desc True
+
+CRITERION 2: Sorting does not add or drop any posts: the same set of posts is returned, only reordered
+VERDICT: PASS
+EVIDENCE-CMD: cd <repo>/benchmark/impl/correct && python -c "from sortposts_ok import sort_posts; posts=[{'id':1,'date':'2024-01-05'},{'id':2,'date':'2025-03-01'},{'id':3,'date':'2023-12-31'},{'id':4,'date':'2025-03-01'},{'id':5,'date':'2024-11-09'}]; orig=[dict(p) for p in posts]; r=sort_posts(posts); print('same set', sorted(p['id'] for p in r)==sorted(p['id'] for p in orig), len(r)==len(orig)); print('input unchanged', posts==orig); print(sort_posts([]))"
+EVIDENCE-OUT: same set True True
+  input unchanged True
+  []
+
+FINAL: MATCHES INTENT
+```
+
+OBSERVATIONS:
+- The date ordering relies on string comparison. That is correct for ISO-format dates such as `YYYY-MM-DD`. I did not test non-ISO date strings (for example `MM/DD/YYYY`), because the request doesn't specify a date format.
+- Ties keep their input order. In the test, ids 2 and 4 share a date and stay in that order, because `sorted` is stable and `reverse=True` preserves stability.

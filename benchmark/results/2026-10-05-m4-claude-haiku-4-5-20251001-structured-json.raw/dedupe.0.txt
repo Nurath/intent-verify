@@ -1,0 +1,33 @@
+```json
+{
+  "ledger": 1,
+  "nonce": "339a4e30dacff5f6",
+  "mode": "STRUCTURED",
+  "criteria": [
+    {
+      "id": 1,
+      "text": "The resulting list contains no email address more than once",
+      "verdict": "PASS",
+      "cmd": "python -c \"from sys import path; path.insert(0, '<repo>/benchmark/impl/omitted-Intent'); from dedupe import dedupe; test = ['alice@example.com', 'bob@example.com', 'alice@example.com', 'charlie@example.com']; result = dedupe(test); print('Output:', result); print('Duplicates in output:', len(result) != len(set(result)))\"",
+      "out": "Output: ['alice@example.com', 'bob@example.com', 'charlie@example.com']\nDuplicates in output: False"
+    },
+    {
+      "id": 2,
+      "text": "The remaining emails appear in the same relative order as in the original list",
+      "verdict": "FAIL",
+      "cmd": "python -c \"from sys import path; path.insert(0, '<repo>/benchmark/impl/omitted-Intent'); from dedupe import dedupe; test = ['email3@example.com', 'email1@example.com', 'email3@example.com', 'email2@example.com']; result = dedupe(test); expected_order = ['email3@example.com', 'email1@example.com', 'email2@example.com']; print('Input:', test); print('Output:', result); print('Expected (order preserved):', expected_order); print('Match:', result == expected_order)\"",
+      "out": "Input: ['email3@example.com', 'email1@example.com', 'email3@example.com', 'email2@example.com']\nOutput: ['email1@example.com', 'email2@example.com', 'email3@example.com']\nExpected (order preserved): ['email3@example.com', 'email1@example.com', 'email2@example.com']\nMatch: False"
+    },
+    {
+      "id": 3,
+      "text": "Every distinct email in the original list is still present in the result (only repeats are removed)",
+      "verdict": "PASS",
+      "cmd": "python -c \"from sys import path; path.insert(0, '<repo>/benchmark/impl/omitted-Intent'); from dedupe import dedupe; test = ['alice@example.com', 'bob@example.com', 'alice@example.com', 'charlie@example.com']; result = dedupe(test); distinct_input = set(test); distinct_output = set(result); print('Distinct input:', distinct_input); print('Distinct output:', distinct_output); print('All distinct preserved:', distinct_input == distinct_output)\"",
+      "out": "Distinct input: {'alice@example.com', 'bob@example.com', 'charlie@example.com'}\nDistinct output: {'alice@example.com', 'bob@example.com', 'charlie@example.com'}\nAll distinct preserved: True"
+    }
+  ],
+  "final": "DRIFTED — criteria 2 failed"
+}
+```
+
+OBSERVATIONS: The implementation uses `list(set(emails))` which removes duplicates but does not preserve order. The original request explicitly asks to "keep the original order." While the function successfully deduplicates and retains all distinct emails (criteria 1 and 3), it fails to maintain the original sequence (criterion 2). A proper implementation would need to use a dictionary or other order-preserving technique, such as: `list(dict.fromkeys(emails))` (Python 3.7+) or a loop with a set to track seen emails.

@@ -1,0 +1,32 @@
+```
+INTENT-VERIFY LEDGER v1
+mode: STRUCTURED
+
+CRITERION 1: Tasks are ordered by priority, with the highest-priority tasks first
+VERDICT: PASS
+EVIDENCE-CMD: python "<tmp>"
+EVIDENCE-OUT: Input: [{'priority': 1, 'due': '2026-01-01'}, {'priority': 3, 'due': '2026-01-01'}, {'priority': 2, 'due': '2026-01-01'}]
+  Output: [{'priority': 3, 'due': '2026-01-01'}, {'priority': 2, 'due': '2026-01-01'}, {'priority': 1, 'due': '2026-01-01'}]
+  Priority order: [3, 2, 1]
+  Expected: [3, 2, 1]
+
+CRITERION 2: Among tasks with equal priority, the task with the earliest due date comes first
+VERDICT: FAIL
+EVIDENCE-CMD: python "<tmp>"
+EVIDENCE-OUT: Input: [{'priority': 2, 'due': '2026-03-01'}, {'priority': 2, 'due': '2026-01-01'}, {'priority': 2, 'due': '2026-02-01'}]
+  Output: [{'priority': 2, 'due': '2026-03-01'}, {'priority': 2, 'due': '2026-01-01'}, {'priority': 2, 'due': '2026-02-01'}]
+  Due dates order: ['2026-03-01', '2026-01-01', '2026-02-01']
+  Expected: ['2026-01-01', '2026-02-01', '2026-03-01']
+
+CRITERION 3: Sorting returns every task exactly once; no tasks are dropped or duplicated
+VERDICT: PASS
+EVIDENCE-CMD: python "<tmp>"
+EVIDENCE-OUT: Input count: 3
+  Output count: 3
+  All tasks present: True
+  No duplicates: True
+
+FINAL: DRIFTED — criteria 2 failed
+```
+
+OBSERVATIONS: The implementation sorts by priority highest-first correctly but omits the tiebreaker requirement entirely. When multiple tasks share the same priority, they maintain their input order rather than being reordered by earliest due date. The fix would require a tuple key: `key=lambda t: (-t["priority"], t["due"])`.

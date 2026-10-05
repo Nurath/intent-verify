@@ -1,0 +1,8 @@
+{"manifest": 1,
+ "criteria": [
+  {"id": 1, "text": "The model gpt-4o-mini is recognized and priced, i.e. looking up its rates succeeds rather than failing or falling back as unknown", "quote": "Add the gpt-4o-mini model"},
+  {"id": 2, "text": "gpt-4o-mini has its own rates, distinct from the rates used for gpt-4o", "quote": "with its own rates"},
+  {"id": 3, "text": "Plain gpt-4o still resolves to exactly the same rates it had before the change", "quote": "plain gpt-4o must keep its existing rates"},
+  {"id": 4, "text": "Looking up gpt-4o-mini does not resolve to the gpt-4o rates (e.g. via prefix matching of the name gpt-4o)", "quote": null}
+ ],
+ "ambiguities": []}

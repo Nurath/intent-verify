@@ -1,0 +1,51 @@
+All tests passed successfully. Now I'll generate the ledger in the required format.
+
+```
+INTENT-VERIFY LEDGER v1
+mode: STRUCTURED
+
+CRITERION 1: Up to 5 login attempts from a single IP within one minute are processed normally (not rejected by the rate limit)
+VERDICT: PASS
+EVIDENCE-CMD: python <tmp>
+EVIDENCE-OUT: === CRITERION 1: First 5 attempts accepted ===
+  Attempt 1: True
+  Attempt 2: True
+  Attempt 3: True
+  Attempt 4: True
+  Attempt 5: True
+All 5 attempts accepted: True
+
+CRITERION 2: A 6th login attempt from the same IP within the same minute is rejected by the rate limit
+VERDICT: PASS
+EVIDENCE-CMD: python <tmp>
+EVIDENCE-OUT: === CRITERION 2: 6th attempt rejected ===
+  6th attempt result: False
+6th attempt was rejected: True
+
+CRITERION 3: Once a single IP has hit the limit, a different IP can still make login attempts that are not rejected by the rate limit
+VERDICT: PASS
+EVIDENCE-CMD: python <tmp>
+EVIDENCE-OUT: === CRITERION 3: Different IP works when one is rate-limited ===
+  IP A rate-limited: True
+  IP B attempt result: True
+Different IPs are independent: True
+
+CRITERION 4: Attempts from one IP do not count toward the attempt total of any other IP
+VERDICT: PASS
+EVIDENCE-CMD: python <tmp>
+EVIDENCE-OUT: === CRITERION 4: IP attempts are independent ===
+  IP X attempts (all should be True): [True, True, True, True, True]
+  IP Y attempts (all should be True): [True, True, True, True, True]
+Both IPs can make 5 attempts independently: True
+
+CRITERION 5: After the one-minute window passes, a rate-limited IP can attempt login again
+VERDICT: PASS
+EVIDENCE-CMD: python <tmp>
+EVIDENCE-OUT: === CRITERION 5: After window passes, IP can try again ===
+  IP rate-limited before window: True
+  Waiting 61 seconds for window to pass...
+  IP attempt after window: True
+Can retry after window passes: True
+
+FINAL: MATCHES INTENT
+```

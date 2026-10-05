@@ -1,0 +1,40 @@
+```
+INTENT-VERIFY LEDGER v1
+mode: FULL
+
+CRITERION 1: A call duration that is an exact whole number of minutes (e.g. 120 seconds) is billed as exactly that many minutes (2).
+VERDICT: PASS
+EVIDENCE-CMD: python $TEMP/t3.py (loads task3-telephony-cost.py; compute_call_cost(..., duration_s=d, rates=CostRates(telephony_per_min=1.0)); prints d and telephony_usd, which equals billed minutes at $1/min)
+EVIDENCE-OUT:
+  120 2.0 float
+  60 1.0 float
+  180 3.0 float
+
+CRITERION 2: A call duration with a partial minute is rounded up to the next whole minute rather than down or to nearest (e.g. 61 seconds bills as 2 minutes).
+VERDICT: PASS
+EVIDENCE-CMD: python $TEMP/t3.py (same run as criterion 1)
+EVIDENCE-OUT:
+  61 2.0 float
+  121 3.0 float
+  60.0001 2.0 float
+
+CRITERION 3: A call lasting just under a minute boundary (e.g. 119 seconds) bills as the higher whole minute count (2 minutes), and a call of 1 second bills as 1 minute.
+VERDICT: PASS
+EVIDENCE-CMD: python $TEMP/t3.py (same run as criterion 1)
+EVIDENCE-OUT:
+  119 2.0 float
+  1 1.0 float
+
+CRITERION 4: The billed quantity is always a whole number of minutes, never a fractional value.
+VERDICT: PASS
+EVIDENCE-CMD: python $TEMP/t3.py (same run as criterion 1; at $1/min the charge equals the billed minute count)
+EVIDENCE-OUT:
+  Across durations 120, 60, 61, 119, 1, 121, 0, 60.0001, 180, the charge was always a whole number: 2.0, 1.0, 2.0, 2.0, 1.0, 3.0, 0.0, 2.0, 3.0. This includes the fractional input 60.0001 (billed 2.0).
+
+FINAL: MATCHES INTENT
+```
+
+OBSERVATIONS:
+- The code never exposes the billed minute count directly. I inferred it from `telephony_usd` at a $1/min rate. The `math.ceil` call is the only source of the minute count, and that call is visible in the code.
+- My first run failed because of my own loader, which didn't register the module in `sys.modules`. That was not a defect in the code under test, and the rerun is the evidence above.
+- A 0-second call bills 0 minutes. The request doesn't say what should happen in that case.

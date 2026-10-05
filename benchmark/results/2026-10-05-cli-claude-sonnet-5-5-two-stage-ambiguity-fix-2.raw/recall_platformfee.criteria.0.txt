@@ -1,0 +1,10 @@
+{"manifest": 1,
+ "criteria": [
+  {"id": 1, "text": "A configurable parameter named platform_fee_pct exists and expresses the fee as a percentage", "quote": "platform_fee_pct"},
+  {"id": 2, "text": "The fee amount equals platform_fee_pct percent of the total (e.g. 10 on a total of 100 with platform_fee_pct of 10)", "quote": "a fee computed as a percentage of the total"},
+  {"id": 3, "text": "The fee appears as its own new line item in the output, separate from the existing line items", "quote": "added as a new line item"},
+  {"id": 4, "text": "The existing line items are still present and unchanged", "quote": null}
+ ],
+ "ambiguities": [
+  {"question": "Is 'the total' the total before the fee is added (subtotal of existing items), rather than a total that already includes the fee?", "assumed": "The percentage is applied to the total of the existing items before the fee line is added", "criteria": [2]}
+ ]}

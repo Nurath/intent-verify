@@ -1,0 +1,11 @@
+{"ledger": 1,
+ "nonce": "ff24f0930c5e1630",
+ "mode": "FULL",
+ "criteria": [
+  {"id": 1, "text": "The result of rounding a price has exactly 2 decimal places of precision (e.g. 1.234 becomes 1.23).", "verdict": "PASS", "cmd": "python -c \"from roundprice import round_price as r; print(repr(1.234), repr(r(1.234)), '%.2f'%r(1.234))\"", "out": "1.234 1.23 1.23"},
+  {"id": 2, "text": "A price whose third decimal digit is exactly 5 with nothing after it rounds up (e.g. 1.005 becomes 1.01, 2.675 becomes 2.68, 0.125 becomes 0.13).", "verdict": "FAIL", "cmd": "python -c \"from roundprice import round_price as r; [print(repr(x), repr(r(x))) for x in [1.005,2.675,0.125]]\"", "out": "1.005 1.0\n2.675 2.67\n0.125 0.12\n(also 1.015 -> 1.01, 1.025 -> 1.02)"},
+  {"ledger_note": "see criteria 3", "id": 3, "text": "A price whose discarded part is below half a cent rounds down (e.g. 1.004 becomes 1.00), and one above half a cent rounds up (e.g. 1.006 becomes 1.01).", "verdict": "PASS", "cmd": "python -c \"from roundprice import round_price as r; [print(repr(x), repr(r(x))) for x in [1.004,1.006]]\"", "out": "1.004 1.0\n1.006 1.01"},
+  {"id": 4, "text": "A price already at 2 or fewer decimal places is returned with the same value (e.g. 3.5 stays 3.50, 4.10 stays 4.10).", "verdict": "PASS", "cmd": "python -c \"from roundprice import round_price as r; [print(repr(x), repr(r(x)), '%.2f'%r(x)) for x in [3.5,4.10]]\"", "out": "3.5 3.5 3.50\n4.1 4.1 4.10"}
+ ],
+ "final": "DRIFTED — criteria 2 failed"}
+OBSERVATIONS: The implementation uses Python's built-in round(), which rounds half to even on the binary float value, so it is not half-up. 1.005 and 2.675 fail because their float representations sit slightly below the half-cent. 0.125 is exactly representable and round() sends it to 0.12 (the even neighbour). The docstring also leaves out "half up". Decimal with ROUND_HALF_UP, applied to the string or decimal form of the price, would meet the request. I added a stray "ledger_note" key to criterion 3, which the schema doesn't define.

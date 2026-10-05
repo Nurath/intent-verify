@@ -1,0 +1,12 @@
+{"ledger": 1,
+ "nonce": "20f7f2b0d0ef8093",
+ "mode": "FULL",
+ "criteria": [
+  {"id": 1, "text": "Up to 5 login attempts from a single IP within one minute are processed normally (not rejected by the rate limit)", "verdict": "PASS", "cmd": "python t.py (time.time patched to a fixed clock; [r.allow_login('A') for _ in range(5)])", "out": "c1 [True, True, True, True, True]"},
+  {"id": 2, "text": "A 6th login attempt from the same IP within the same minute is rejected by the rate limit", "verdict": "PASS", "cmd": "python t.py (6th call allow_login('A') after 5 allowed calls, same clock)", "out": "c2 False"},
+  {"id": 3, "text": "Once a single IP has hit the limit, a different IP can still make login attempts that are not rejected by the rate limit", "verdict": "PASS", "cmd": "python t.py (allow_login('B') after 'A' was limited)", "out": "c3 True"},
+  {"id": 4, "text": "Attempts from one IP do not count toward the attempt total of any other IP", "verdict": "PASS", "cmd": "python t.py (5 calls for 'C', then 5 calls for 'D')", "out": "c4 [True, True, True, True, True] [True, True, True, True, True]"},
+  {"id": 5, "text": "After the one-minute window passes, a rate-limited IP can attempt login again", "verdict": "PASS", "cmd": "python t.py (clock +30s: allow_login('A'); clock +31s more, i.e. 61s after the first attempts: allow_login('A'))", "out": "mid False\nc5 True"}
+ ],
+ "final": "MATCHES INTENT"}
+OBSERVATIONS: I patched time.time with a fake clock, so the window checks are deterministic. Rejected attempts are not recorded, so the limit is a sliding window. The code has no locking, which the request did not ask about.

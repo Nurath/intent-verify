@@ -1,0 +1,31 @@
+```json
+{
+  "ledger": 1,
+  "nonce": "4bf966ef331ae2fe",
+  "mode": "STRUCTURED",
+  "criteria": [
+    {
+      "id": 1,
+      "text": "Tasks are ordered by priority, with higher-priority tasks appearing before lower-priority ones",
+      "verdict": "PASS",
+      "cmd": "python test_sorttasks.py (Criterion 1 test)",
+      "out": "Input: [{'id': 'a', 'priority': 2, 'due': '2026-10-10'}, {'id': 'b', 'priority': 5, 'due': '2026-10-15'}, {'id': 'c', 'priority': 1, 'due': '2026-10-05'}]\nOutput: [{'id': 'b', 'priority': 5, 'due': '2026-10-15'}, {'id': 'a', 'priority': 2, 'due': '2026-10-10'}, {'id': 'c', 'priority': 1, 'due': '2026-10-05'}]\nPriority order: [5, 2, 1]\nHigher priority first: True"
+    },
+    {
+      "id": 2,
+      "text": "Among tasks with equal priority, the task with the earlier due date appears first",
+      "verdict": "PASS",
+      "cmd": "python test_sorttasks.py (Criterion 2 test)",
+      "out": "Input: [{'id': 'x', 'priority': 3, 'due': '2026-10-20'}, {'id': 'y', 'priority': 3, 'due': '2026-10-05'}, {'id': 'z', 'priority': 3, 'due': '2026-10-10'}]\nOutput: [{'id': 'y', 'priority': 3, 'due': '2026-10-05'}, {'id': 'z', 'priority': 3, 'due': '2026-10-10'}, {'id': 'x', 'priority': 3, 'due': '2026-10-20'}]\nDue date order: ['2026-10-05', '2026-10-10', '2026-10-20']\nEarlier due date first (within same priority): True"
+    },
+    {
+      "id": 3,
+      "text": "Sorting does not drop or duplicate any tasks; the same set of tasks is returned",
+      "verdict": "PASS",
+      "cmd": "python test_sorttasks.py (Criterion 3 test)",
+      "out": "Input count: 4\nOutput count: 4\nInput IDs (sorted): ['p', 'q', 'r', 's']\nOutput IDs (sorted): ['p', 'q', 'r', 's']\nSame tasks present: True"
+    }
+  ],
+  "final": "MATCHES INTENT"
+}
+```

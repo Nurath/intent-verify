@@ -1,0 +1,57 @@
+```
+INTENT-VERIFY LEDGER v1
+mode: STRUCTURED
+
+CRITERION 1: A function named middle exists and accepts a single list of numbers as its argument
+VERDICT: PASS
+EVIDENCE-CMD: python "<tmp>"
+EVIDENCE-OUT: TEST 1: Function signature
+  SUCCESS: middle([1, 2, 3]) = 2
+REASON: N/A
+
+CRITERION 2: middle returns the median of the list it is given
+VERDICT: PASS
+EVIDENCE-CMD: python "<tmp>"
+EVIDENCE-OUT: TEST 2/3: Odd-length list
+  Input: [3, 1, 4, 1, 5, 9, 2]
+  Result: 3
+  Expected: 3
+  Match: True
+  TEST 4: Even-length list
+  Input: [10, 20, 30, 40]
+  Result: 25.0
+  Expected: 25.0
+  Match: True
+REASON: N/A
+
+CRITERION 3: For a list with an odd number of elements, middle returns the middle value once the elements are in sorted order, regardless of the input order
+VERDICT: PASS
+EVIDENCE-CMD: python "<tmp>"
+EVIDENCE-OUT: TEST 2/3: Odd-length list
+  Input: [3, 1, 4, 1, 5, 9, 2]
+  Result: 3
+  Expected: 3
+  Match: True
+REASON: N/A
+
+CRITERION 4: For a list with an even number of elements, middle returns the conventional median of the two central values in sorted order
+VERDICT: PASS
+EVIDENCE-CMD: python "<tmp>"
+EVIDENCE-OUT: TEST 4: Even-length list
+  Input: [10, 20, 30, 40]
+  Result: 25.0
+  Expected: 25.0
+  Match: True
+REASON: N/A
+
+CRITERION 5: middle does not modify the list passed in
+VERDICT: PASS
+EVIDENCE-CMD: python "<tmp>"
+EVIDENCE-OUT: TEST 5: Original list not modified
+  Original list before: [5, 2, 8, 1, 9]
+  Original list after: [5, 2, 8, 1, 9]
+  List unchanged: True
+REASON: N/A
+
+FINAL: MATCHES INTENT
+```

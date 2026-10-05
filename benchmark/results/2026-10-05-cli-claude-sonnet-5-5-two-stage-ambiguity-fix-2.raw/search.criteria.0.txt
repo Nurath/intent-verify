@@ -1,0 +1,8 @@
+{"manifest": 1,
+ "criteria": [
+   {"id": 1, "text": "Every item that contains the query as a substring is included in the result", "quote": "Filter items to those containing the query"},
+   {"id": 2, "text": "Items that do not contain the query are excluded from the result", "quote": "Filter items to those containing the query"},
+   {"id": 3, "text": "Matching ignores letter case: an item matches the query regardless of whether their letter cases differ (e.g. query 'abc' matches 'ABC' and 'xAbCx')", "quote": "case-insensitively"},
+   {"id": 4, "text": "Items that pass the filter are returned unchanged (their original text and case are preserved)", "quote": null}
+ ],
+ "ambiguities": []}

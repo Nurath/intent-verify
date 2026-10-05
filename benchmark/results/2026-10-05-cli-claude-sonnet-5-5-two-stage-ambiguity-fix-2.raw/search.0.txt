@@ -1,0 +1,36 @@
+```
+INTENT-VERIFY LEDGER v1
+mode: FULL
+
+CRITERION 1: Every item that contains the query as a substring is included in the result
+VERDICT: FAIL
+EVIDENCE-CMD: python -c "from search import search; print(search(['ABC','xAbCx','abc','zzz','Hello'],'abc')); print(search(['Hello','world','HELLO there'],'hello'))"
+EVIDENCE-OUT: ['abc']
+  []
+  (Items 'ABC' and 'xAbCx' contain 'abc' ignoring case but were omitted. 'Hello' and 'HELLO there' were omitted for query 'hello'.)
+REASON: n/a
+
+CRITERION 2: Items that do not contain the query are excluded from the result
+VERDICT: PASS
+EVIDENCE-CMD: python -c "from search import search; print(search(['ABC','xAbCx','abc','zzz','Hello'],'abc'))"
+EVIDENCE-OUT: ['abc']
+  ('zzz' and 'Hello' were correctly excluded.)
+REASON: n/a
+
+CRITERION 3: Matching ignores letter case: an item matches the query regardless of whether their letter cases differ (e.g. query 'abc' matches 'ABC' and 'xAbCx')
+VERDICT: FAIL
+EVIDENCE-CMD: python -c "from search import search; print(search(['ABC','xAbCx','abc','zzz','Hello'],'abc'))"
+EVIDENCE-OUT: ['abc']
+  (Query 'abc' did not match 'ABC' or 'xAbCx'. Matching is case-sensitive.)
+REASON: n/a
+
+CRITERION 4: Items that pass the filter are returned unchanged (their original text and case are preserved)
+VERDICT: PASS
+EVIDENCE-CMD: python -c "from search import search; print(search(['Hello','world'],'lo'))"
+EVIDENCE-OUT: ['Hello']
+REASON: n/a
+
+FINAL: DRIFTED — criteria 1, 3 failed
+```
+
+OBSERVATIONS: The code uses `q in x` with no case normalisation (no `.lower()` or `.casefold()`). The request explicitly asked for case-insensitive matching, which is missing.

@@ -1,0 +1,6 @@
+{"manifest": 1,
+ "criteria": [
+   {"id": 1, "text": "Posts are returned ordered by their date, with the most recent date first", "quote": "Sort posts by date, newest first"},
+   {"id": 2, "text": "Sorting does not add or drop any posts: the same set of posts is returned, only reordered", "quote": null}
+ ],
+ "ambiguities": []}
