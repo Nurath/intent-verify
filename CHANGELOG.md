@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.4.1 — 2026-10-05
+
+### Fixed
+- **0.4.0 captured nothing in the desktop app.** There a subagent hands its
+  report back through a `SubagentHandback` tool call and writes no final text,
+  so `last_assistant_message`, the only place the `SubagentStop` hook looked,
+  did not hold the verifier's ledger. The first check after installing 0.4.0
+  showed it: `--run` exited 4, and the skill's fallback validated the relayed
+  copy and reported it as relayed. 0.4.0 had been checked in headless sessions
+  only, where a subagent ends with a text message. The hook now also reads the
+  subagent's own transcript, named in the payload or found beside the
+  session's: the last hand-back, else the last text. Given the transcript of
+  that failed check, it files the report byte for byte and `--run` validates
+  it.
+- **Whether the hook ran is now visible.** When it runs for the verifier and
+  finds no reply anywhere, it leaves a note in `_unmatched/`, and
+  `validate_ledger.py --run` says whether the hook left any trace since the run
+  began.
+
+### Not yet seen
+- `SubagentStop` firing for a plugin's agent in the desktop app. 0.4.0 left no
+  trace either way. The first verification on 0.4.1 settles it: a captured
+  reply, a note, or no sign that the hook ran.
+
 ## 0.4.0 — 2026-10-05
 
 ### Changed

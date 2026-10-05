@@ -60,10 +60,35 @@ The same run is also a second sample of the 0.3.2 criteria prompt: it kept 8
 ambiguities over the 16 requests, against 3 in the first run. The count varies
 from run to run; both are far below the 41 of 0.3.1.
 
+## 4. The desktop app: 0.4.0 captured nothing
+
+The first check after installing 0.4.0, in the Windows desktop app: a run was
+started, the installed verifier was dispatched on the same `median` fixture, and
+it replied with a correct JSON ledger carrying the run's nonce.
+`validate_ledger.py --run` exited 4. The hook had filed nothing, in the run or
+in `_unmatched/`.
+
+The cause is in how the report travels. In the desktop app a subagent's last
+act is a `SubagentHandback` tool call carrying the whole report (8,119
+characters here), with no text message after it. 0.4.0's hook read only
+`last_assistant_message`. Headless sessions, where sections 1 to 3 ran, end a
+subagent with a text message, so nothing there showed it.
+
+The fallback did its job: the relayed reply validated with `--nonce` as
+`DRIFTED — criteria 2, 3, 4 failed (relayed by the session, not captured by the
+hook)`.
+
+0.4.1 reads the report from the subagent's own transcript: the last hand-back,
+else the last text. Given the real transcript of this failed check and a
+`SubagentStop` payload naming it, the fixed hook filed the report byte for byte
+and `--run` validated it as captured. It did the same when the payload named
+only the session's transcript and the agent id.
+
 ## What is still open
 
-- The hook was seen firing in headless sessions only (the S2 probe and the live
-  run above), not yet in a desktop-app verification.
+- Whether `SubagentStop` fires for a plugin's agent in the desktop app at all.
+  0.4.0 left no trace either way. 0.4.1 leaves a note when the hook runs and
+  finds no reply, so the next desktop verification settles it.
 - When the hook files nothing, the session relays the reply and must say so. How
   often that happens in real use is unknown.
 - Long, backslash-heavy evidence inside a JSON ledger was barely exercised.

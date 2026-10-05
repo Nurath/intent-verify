@@ -165,7 +165,8 @@ below.
    criterion. Exit 1 = defects, one per line. Exit 2 = a file could not be
    read. Exit 4 = the hook filed nothing for this run: it did not fire (an
    older Claude Code, or a capture hook other than the plugin's Node one), or
-   the reply carried no nonce. Then save the verifier's reply exactly as
+   the reply carried no nonce; the message says whether the hook left any
+   trace, which belongs in your report. Then save the verifier's reply exactly as
    returned to `<scratch>/ledger.txt` (without any frame the harness put around
    a subagent's report, and without tidying; a uniform indent is fine), check
    that copy, and say in the report that the ledger was relayed by you and not

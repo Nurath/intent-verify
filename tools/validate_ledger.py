@@ -307,6 +307,18 @@ def captured_reply(run_dir):
     return nonce, (os.path.join(run_dir, replies[-1]) if replies else None)
 
 
+def hook_traces(run_dir):
+    """What the hook left beside this run since it began: replies carrying no
+    known nonce, and notes that it ran and found no reply. Any of them means
+    the hook ran; none means there is no sign that it did."""
+    try:
+        began = os.path.getmtime(os.path.join(run_dir, "run.json"))
+        apart = os.path.join(os.path.dirname(os.path.abspath(run_dir)), "_unmatched")
+        return sorted(n for n in os.listdir(apart) if os.path.getmtime(os.path.join(apart, n)) >= began)
+    except OSError:
+        return []
+
+
 # ------------------------------------------------------------------ manifests
 def _find_json_object(text, key):
     """The first JSON object in a model's reply that has `key`; prose and code
@@ -497,8 +509,11 @@ def main(argv):
         if a.run is not None:
             nonce, reply = captured_reply(a.run)
             if reply is None:
-                print(f"NO REPLY CAPTURED: the SubagentStop hook filed nothing under {a.run}. Either the hook "
-                      "did not run, or the verifier's ledger did not carry this run's nonce.")
+                traces = hook_traces(a.run)
+                why = (f"The hook ran since this run began ({', '.join(traces[:3])} in _unmatched), "
+                       "but nothing it saw carried this run's nonce." if traces else
+                       "There is no sign that the hook ran.")
+                print(f"NO REPLY CAPTURED: the SubagentStop hook filed nothing under {a.run}. {why}")
                 return 4
             text, source = _read(reply), f"captured by the hook: {os.path.basename(reply)}"
         else:

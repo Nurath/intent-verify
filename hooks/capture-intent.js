@@ -314,29 +314,95 @@ function captureDecision(payload, env, cwdOverride) {
   return store('decision', payload, blocks.join('\n\n'), env, cwdOverride);
 }
 
-// SubagentStop. Only the verifier's reply is kept, exactly as the harness
-// handed it over (S2: last_assistant_message equals the agent's final message
-// in its own transcript). It is filed under the run whose nonce it carries. A
-// reply carrying no known nonce goes to _unmatched, so the skill can tell "the
-// hook ran" from "the hook never ran". Nothing is printed: a SubagentStop hook
-// that blocks would keep the verifier running.
+// A subagent's own transcript. Claude Code passes its path; failing that, it
+// sits beside the session's transcript: <session>/subagents/agent-<id>.jsonl.
+function agentTranscript(payload) {
+  if (typeof payload.agent_transcript_path === 'string' && payload.agent_transcript_path) return payload.agent_transcript_path;
+  const session = payload.transcript_path;
+  if (typeof session !== 'string' || !session.endsWith('.jsonl') || !payload.agent_id) return null;
+  const agent = String(payload.agent_id).replace(/[^A-Za-z0-9_-]/g, '_');
+  return path.join(session.slice(0, -'.jsonl'.length), 'subagents', `agent-${agent}.jsonl`);
+}
+
+// The last thing a subagent said, read from its transcript: a report handed
+// back through a SubagentHandback tool call, or else its final text.
+function replyFromTranscript(file) {
+  let lines;
+  try {
+    const size = fs.statSync(file).size;
+    const length = Math.min(size, MAX_STDIN);
+    const buffer = Buffer.alloc(length);
+    const fd = fs.openSync(file, 'r');
+    try { fs.readSync(fd, buffer, 0, length, size - length); } finally { fs.closeSync(fd); }
+    lines = buffer.toString('utf8').split('\n');
+  } catch { return null; }
+  for (let i = lines.length - 1; i >= 0; i--) {
+    let content;
+    try {
+      const message = JSON.parse(lines[i]).message;
+      content = message && message.role === 'assistant' && Array.isArray(message.content) ? message.content : null;
+    } catch { continue; }
+    if (!content) continue;
+    const handed = content.find((p) => p && p.type === 'tool_use' && p.name === 'SubagentHandback' &&
+      p.input && typeof p.input.message === 'string');
+    if (handed) return handed.input.message;
+    const text = content.filter((p) => p && p.type === 'text' && typeof p.text === 'string').map((p) => p.text).join('');
+    if (text.trim()) return text;
+  }
+  return null;
+}
+
+function sleep(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+// SubagentStop. Only the verifier's reply is kept, exactly as it was given. It
+// is filed under the run whose nonce it carries; a reply carrying no known
+// nonce goes to _unmatched. Nothing is printed: a SubagentStop hook that blocks
+// would keep the verifier running.
+//
+// Where the reply is depends on the harness. A headless session ends a
+// subagent with a text message, and last_assistant_message holds it (S2). The
+// desktop app has the subagent hand its report back through a SubagentHandback
+// tool call and write no final text, so last_assistant_message does not hold
+// it: 0.4.0 filed nothing there. The subagent's transcript holds it either way.
+// When the hook runs and finds no reply at all it leaves a note, so "ran and
+// found nothing" can be told from "never ran".
 function captureReply(payload, env, cwdOverride) {
   if (payload.agent_type !== VERIFIER_AGENT) return { skipped: 'not-the-verifier' };
-  const text = payload.last_assistant_message;
-  if (typeof text !== 'string' || !text.trim()) return { skipped: 'no-reply' };
   const roots = [writeRoot(env), ...readRoots(null, env)];
-  let dir = null;
-  for (const m of text.matchAll(NONCE_IN_REPLY)) {
-    dir = findRun(roots, m[1]);
-    if (dir) break;
+  const runOf = (reply) => {
+    for (const m of reply.matchAll(NONCE_IN_REPLY)) {
+      const found = findRun(roots, m[1]);
+      if (found) return found;
+    }
+    return null;
+  };
+  let text = typeof payload.last_assistant_message === 'string' ? payload.last_assistant_message : '';
+  let dir = text.trim() ? runOf(text) : null;
+  const transcript = dir ? null : agentTranscript(payload);
+  // The hand-back may still be on its way to disk: a few short tries.
+  for (let attempt = 0; transcript && !dir && attempt < 5; attempt++) {
+    if (attempt) sleep(200);
+    const said = replyFromTranscript(transcript);
+    if (!said || !said.trim()) continue;
+    const found = runOf(said);
+    if (found || !text.trim()) text = said;
+    dir = found;
   }
+  const agent = String(payload.agent_id || 'agent').replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 40);
   if (!dir) {
     const project = projectRoot(env, cwdOverride);
     ensureProjectMeta(writeRoot(env), project);
     dir = path.join(runsDir(writeRoot(env), project), UNMATCHED);
   }
   fs.mkdirSync(dir, { recursive: true });
-  const agent = String(payload.agent_id || 'agent').replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 40);
+  if (!text.trim()) {
+    const note = path.join(dir, `empty-${Date.now().toString(36)}-${agent}.json`);
+    fs.writeFileSync(note, JSON.stringify({ at: new Date().toISOString(), payload_keys: Object.keys(payload).sort(),
+      transcript: transcript ? 'named, no reply in it' : 'not named' }) + '\n', 'utf8');
+    return { skipped: 'no-reply', note };
+  }
   const file = path.join(dir, `reply-${Date.now().toString(36)}-${agent}.txt`);
   fs.writeFileSync(file, text, 'utf8');
   return { file };
@@ -636,6 +702,27 @@ function selftest() {
      stop({ agent_type: 'other-plugin:intent-verifier' }).skipped === 'not-the-verifier');
   r = stop({ last_assistant_message: `{"ledger": 1, "nonce": "${fake}"}` });
   ok('a-reply-with-no-known-nonce-is-kept-apart', r.file && path.basename(path.dirname(r.file)) === UNMATCHED);
+
+  // The desktop app: the report is handed back through a tool call and no
+  // final text follows, so last_assistant_message is empty. The subagent's
+  // transcript holds it.
+  const handed = `{"ledger": 1, "nonce": "${run.nonce}", "criteria": [], "final": "handed back"}`;
+  const agentFile = path.join(tmp, 'session-x', 'subagents', 'agent-a2.jsonl');
+  fs.mkdirSync(path.dirname(agentFile), { recursive: true });
+  const said = (content) => JSON.stringify({ type: 'assistant', message: { role: 'assistant', content } }) + '\n';
+  fs.writeFileSync(agentFile,
+    said([{ type: 'text', text: 'Running the checks now.' }]) +
+    said([{ type: 'tool_use', name: 'Bash', input: { command: 'true' } }]) +
+    said([{ type: 'tool_use', name: 'SubagentHandback', input: { message: handed } }]) +
+    JSON.stringify({ type: 'user', message: { role: 'user', content: [{ type: 'tool_result', content: 'ok' }] } }) + '\n');
+  r = stop({ agent_id: 'a2', last_assistant_message: '', agent_transcript_path: agentFile });
+  ok('a-report-handed-back-through-a-tool-call-is-read-from-the-transcript',
+    r.file && path.dirname(r.file) === path.resolve(run.run) && fs.readFileSync(r.file, 'utf8') === handed);
+  r = stop({ agent_id: 'a2', last_assistant_message: undefined, transcript_path: path.join(tmp, 'session-x.jsonl') });
+  ok('the-subagents-transcript-is-found-beside-the-sessions', r.file && fs.readFileSync(r.file, 'utf8') === handed);
+  r = stop({ agent_id: 'a3', last_assistant_message: '' });
+  ok('a-stop-with-no-reply-anywhere-leaves-a-note', r.skipped === 'no-reply' && r.note && fs.existsSync(r.note) &&
+     path.basename(path.dirname(r.note)) === UNMATCHED);
   const runs = path.dirname(run.run);
   const oldRun = beginRun(data, project, 's0').run;
   const oldReply = path.join(runs, UNMATCHED, 'reply-old.txt');
