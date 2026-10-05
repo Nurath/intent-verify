@@ -1,6 +1,6 @@
 {
   "name": "intent-verify",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Request-anchored verification for AI coding agents. Catches intent drift — 'confidently built the wrong thing' — by checking a change against your ORIGINAL request, not the diff's self-description. Cross-model, evidence-based. Use on ambiguous or under-specified tasks.",
   "author": {
     "name": "Tharun Prabhakar",

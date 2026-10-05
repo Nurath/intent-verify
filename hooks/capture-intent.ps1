@@ -11,6 +11,11 @@
 # stdin is decoded as UTF-8 explicitly ([Console]::In on 5.1 would use the OEM
 # codepage and mangle non-ASCII prompts) and the ledger is written as UTF-8.
 #
+# Writes the 0.2 layout inside the project (<project>/.intent/), a directory
+# that ignores itself in git. The plugin's own hook has written outside the
+# project since 0.3. This alternate was not moved, and the reader in
+# capture-intent.js still reads what it writes.
+#
 # Contract: side-effect only; ALWAYS exits 0; never writes stdout.
 $ErrorActionPreference = 'SilentlyContinue'
 try {

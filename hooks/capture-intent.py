@@ -2,10 +2,14 @@
 """intent-verify UserPromptSubmit hook — Python alternate.
 
 Reads the hook JSON payload on stdin and appends the prompt to the intent
-ledger (.intent/log.jsonl + log.md). Mirrors capture-intent.js (canonical):
-redaction, truncation, rotation, verify-invocation tagging, a ledger directory
-that ignores itself, and an explicit marker when the input was too large to
-read. The reader commands (--list / --freeze) exist only in the canonical script.
+ledger in the 0.2 layout, inside the project: <project>/.intent/log.jsonl +
+log.md, in a directory that ignores itself in git. The plugin's own hook,
+capture-intent.js, has written outside the project since 0.3. This alternate
+was not moved, and the reader in capture-intent.js still reads what it writes.
+
+Redaction, truncation, verify-invocation tagging and the marker for input too
+large to read follow the same rules as the canonical script. The reader
+commands (--list / --show / --freeze) exist only there.
 
 Contract: side-effect only; always exits 0; never writes stdout.
 Invoked by capture-intent.sh when node is unavailable, or directly:

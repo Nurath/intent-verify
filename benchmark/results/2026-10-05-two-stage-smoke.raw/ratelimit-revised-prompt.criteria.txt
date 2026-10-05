@@ -1,0 +1,13 @@
+{"manifest": 1,
+ "criteria": [
+  {"id": 1, "text": "Up to 5 login attempts from a single IP within one minute are each handled as normal login attempts (the rate limit does not interfere).", "quote": "5 attempts per minute per IP"},
+  {"id": 2, "text": "Once an IP has made 5 login attempts within a minute, every further login attempt from that IP within that minute (6th, 7th, and so on) is refused instead of being handled as a normal login attempt.", "quote": "login to 5 attempts per minute per IP"},
+  {"id": 3, "text": "The limit is time-based, not a permanent lockout: after a full minute with no further attempts from a refused IP, its next login attempt is accepted again.", "quote": "5 attempts per minute"},
+  {"id": 4, "text": "An IP that has used up its 5 attempts does not cause login attempts from a different IP to be refused.", "quote": "different IPs are tracked independently"},
+  {"id": 5, "text": "Attempts from one IP are not counted against another IP's allowance: two different IPs can each make 5 login attempts within the same minute and all 10 are accepted.", "quote": "different IPs are tracked independently"}
+ ],
+ "ambiguities": [
+  "Does the limit count every login request, or only failed attempts (i.e., do successful logins use up the 5 per minute)?",
+  "Is 'per minute' a fixed window that resets (on the clock minute or from the first attempt) or a rolling 60-second window?",
+  "How is the client IP identified: the direct connection address only, or a forwarded header such as X-Forwarded-For when behind a proxy?"
+ ]}

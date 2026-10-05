@@ -1,0 +1,112 @@
+INTENT-VERIFY LEDGER v1
+mode: FULL
+
+CRITERION 1: In the sorted task list, every task appears before all tasks of lower priority, so priority runs from highest to lowest regardless of due dates.
+VERDICT: PASS
+EVIDENCE-CMD: python -B <scratch>/tmp.e5XV7pJt5a/c1.py
+EVIDENCE-OUT: module under test: <repo>/benchmark/impl/correct/sorttasks_ok.py
+def sort_tasks(tasks):
+    """Priority highest first; ties by due date earliest first."""
+    return sorted(tasks, key=lambda t: (-t["priority"], t["due"]))
+-- 1a highest priority has LATEST due, lowest has EARLIEST due
+  input   : [('a', 1, '2025-01-01'), ('b', 5, '2025-12-31'), ('c', 3, '2025-06-15'), ('d', 4, '2025-02-01'), ('e', 2, '2025-03-01')]
+  actual  : ['b', 'd', 'c', 'e', 'a']
+  expected: ['b', 'd', 'c', 'e', 'a']
+  equal   : True
+-- 1b spread incl. 0, negatives, float, 10 vs 9; due ascending == priority ascending; shuffled
+  input   : [('p2', 2, '2025-01-05'), ('m1', -1, '2025-01-02'), ('p10', 10, '2025-01-08'), ('p0', 0, '2025-01-03'), ('p2.5', 2.5, '2025-01-06'), ('m5', -5, '2025-01-01'), ('p9', 9, '2025-01-07'), ('p1', 1, '2025-01-04')]
+  actual  : ['p10', 'p9', 'p2.5', 'p2', 'p1', 'p0', 'm1', 'm5']
+  expected: ['p10', 'p9', 'p2.5', 'p2', 'p1', 'p0', 'm1', 'm5']
+  equal   : True
+-- 1c identical due dates -> pure priority order
+  input   : [('t3', 3, '2025-05-05'), ('t1', 1, '2025-05-05'), ('t2', 2, '2025-05-05'), ('t5', 5, '2025-05-05'), ('t4', 4, '2025-05-05')]
+  actual  : ['t5', 't4', 't3', 't2', 't1']
+  expected: ['t5', 't4', 't3', 't2', 't1']
+  equal   : True
+all scenarios equal: True
+[supplementary run, separate command: python -B <scratch>/tmp.e5XV7pJt5a/r.py ; lines relevant to this criterion, verbatim]
+UNDER TEST sort_tasks: trials=4000 tasks=51505 violations=0
+control: priority ascending: trials=4000 tasks=51505 violations={'priority order violated (adjacent pair)': 18724, 'differs from stable two-pass oracle': 3696}
+control: due first, then priority: trials=4000 tasks=51505 violations={'priority order violated (adjacent pair)': 12677, 'differs from stable two-pass oracle': 3536}
+
+CRITERION 2: Among tasks with the same priority, the task with the earlier due date appears before the task with the later due date.
+VERDICT: PASS
+EVIDENCE-CMD: python -B <scratch>/tmp.e5XV7pJt5a/c2.py
+EVIDENCE-OUT: -- 2a three priority groups, ties given in scrambled due order
+  input   : [('x1', 3, '2025-09-01'), ('z1', 1, '2025-05-05'), ('y1', 5, '2025-12-01'), ('x2', 3, '2025-03-01'), ('z2', 1, '2025-02-02'), ('y2', 5, '2025-01-15'), ('x3', 3, '2025-06-01')]
+  actual  : ['y2', 'y1', 'x2', 'x3', 'x1', 'z2', 'z1']
+  expected: ['y2', 'y1', 'x2', 'x3', 'x1', 'z2', 'z1']
+  equal   : True
+-- 2b one priority, due dates given latest-first (input is reverse of the answer)
+  input   : [('d4', 7, '2025-11-04'), ('d3', 7, '2025-08-03'), ('d2', 7, '2025-05-02'), ('d1', 7, '2025-02-01')]
+  actual  : ['d1', 'd2', 'd3', 'd4']
+  expected: ['d1', 'd2', 'd3', 'd4']
+  equal   : True
+-- 2c lower-priority task with earliest due must NOT jump ahead of higher-priority group
+  input   : [('lo-early', 1, '2025-01-01'), ('hi-late', 2, '2025-12-31'), ('hi-mid', 2, '2025-06-30')]
+  actual  : ['hi-mid', 'hi-late', 'lo-early']
+  expected: ['hi-mid', 'hi-late', 'lo-early']
+  equal   : True
+all scenarios equal: True
+[supplementary run, separate command: python -B <scratch>/tmp.e5XV7pJt5a/r.py ; lines relevant to this criterion, verbatim]
+UNDER TEST sort_tasks: trials=4000 tasks=51505 violations=0
+control: whole key reversed (ties latest-first): trials=4000 tasks=51505 violations={'tie-break violated (adjacent pair)': 21246, 'differs from stable two-pass oracle': 3328}
+control: priority only, no tie-break: trials=4000 tasks=51505 violations={'tie-break violated (adjacent pair)': 12101, 'differs from stable two-pass oracle': 3067}
+
+CRITERION 3: Sorting keeps exactly the same set of tasks: none are dropped, duplicated or altered.
+VERDICT: PASS
+EVIDENCE-CMD: python -B <scratch>/tmp.e5XV7pJt5a/c3.py
+EVIDENCE-OUT: len in/out                                    : 9 9
+output ids                                    : [6, 2, 4, 1, 3, 3, 8, 5, 7]
+same objects (multiset of identities) in/out  : True
+output contents == pre-call snapshot (multiset of repr): True
+exact-duplicate pair (id 3) both present      : True
+input list unchanged after call (order+content): True
+task 1 as returned (extra keys intact)        : [{'id': 1, 'title': 'write report', 'priority': 3, 'due': '2025-04-01', 'tags': ['a', 'b'], 'meta': {'owner': 'sam'}}]
+task 6 as returned (None-valued key intact)   : [{'id': 6, 'title': 'plan', 'priority': 5, 'due': '2025-02-01', 'note': None}]
+[supplementary run, separate command: python -B <scratch>/tmp.e5XV7pJt5a/r.py ; lines relevant to this criterion, verbatim]
+UNDER TEST sort_tasks: trials=4000 tasks=51505 violations=0
+control: drops same (priority,due): trials=4000 tasks=51505 violations={'multiset changed (dropped/duplicated/copied)': 2864, 'differs from stable two-pass oracle': 2864}
+
+CRITERION 4: Due dates are compared chronologically (earliest first) for real date/datetime values and ISO-8601 date strings, including across month, year and same-day-time boundaries. [added by verifier from "earliest due date"; not in manifest]
+VERDICT: PASS
+EVIDENCE-CMD: python -B <scratch>/tmp.e5XV7pJt5a/c4.py
+EVIDENCE-OUT: -- 4a datetime.date objects (year + month boundaries)
+  input due by id  : [(0, '2025-01-01'), (1, '2024-12-31'), (2, '2025-10-02'), (3, '2025-02-10')]
+  actual id order  : [1, 0, 3, 2]
+  expected id order: [1, 0, 3, 2]
+  equal            : True
+-- 4b datetime.datetime objects (same-day times, cross-year)
+  input due by id  : [(0, '2025-03-01 09:00:00'), (1, '2025-03-01 08:00:00'), (2, '2024-12-31 23:59:00'), (3, '2025-03-02 00:00:00')]
+  actual id order  : [2, 1, 0, 3]
+  expected id order: [2, 1, 0, 3]
+  equal            : True
+-- 4c ISO-8601 zero-padded strings
+  input due by id  : [(0, '2025-01-01'), (1, '2024-12-31'), (2, '2025-10-02'), (3, '2025-02-10')]
+  actual id order  : [1, 0, 3, 2]
+  expected id order: [1, 0, 3, 2]
+  equal            : True
+-- 4d date objects across two priorities
+  actual  : ['hi-2', 'hi-1', 'lo-2', 'lo-1']
+  expected: ['hi-2', 'hi-1', 'lo-2', 'lo-1']
+  equal   : True
+all scenarios equal: True
+
+CRITERION 5: Degenerate inputs are handled: an empty task list sorts to an empty list and a single task sorts to a list holding just that task (the sorted result is returned as a list). [added by verifier; not in manifest]
+VERDICT: PASS
+EVIDENCE-CMD: python -B <scratch>/tmp.e5XV7pJt5a/c5.py
+EVIDENCE-OUT: empty list -> [] | type list | equals []: True
+single task -> [{'id': 1, 'priority': 3, 'due': '2025-01-01'}] | type list | same object: True | len: 1
+two tasks -> returned ['b', 'a'] | type list | returned is the input list: False | input order before/after: ['a', 'b'] ['a', 'b']
+tuple input -> ['b', 'a'] | type list
+
+FINAL: MATCHES INTENT
+
+OBSERVATIONS:
+- Representation is assumed from the code, because the request does not define one: tasks are dicts with a numeric "priority" (larger number = higher priority) and a comparable "due". A probe with a scale where 1 means most urgent (P1..P3) returned ['P3', 'P2', 'P1']. That satisfies "highest first" under the numeric reading, but anyone whose scale ranks 1 as highest would get the reverse.
+- Inputs the request never described raise TypeError: text priorities low/high ("bad operand type for unary -: 'str'"), numeric-string priorities "10"/"9" (same error), due=None when two tasks tie on priority ("'<' not supported between instances of 'str' and 'NoneType'"), date mixed with datetime on a priority tie, and attribute-style task objects ("'T' object is not subscriptable"). A due=None task with a unique priority is never compared and sorts fine (returned [2, 1]).
+- String due dates are compared lexicographically. Non-zero-padded "2025-10-2" sorted before "2025-2-10" (returned ['oct', 'feb']), which is chronologically wrong. Zero-padded ISO strings and date/datetime objects are correct (criterion 4).
+- Tasks tied on both priority and due keep their input order (probe returned [0, 1, 2, 3, 4, 5]). The function returns a new list and leaves the caller's list unmodified; the request did not specify either.
+- Harness sensitivity: r.py ran 4000 random lists (51,505 tasks, 8 priority levels, 7 due dates, about 30 percent with an injected exact-duplicate task) against the code and six deliberately wrong controls. The code showed 0 violations, including exact order equality with an independent stable two-pass oracle. Every control was flagged.
+- The project tree was not touched: ls -laR with mtimes and md5 sums of <repo>\benchmark\impl\correct were identical before and after the runs. Python ran with -B and sys.dont_write_bytecode. Scratch files (h.py, c1-c6.py, r.py, before.txt, after.txt) are in <scratch>/tmp.e5XV7pJt5a
+- Module verified: <repo>\benchmark\impl\correct\sorttasks_ok.py

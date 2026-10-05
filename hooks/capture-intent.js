@@ -1,14 +1,17 @@
 #!/usr/bin/env node
 /**
- * intent-verify UserPromptSubmit hook (canonical, cross-platform).
+ * intent-verify capture hook and ledger reader (canonical, cross-platform).
  *
- * Freezes the user's request verbatim to the intent ledger so verification can
- * check work against the ORIGINAL ask, not the diff's self-description.
+ * Records what the user asked for, verbatim, so verification can check work
+ * against the ORIGINAL ask and not the diff's description of itself.
  *
- * Invoked in exec form from hooks/hooks.json:
+ * Hook mode. Registered in hooks/hooks.json in exec form
  *   { "command": "node", "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/capture-intent.js"] }
- * This is the documented cross-platform pattern (node is a real executable on
- * every platform; no shell is involved, so no sh-on-Windows breakage).
+ * (node is a real executable on every platform; no shell is involved) for:
+ *   UserPromptSubmit              the prompt, before any work happens
+ *   PostToolUse AskUserQuestion   the question and the user's answer: a scope
+ *                                 decision that is not a prompt and would
+ *                                 otherwise be missing from the record
  *
  * Hook contract (do not violate):
  *   - NEVER exit non-zero: on UserPromptSubmit, exit 2 would REJECT the user's
@@ -17,30 +20,38 @@
  *     context.
  *   - Side-effect only. Failures are silent (set INTENT_VERIFY_DEBUG=1 for stderr).
  *
- * Ledger layout (under <project>/.intent/):
- *   log.jsonl   canonical machine ledger, one JSON object per line:
- *               {id, ts, kind, prompt, session_id?, cwd?, transcript_path?,
- *                truncated?, redactions?, reason?}
- *               kind: task | verify-invocation | capture-incomplete
- *   log.md      human-readable mirror (fenced, collision-safe)
- *   .gitignore  "*" -- the directory ignores itself in any repository/worktree
- * Entries are capped (INTENT_VERIFY_MAX_PROMPT, default 64000 chars) and files
- * rotate at INTENT_VERIFY_MAX_LOG bytes (default 1 MiB, keep 3 archives), so the
- * ledger can never grow without bound.
+ * Where it writes: OUTSIDE the project, so prompts never sit in a repository.
+ *   <data>/projects/<key>/project.json             {"path": "<project dir>"}
+ *   <data>/projects/<key>/sessions/<session>.jsonl one JSON object per line:
+ *       {id, ts, kind, prompt, session_id?, prompt_id?, cwd?, transcript_path?,
+ *        truncated?, redactions?, reason?}
+ *       kind: task | verify-invocation | decision | capture-incomplete
+ *   <data> = $INTENT_VERIFY_DATA, else $CLAUDE_PLUGIN_DATA (Claude Code sets it
+ *            for plugin hooks), else ~/.claude/intent-verify
+ *   <key>  = first 16 hex digits of sha256(normalised project path)
+ * One file per session, so "this session's requests" is a file and not a filter.
+ * Session files untouched for INTENT_VERIFY_RETENTION_DAYS (default 30; 0 keeps
+ * everything) are deleted. An entry is capped at INTENT_VERIFY_MAX_PROMPT
+ * characters (default 256000); a longer prompt keeps its start and its end.
  *
  * Reader commands for the skill's freeze step (these DO print to stdout):
- *   capture-intent.js --list   [--project DIR] [--session ID] [--limit N]
- *   capture-intent.js --freeze ID [--project DIR]
+ *   capture-intent.js --list   [--session ID] [--limit N] [--all]
+ *   capture-intent.js --show ID
+ *   capture-intent.js --freeze ID[,ID...] [--out FILE]
+ * each with [--project DIR] [--data DIR]. The reader also reads a ledger left
+ * in <project>/.intent/ by 0.2.x or by one of the alternate hooks.
  */
 'use strict';
 
+const crypto = require('crypto');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 
-const MAX_PROMPT = intEnv('INTENT_VERIFY_MAX_PROMPT', 64000);
-const MAX_LOG = intEnv('INTENT_VERIFY_MAX_LOG', 1024 * 1024);
+const MAX_PROMPT = intEnv('INTENT_VERIFY_MAX_PROMPT', 256000);
+const RETENTION_DAYS = intEnv('INTENT_VERIFY_RETENTION_DAYS', 30, true);
 const MAX_STDIN = 10 * 1024 * 1024;
-const KEEP_ARCHIVES = 3;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 // Conservative, high-precision credential shapes. Precision over recall: we must
 // never mangle ordinary prose, but pasted tokens must not land in a plaintext ledger.
@@ -69,9 +80,15 @@ const REDACTIONS = [
 // to an older one silently, while keeping an invocation is visible and harmless.
 const VERIFY_INVOCATION = /^\s*(?:\/\s*intent-verify(?=[:\s]|$)|intent-verify[\s.!?]*$|verify\s+(?:this|that|it)(?:\s+\w+){0,2}\s+(?:did|does|do)\s+what\s+i\s+(?:asked|wanted)\b|did\s+(?:it|this|that)\s+(?:actually\s+)?do\s+what\s+i\s+(?:asked|wanted)\b|check\s+(?:it|this|that)\s+(?:actually\s+)?did\s+what\s+i\s+(?:asked|wanted)\b|verify\s+(?:this|that|it)[\s.!?]*$)/i;
 
-function intEnv(name, dflt) {
+// Prompts the harness submits by itself: a background agent reporting back, a
+// message from another session or agent, a scheduled task firing, a CI event
+// from the desktop app. Recognised when the ledger is READ, so entries written
+// by any version or runtime are covered.
+const HARNESS_SOURCE = /^\s*<(task-notification|agent-message|scheduled-task|ci-monitor-event)[\s>]/;
+
+function intEnv(name, dflt, allowZero) {
   const v = parseInt(process.env[name], 10);
-  return Number.isFinite(v) && v > 0 ? v : dflt;
+  return Number.isFinite(v) && (v > 0 || (allowZero && v === 0)) ? v : dflt;
 }
 
 function debug(msg) {
@@ -89,49 +106,82 @@ function applyRedactions(text) {
   return { text, count };
 }
 
-function fenceFor(text) {
-  // A fence one backtick longer than the longest run inside the prompt can never
-  // collide -- prompts containing ``` or `## `/`---` cannot corrupt entry boundaries.
-  const runs = text.match(/`+/g) || [];
-  const longest = runs.reduce((a, r) => Math.max(a, r.length), 0);
-  return '`'.repeat(Math.max(3, longest + 1));
+// A prompt over the cap keeps its start AND its end: with a long paste the
+// instruction sits at one end, and cutting only the tail could remove it.
+function capLength(text) {
+  if (text.length <= MAX_PROMPT) return { text, truncated: false };
+  const half = Math.max(1, Math.floor(MAX_PROMPT / 2));
+  const dropped = text.length - 2 * half;
+  return {
+    text: `${text.slice(0, half)}\n…[truncated ${dropped} chars from the middle]…\n${text.slice(-half)}`,
+    truncated: true,
+  };
 }
 
-function rotate(file) {
-  try {
-    const st = fs.statSync(file);
-    if (st.size <= MAX_LOG) return;
-    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-    fs.renameSync(file, `${file}.${stamp}.old`);
-    const dir = path.dirname(file);
-    const base = path.basename(file);
-    const archives = fs.readdirSync(dir)
-      .filter((f) => f.startsWith(base + '.') && f.endsWith('.old'))
-      .sort();
-    while (archives.length > KEEP_ARCHIVES) {
-      fs.unlinkSync(path.join(dir, archives.shift()));
-    }
-  } catch (e) { debug(`rotate: ${e.message}`); }
-}
-
+// ------------------------------------------------------------------- storage
 function projectRoot(env, cwdOverride) {
   return env.CLAUDE_PROJECT_DIR || cwdOverride || process.cwd();
 }
 
-function ledgerDir(root) {
-  const dir = path.join(root, '.intent');
-  fs.mkdirSync(dir, { recursive: true });
-  // The ledger holds raw prompts and lives inside the user's project. A
-  // .gitignore containing "*" makes the directory ignore itself in whatever
-  // repository or linked worktree it lands in, so a broad `git add .` cannot
-  // stage it. Written once; an existing file is never overwritten.
-  const ignore = path.join(dir, '.gitignore');
-  if (!fs.existsSync(ignore)) {
-    try { fs.writeFileSync(ignore, '*\n', 'utf8'); } catch (e) { debug(`gitignore: ${e.message}`); }
-  }
-  return dir;
+function writeRoot(env) {
+  return env.INTENT_VERIFY_DATA || env.CLAUDE_PLUGIN_DATA || path.join(os.homedir(), '.claude', 'intent-verify');
 }
 
+function normalizeProject(dir) {
+  const p = path.resolve(dir).replace(/\\/g, '/').replace(/\/+$/, '') || '/';
+  return process.platform === 'win32' ? p.toLowerCase() : p;
+}
+
+function projectKey(dir) {
+  return crypto.createHash('sha256').update(normalizeProject(dir)).digest('hex').slice(0, 16);
+}
+
+function sessionFile(root, project, sessionId) {
+  const name = String(sessionId || '_nosession').replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 80);
+  return path.join(root, 'projects', projectKey(project), 'sessions', `${name}.jsonl`);
+}
+
+function append(root, project, entry) {
+  const file = sessionFile(root, project, entry.session_id);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const meta = path.join(path.dirname(path.dirname(file)), 'project.json');
+  if (!fs.existsSync(meta)) {
+    try { fs.writeFileSync(meta, JSON.stringify({ path: normalizeProject(project) }) + '\n', 'utf8'); } catch (e) { debug(`project.json: ${e.message}`); }
+  }
+  fs.appendFileSync(file, JSON.stringify(entry) + '\n', 'utf8');
+  prune(root);
+}
+
+// Retention replaces rotation. At most once a day, delete session files nobody
+// has written to for RETENTION_DAYS. Only *.jsonl files directly inside the
+// sessions directory of a project this hook created (it has our project.json)
+// are ever removed.
+function prune(root, now) {
+  if (!RETENTION_DAYS) return 0;
+  now = now || Date.now();
+  const stamp = path.join(root, '.pruned');
+  try { if (now - fs.statSync(stamp).mtimeMs < DAY_MS) return 0; } catch { /* never pruned */ }
+  let removed = 0;
+  try {
+    fs.writeFileSync(stamp, new Date(now).toISOString() + '\n', 'utf8');
+    for (const key of fs.readdirSync(path.join(root, 'projects'))) {
+      if (!fs.existsSync(path.join(root, 'projects', key, 'project.json'))) continue;
+      const sessions = path.join(root, 'projects', key, 'sessions');
+      let names = [];
+      try { names = fs.readdirSync(sessions); } catch { continue; }
+      for (const name of names) {
+        if (!name.endsWith('.jsonl')) continue;
+        const file = path.join(sessions, name);
+        try {
+          if (now - fs.statSync(file).mtimeMs > RETENTION_DAYS * DAY_MS) { fs.unlinkSync(file); removed++; }
+        } catch (e) { debug(`prune: ${e.message}`); }
+      }
+    }
+  } catch (e) { debug(`prune: ${e.message}`); }
+  return removed;
+}
+
+// -------------------------------------------------------------------- capture
 function newEntry(kind, payload) {
   const entry = {
     id: `${Date.now().toString(36)}-${Math.random().toString(16).slice(2, 6)}`,
@@ -139,49 +189,57 @@ function newEntry(kind, payload) {
     kind,
     prompt: '',
   };
-  for (const k of ['session_id', 'cwd', 'transcript_path']) {
+  for (const k of ['session_id', 'prompt_id', 'cwd', 'transcript_path']) {
     if (payload && payload[k]) entry[k] = String(payload[k]);
   }
   return entry;
 }
 
-function append(root, entry, mdBody) {
-  const dir = ledgerDir(root);
-  const jsonl = path.join(dir, 'log.jsonl');
-  const md = path.join(dir, 'log.md');
-  rotate(jsonl);
-  rotate(md);
-  fs.appendFileSync(jsonl, JSON.stringify(entry) + '\n', 'utf8');
-  const fence = fenceFor(mdBody);
-  fs.appendFileSync(
-    md,
-    `## ${entry.ts} · #${entry.id} · ${entry.kind}\n\n${fence}text\n${mdBody}\n${fence}\n\n`,
-    'utf8'
-  );
+function store(kind, payload, text, env, cwdOverride) {
+  const red = applyRedactions(text);
+  const cut = capLength(red.text);
+  const entry = newEntry(kind || (VERIFY_INVOCATION.test(cut.text) ? 'verify-invocation' : 'task'), payload);
+  entry.prompt = cut.text;
+  if (cut.truncated) entry.truncated = true;
+  if (red.count > 0) entry.redactions = red.count;
+  append(writeRoot(env), projectRoot(env, cwdOverride), entry);
+  return { entry };
 }
 
 function capture(rawInput, env, cwdOverride) {
   let payload;
   try { payload = JSON.parse(rawInput); } catch { return { skipped: 'unparseable-input' }; }
-  let prompt = payload && payload.prompt;
+  if (payload && payload.hook_event_name === 'PostToolUse') return captureDecision(payload, env, cwdOverride);
+  const prompt = payload && payload.prompt;
   if (typeof prompt !== 'string' || prompt.trim() === '') return { skipped: 'no-prompt' };
+  return store(null, payload, prompt, env, cwdOverride);
+}
 
-  const { text, count } = applyRedactions(prompt);
-  prompt = text;
-
-  let truncated = false;
-  if (prompt.length > MAX_PROMPT) {
-    const dropped = prompt.length - MAX_PROMPT;
-    prompt = prompt.slice(0, MAX_PROMPT) + `\n…[truncated ${dropped} chars]`;
-    truncated = true;
+// AskUserQuestion. Its result is {questions, answers: {<question text>: <chosen
+// label>}} -- the shape recorded in session transcripts -- and the documented
+// tool input may carry the same `answers` map. Anything else is kept as text.
+function captureDecision(payload, env, cwdOverride) {
+  if (payload.tool_name !== 'AskUserQuestion') return { skipped: 'not-a-decision' };
+  const input = payload.tool_input && typeof payload.tool_input === 'object' ? payload.tool_input : {};
+  const resp = payload.tool_response;
+  const obj = resp && typeof resp === 'object' ? resp : {};
+  const answers = [obj.answers, input.answers].find((a) => a && typeof a === 'object') || null;
+  const questions = [input.questions, obj.questions].find(Array.isArray) || [];
+  const blocks = [];
+  for (const q of questions) {
+    if (!q || typeof q.question !== 'string') continue;
+    const lines = [`Q: ${q.question}`];
+    for (const o of Array.isArray(q.options) ? q.options : []) {
+      if (o && o.label) lines.push(`  - ${o.label}${o.description ? `: ${o.description}` : ''}`);
+    }
+    lines.push(`A: ${answers && answers[q.question] !== undefined ? String(answers[q.question]) : '(not recorded)'}`);
+    blocks.push(lines.join('\n'));
   }
-
-  const entry = newEntry(VERIFY_INVOCATION.test(prompt) ? 'verify-invocation' : 'task', payload);
-  entry.prompt = prompt;
-  if (truncated) entry.truncated = true;
-  if (count > 0) entry.redactions = count;
-  append(projectRoot(env, cwdOverride), entry, prompt);
-  return { entry };
+  if (!blocks.length) return { skipped: 'no-questions' };
+  if (!answers && resp !== undefined && resp !== null) {
+    blocks.push(`Result as returned: ${(typeof resp === 'string' ? resp : JSON.stringify(resp)).slice(0, 2000)}`);
+  }
+  return store('decision', payload, blocks.join('\n\n'), env, cwdOverride);
 }
 
 // The hook input was too large to read in full, so this prompt is NOT in the
@@ -191,14 +249,31 @@ function markIncomplete(rawInput, env, reason, cwdOverride) {
   const sid = /"session_id"\s*:\s*"([^"]{1,200})"/.exec(rawInput.slice(0, 65536));
   const entry = newEntry('capture-incomplete', sid ? { session_id: sid[1] } : null);
   entry.reason = reason;
-  append(projectRoot(env, cwdOverride), entry, `(prompt not captured: ${reason})`);
+  append(writeRoot(env), projectRoot(env, cwdOverride), entry);
   return { entry };
 }
 
 // ---------------------------------------------------------------- reader side
-function readLedger(root) {
+// Where a ledger can be. The skill passes --data; the rest is for a caller
+// that could not (its skill text arrived without the path substituted), so it
+// also looks where Claude Code keeps this plugin's data.
+function readRoots(explicit, env) {
+  if (explicit) return [explicit];
+  if (env.INTENT_VERIFY_DATA) return [env.INTENT_VERIFY_DATA];
+  const roots = env.CLAUDE_PLUGIN_DATA ? [env.CLAUDE_PLUGIN_DATA] : [];
+  const pluginData = path.join(os.homedir(), '.claude', 'plugins', 'data');
+  try {
+    for (const name of fs.readdirSync(pluginData)) {
+      if (name.startsWith('intent-verify')) roots.push(path.join(pluginData, name));
+    }
+  } catch { /* no plugin data directory */ }
+  roots.push(path.join(os.homedir(), '.claude', 'intent-verify'));
+  return [...new Set(roots)];
+}
+
+function readJsonl(file) {
   let text;
-  try { text = fs.readFileSync(path.join(root, '.intent', 'log.jsonl'), 'utf8'); } catch { return []; }
+  try { text = fs.readFileSync(file, 'utf8'); } catch { return []; }
   const entries = [];
   for (const line of text.split('\n')) {
     if (!line.trim()) continue;
@@ -207,33 +282,70 @@ function readLedger(root) {
   return entries;
 }
 
-// One compact line per entry, so a ledger of very long prompts can be scanned
-// without loading them. A project ledger is shared by every session that runs
-// in that directory; --session narrows it to the caller's own prompts. An empty
-// session ('') means the caller asked for scoping but had no id to give: that
-// is said out loud, because an unscoped listing looks exactly like a scoped one.
-function list(root, session, limit) {
-  const all = readLedger(root);
-  let rows = all;
-  let scope = `${all.length} entries`;
+// Every entry recorded for this project, oldest first: one file per session
+// under each data root, plus a ledger still sitting in the project itself.
+function readProject(roots, project) {
+  const entries = [];
+  const seen = new Set();
+  const take = (e, legacy) => {
+    if (!e || typeof e.id !== 'string' || seen.has(e.id)) return;
+    seen.add(e.id);
+    entries.push(legacy ? Object.assign({ legacy: true }, e) : e);
+  };
+  for (const root of roots) {
+    const dir = path.join(root, 'projects', projectKey(project), 'sessions');
+    let names = [];
+    try { names = fs.readdirSync(dir).filter((n) => n.endsWith('.jsonl')).sort(); } catch { continue; }
+    for (const name of names) readJsonl(path.join(dir, name)).forEach((e) => take(e, false));
+  }
+  readJsonl(path.join(project, '.intent', 'log.jsonl')).forEach((e) => take(e, true));
+  return entries.sort((a, b) => (String(a.ts) < String(b.ts) ? -1 : String(a.ts) > String(b.ts) ? 1 : 0));
+}
+
+function sourceOf(entry) {
+  const m = HARNESS_SOURCE.exec(typeof entry.prompt === 'string' ? entry.prompt : '');
+  return m ? m[1] : null;
+}
+
+// One compact line per entry, so long prompts can be scanned without loading
+// them. session: an id narrows the listing to that session; '' means the
+// caller asked for scoping but had no id to give, which is said out loud
+// because an unscoped listing looks exactly like a scoped one.
+function list(roots, project, session, limit, all) {
+  const everything = readProject(roots, project);
+  let rows = everything;
+  let scope = `${everything.length} entries`;
   if (session === '') {
-    scope = `session id unavailable -- showing EVERY session (${all.length} total); confirm with the user before using one`;
+    scope = `session id unavailable -- showing EVERY session (${everything.length} total); confirm with the user before using one`;
   } else if (session) {
-    const mine = all.filter((e) => e.session_id === session);
+    const mine = everything.filter((e) => e.session_id === session);
     if (mine.length) {
       rows = mine;
-      scope = `${mine.length} entries for this session (${all.length} total)`;
+      scope = `${mine.length} entries for this session (${everything.length} total)`;
     } else {
-      scope = `NO entries for session ${session} -- showing other sessions (${all.length} total); confirm with the user before using one`;
+      scope = `NO entries for session ${session} -- showing other sessions (${everything.length} total); confirm with the user before using one`;
     }
   }
-  const lines = [`# intent ledger: ${scope}; newest last`];
+  // A background agent reporting back is submitted as a prompt too. It is never
+  // the user's request, so it is left out unless asked for.
+  const reports = rows.filter((e) => sourceOf(e) === 'task-notification').length;
+  if (!all) rows = rows.filter((e) => sourceOf(e) !== 'task-notification');
+  const lines = [`# intent ledger: ${scope}; newest last` +
+    (reports && !all ? `; ${reports} background-agent reports hidden (--all shows them)` : '')];
+  if (!everything.length) {
+    lines.push(`# looked in: ${roots.concat(path.join(project, '.intent')).join(' ; ')}`);
+  }
+  if (everything.some((e) => e.legacy)) {
+    lines.push(`# includes a ledger inside the project (${path.join(project, '.intent')}), written by 0.2.x or an alternate hook; ` +
+      'the plugin hook no longer writes there. Delete that directory once its requests are no longer needed.');
+  }
   for (const e of rows.slice(-limit)) {
     const text = typeof e.prompt === 'string' ? e.prompt : '';
     const flags = [];
     if (e.truncated) flags.push('TRUNCATED');
     if (e.redactions) flags.push(`redactions=${e.redactions}`);
     if (session && e.session_id !== session) flags.push('other-session');
+    if (sourceOf(e)) flags.push(sourceOf(e));
     const head = e.kind === 'capture-incomplete'
       ? `(prompt not captured: ${e.reason || 'unknown'})`
       : JSON.stringify(text.replace(/\s+/g, ' ').trim().slice(0, 100));
@@ -242,44 +354,57 @@ function list(root, session, limit) {
   return lines.join('\n') + '\n';
 }
 
-// Write one entry's prompt verbatim to .intent/frozen-<id>.md -- the ground
-// truth the verifier reads -- and return its metadata, or null if no entry
-// with a captured prompt has that id.
-function freeze(root, id) {
-  if (!/^[A-Za-z0-9_-]{1,64}$/.test(id || '')) return null;  // id becomes a file name
-  const e = readLedger(root).find((x) => x.id === id);
-  if (!e || typeof e.prompt !== 'string' || e.prompt === '') return null;
-  const file = path.join(ledgerDir(root), `frozen-${id}.md`);
-  fs.writeFileSync(file, e.prompt, 'utf8');
+const SAFE_ID = /^[A-Za-z0-9_-]{1,64}$/;
+
+// Write the chosen entries to one file -- the ground truth handed to the
+// verifier -- and describe it. One id gives that prompt verbatim. Several are
+// joined oldest first, each under a line saying what it is: a request is often
+// a task plus a later answer or correction. Returns null for an unknown id.
+function freeze(roots, project, ids, out) {
+  if (!ids.length || !ids.every((id) => SAFE_ID.test(id))) return null;
+  const parts = readProject(roots, project).filter((e) => ids.includes(e.id));
+  if (parts.length !== new Set(ids).size || parts.some((e) => typeof e.prompt !== 'string' || e.prompt === '')) return null;
+  const text = parts.length === 1
+    ? parts[0].prompt
+    : parts.map((e, i) => `===== part ${i + 1} of ${parts.length}: ${e.kind}, ${e.ts} =====\n${e.prompt}`).join('\n\n') + '\n';
+  const file = out || path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'intent-verify-')), 'request.md');
+  fs.mkdirSync(path.dirname(path.resolve(file)), { recursive: true });
+  fs.writeFileSync(file, text, 'utf8');
   return {
-    id: e.id,
-    ts: e.ts,
-    kind: e.kind,
-    session_id: e.session_id || null,
-    chars: e.prompt.length,
-    truncated: !!e.truncated,
-    redactions: e.redactions || 0,
-    transcript_path: e.transcript_path || null,
     file,
+    chars: text.length,
+    truncated: parts.some((e) => !!e.truncated),
+    parts: parts.map((e) => ({
+      id: e.id,
+      ts: e.ts,
+      kind: e.kind,
+      session_id: e.session_id || null,
+      chars: e.prompt.length,
+      truncated: !!e.truncated,
+      redactions: e.redactions || 0,
+      transcript_path: e.transcript_path || null,
+    })),
   };
 }
 
 function selftest() {
-  const os = require('os');
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'intent-verify-selftest-'));
-  const env = { CLAUDE_PROJECT_DIR: tmp };
+  const project = path.join(tmp, 'project');
+  const data = path.join(tmp, 'data');
+  fs.mkdirSync(project);
+  const env = { CLAUDE_PROJECT_DIR: project, INTENT_VERIFY_DATA: data };
+  const roots = [data];
   const results = [];
   const ok = (name, cond) => results.push([name, !!cond]);
   const cap = (prompt, extra) => capture(JSON.stringify(Object.assign({ prompt }, extra)), env);
-  let written = 0;
 
   // Normal capture, with the payload fields the freeze step relies on.
-  let r = cap('sort posts by date, newest first', { session_id: 's1', transcript_path: '/t/s1.jsonl' });
-  written++;
+  let r = cap('sort posts by date, newest first', { session_id: 's1', prompt_id: 'p1', transcript_path: '/t/s1.jsonl' });
   const first = r.entry;
   ok('captures-task', first && first.kind === 'task');
-  ok('keeps-session-and-transcript', first && first.session_id === 's1' && first.transcript_path === '/t/s1.jsonl');
-  ok('ledger-dir-ignores-itself', fs.readFileSync(path.join(tmp, '.intent', '.gitignore'), 'utf8') === '*\n');
+  ok('keeps-session-prompt-id-and-transcript', first && first.session_id === 's1' && first.prompt_id === 'p1' && first.transcript_path === '/t/s1.jsonl');
+  ok('writes-one-file-per-session-outside-the-project',
+    fs.existsSync(sessionFile(data, project, 's1')) && fs.readdirSync(project).length === 0);
 
   // Classification: only unmistakable requests to RUN verification are tagged.
   const kinds = {
@@ -297,7 +422,7 @@ function selftest() {
     'verify that the cache invalidates on logout': 'task',
     'add a 404 handler': 'task',
   };
-  const wrong = Object.keys(kinds).filter((p) => { written++; return cap(p, { session_id: 's2' }).entry.kind !== kinds[p]; });
+  const wrong = Object.keys(kinds).filter((p) => cap(p, { session_id: 's2' }).entry.kind !== kinds[p]);
   ok('classifies-invocations-narrowly', wrong.length === 0);
   if (wrong.length) process.stdout.write(`  misclassified: ${JSON.stringify(wrong)}\n`);
 
@@ -313,49 +438,78 @@ function selftest() {
     anthropic: 'sk-ant-api03-' + 'Ab1-'.repeat(20) + 'AA',
   };
   const leaked = Object.keys(shapes).filter((k) => {
-    written++;
     const e = cap(`use ${shapes[k]} for auth`).entry;
     return e.prompt.includes(shapes[k]) || e.redactions !== 1;
   });
   ok('redacts-token-shapes', leaked.length === 0);
   if (leaked.length) process.stdout.write(`  not redacted: ${JSON.stringify(leaked)}\n`);
-  written++;
   const prose = 'rename sk-admin-panel-redesign-with-new-layout and the sk-learn-compatible-estimator';
   r = cap(prose);
   ok('leaves-hyphenated-prose-alone', r.entry.prompt === prose && !r.entry.redactions);
 
-  // Truncation is recorded on the entry.
-  r = cap('x'.repeat(MAX_PROMPT + 500), { session_id: 's1' });
-  written++;
-  const big = r.entry;
-  ok('truncates-huge-prompt', big && big.truncated === true && big.prompt.length < MAX_PROMPT + 100);
-
-  // Fence collision safety.
-  r = cap('code:\n```py\nprint(1)\n```\n---\n## fake heading');
-  written++;
-  ok('fence-collision-safe', r.entry && fenceFor(r.entry.prompt).length >= 4);
+  // A prompt over the cap is flagged and keeps both ends.
+  const big = cap('HEAD' + 'x'.repeat(MAX_PROMPT + 500) + 'TAIL', { session_id: 's1' }).entry;
+  ok('truncation-keeps-both-ends', big.truncated === true && big.prompt.startsWith('HEAD') &&
+     big.prompt.endsWith('TAIL') && big.prompt.length < MAX_PROMPT + 100);
 
   // An unreadable oversized input leaves an explicit marker, never a silent gap.
   r = markIncomplete('{"session_id":"s1","prompt":"xxxx', env, 'hook input exceeded the size cap');
-  written++;
   ok('marks-incomplete-capture', r.entry.kind === 'capture-incomplete' && r.entry.session_id === 's1' && r.entry.prompt === '');
 
-  // JSONL parses back, and nothing skipped was logged.
-  const lines = fs.readFileSync(path.join(tmp, '.intent', 'log.jsonl'), 'utf8').trim().split('\n');
-  ok('jsonl-roundtrips', lines.every((l) => { try { JSON.parse(l); return true; } catch { return false; } }));
-  ok('jsonl-count', lines.length === written);
+  // An answered question is a decision; other tool results are not recorded.
+  const question = { question: 'Ship now or later?', header: 'Ship', options: [{ label: 'Now', description: 'today' }, { label: 'Later', description: 'next week' }] };
+  const asked = { hook_event_name: 'PostToolUse', tool_name: 'AskUserQuestion', session_id: 's1', prompt_id: 'p1', tool_input: { questions: [question] } };
+  const decision = capture(JSON.stringify(Object.assign({ tool_response: { questions: [question], answers: { 'Ship now or later?': 'Later' } } }, asked)), env).entry;
+  ok('records-an-answered-question', decision && decision.kind === 'decision' && decision.prompt_id === 'p1' &&
+     decision.prompt.includes('Q: Ship now or later?') && decision.prompt.includes('- Later: next week') && decision.prompt.endsWith('A: Later'));
+  r = capture(JSON.stringify(Object.assign({ tool_response: 'answered: Later' }, asked)), env);
+  ok('keeps-an-unrecognised-answer-as-text', r.entry.prompt.includes('A: (not recorded)') && r.entry.prompt.includes('Result as returned: answered: Later'));
+  ok('ignores-other-tools', capture(JSON.stringify({ hook_event_name: 'PostToolUse', tool_name: 'Write', tool_input: {} }), env).skipped === 'not-a-decision');
 
-  // Reader side: session-scoped listing, and freeze writes the prompt verbatim.
-  const listing = list(tmp, 's1', 10);
+  // Reader: session scoping, hidden agent reports, a ledger left in the project.
+  cap('<task-notification>\n<task-id>abc</task-id> agent finished', { session_id: 's1' });
+  let listing = list(roots, project, 's1', 20, false);
   ok('list-scopes-to-session', listing.includes(first.id) && listing.includes('TRUNCATED') &&
-     listing.includes('capture-incomplete') && !listing.includes('404 handler'));
-  ok('list-flags-unknown-session', list(tmp, 'nope', 3).includes('NO entries for session nope'));
-  ok('list-flags-missing-session-id', list(tmp, '', 3).includes('session id unavailable'));
-  let meta = freeze(tmp, first.id);
+     listing.includes('capture-incomplete') && listing.includes('decision') && !listing.includes('404 handler'));
+  ok('list-hides-agent-reports', !listing.includes('agent finished') && listing.includes('1 background-agent reports hidden') &&
+     list(roots, project, 's1', 20, true).includes('agent finished'));
+  ok('list-flags-unknown-session', list(roots, project, 'nope', 3, false).includes('NO entries for session nope'));
+  ok('list-flags-missing-session-id', list(roots, project, '', 3, false).includes('session id unavailable'));
+  ok('list-says-where-it-looked', list(roots, path.join(tmp, 'elsewhere'), 's1', 3, false).includes('# looked in: '));
+  fs.mkdirSync(path.join(project, '.intent'));
+  fs.writeFileSync(path.join(project, '.intent', 'log.jsonl'),
+    JSON.stringify({ id: 'old-1', ts: '2026-01-01T00:00:00Z', kind: 'task', prompt: 'an older request', session_id: 's1' }) + '\n');
+  listing = list(roots, project, 's1', 20, false);
+  ok('list-reads-a-ledger-left-in-the-project', listing.includes('an older request') && listing.includes('includes a ledger inside the project'));
+
+  // Freeze: one entry verbatim, several joined oldest first, problems reported.
+  let meta = freeze(roots, project, [first.id], path.join(tmp, 'one.md'));
   ok('freeze-writes-verbatim', meta && !meta.truncated && fs.readFileSync(meta.file, 'utf8') === first.prompt);
-  meta = freeze(tmp, big.id);
+  meta = freeze(roots, project, [decision.id, first.id], path.join(tmp, 'set.md'));
+  const joined = meta ? fs.readFileSync(meta.file, 'utf8') : '';
+  ok('freeze-joins-a-set-oldest-first', meta && meta.parts.length === 2 && meta.parts[0].id === first.id &&
+     joined.indexOf(first.prompt) !== -1 && joined.indexOf(first.prompt) < joined.indexOf('Q: Ship now or later?'));
+  meta = freeze(roots, project, [first.id, big.id], path.join(tmp, 'cut.md'));
   ok('freeze-reports-truncation', meta && meta.truncated === true);
-  ok('freeze-rejects-unknown-or-unsafe-id', freeze(tmp, 'nope') === null && freeze(tmp, '../x') === null);
+  ok('freeze-rejects-unknown-or-unsafe-id', freeze(roots, project, ['nope']) === null && freeze(roots, project, ['../x']) === null &&
+     freeze(roots, project, [first.id, 'nope']) === null);
+  ok('freeze-leaves-the-project-alone', JSON.stringify(fs.readdirSync(project)) === '[".intent"]' &&
+     fs.readdirSync(path.join(project, '.intent')).length === 1);
+
+  // Retention: only stale session files go.
+  const sessions = path.dirname(sessionFile(data, project, 's1'));
+  const stale = path.join(sessions, 'stale.jsonl');
+  const keepMe = path.join(sessions, 'notes.txt');
+  const foreign = path.join(data, 'projects', 'not-ours', 'sessions', 'old.jsonl');
+  fs.mkdirSync(path.dirname(foreign), { recursive: true });
+  for (const f of [stale, foreign]) fs.writeFileSync(f, '{}\n');
+  fs.writeFileSync(keepMe, 'not a session file\n');
+  const longAgo = new Date(Date.now() - 40 * DAY_MS);
+  for (const f of [stale, keepMe, foreign]) fs.utimesSync(f, longAgo, longAgo);
+  fs.rmSync(path.join(data, '.pruned'), { force: true });
+  const removed = prune(data);
+  ok('prune-removes-only-stale-session-files-of-its-own-projects', removed === 1 && !fs.existsSync(stale) &&
+     fs.existsSync(keepMe) && fs.existsSync(foreign) && fs.existsSync(sessionFile(data, project, 's1')) && prune(data) === 0);
 
   let pass = 0;
   for (const [name, good] of results) {
@@ -374,19 +528,30 @@ function arg(name) {
 
 if (require.main === module) {
   const argv = process.argv;
+  const reading = ['--list', '--show', '--freeze'].some((flag) => argv.includes(flag));
+  const project = reading ? arg('--project') || projectRoot(process.env) : null;
+  const roots = reading ? readRoots(arg('--data'), process.env) : null;
   if (argv.includes('--selftest')) {
     selftest();
   } else if (argv.includes('--list')) {
     const limit = parseInt(arg('--limit'), 10);
-    const root = arg('--project') || projectRoot(process.env);
     const session = argv.includes('--session') ? (arg('--session') || '') : null;
-    process.stdout.write(list(root, session, Number.isFinite(limit) && limit > 0 ? limit : 10));
+    process.stdout.write(list(roots, project, session, Number.isFinite(limit) && limit > 0 ? limit : 10, argv.includes('--all')));
+    process.exit(0);
+  } else if (argv.includes('--show')) {
+    const id = arg('--show');
+    const entry = readProject(roots, project).find((e) => e.id === id);
+    if (!entry) {
+      process.stderr.write(`capture-intent: no ledger entry has id "${id}"\n`);
+      process.exit(2);
+    }
+    process.stdout.write((typeof entry.prompt === 'string' ? entry.prompt : '') + '\n');
     process.exit(0);
   } else if (argv.includes('--freeze')) {
-    const id = arg('--freeze');
-    const meta = freeze(arg('--project') || projectRoot(process.env), id);
+    const ids = (arg('--freeze') || '').split(',').map((s) => s.trim()).filter(Boolean);
+    const meta = freeze(roots, project, ids, arg('--out'));
     if (!meta) {
-      process.stderr.write(`capture-intent: no ledger entry with a captured prompt has id "${id}"\n`);
+      process.stderr.write(`capture-intent: not every id in "${ids.join(',')}" names a ledger entry with a captured prompt\n`);
       process.exit(2);
     }
     process.stdout.write(JSON.stringify(meta, null, 2) + '\n');
@@ -416,4 +581,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { capture, markIncomplete, applyRedactions, fenceFor, list, freeze, VERIFY_INVOCATION };
+module.exports = { capture, markIncomplete, applyRedactions, list, freeze, prune, readProject, readRoots, sessionFile, projectKey, VERIFY_INVOCATION };

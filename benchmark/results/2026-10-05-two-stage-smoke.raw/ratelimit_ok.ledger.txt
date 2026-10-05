@@ -1,0 +1,96 @@
+INTENT-VERIFY LEDGER v1
+mode: FULL
+
+CRITERION 1: The first 5 login attempts from one IP within a one-minute window are processed normally (valid credentials log in, invalid ones fail as invalid credentials) and are not blocked by the limiter.
+VERDICT: PASS
+EVIDENCE-CMD: S="<scratch>/tmp.BnzohICMKj"; cd "$S" && timeout 100 python -B suite.py
+EVIDENCE-OUT: [ok ] c1c2 spaced 1s apart | ip=198.51.100.1 | t=[0, 1, 2, 3, 4, 5, 6] | got=TTTTTFF | expected=TTTTTFF
+  [ok ] c1c2 burst, same instant | ip=198.51.100.2 | t=[0, 0, 0, 0, 0, 0] | got=TTTTTF | expected=TTTTTF
+  [ok ] c1c2 spread across the minute | ip=198.51.100.3 | t=[0, 15, 30, 45, 59, 59.5] | got=TTTTTF | expected=TTTTTF
+  [ok ] c1c2 shim: mixed valid/invalid x5 then a 6th VALID login | ip=198.51.100.32 | t=t=0..5 | got=OK,INVALID_CREDENTIALS,OK,INVALID_CREDENTIALS,INVALID_CREDENTIALS,RATE_LIMITED | expected=OK,INVALID_CREDENTIALS,OK,INVALID_CREDENTIALS,INVALID_CREDENTIALS,RATE_LIMITED
+  == MODULE UNDER TEST ratelimit_ok.allow_login: 21 checks, 0 mismatches
+
+CRITERION 2: A 6th login attempt from the same IP within that same minute is blocked by the limiter instead of being processed as a normal login.
+VERDICT: PASS
+EVIDENCE-CMD: S="<scratch>/tmp.BnzohICMKj"; cd "$S" && timeout 100 python -B suite.py
+EVIDENCE-OUT: [ok ] c1c2 spaced 1s apart | ip=198.51.100.1 | t=[0, 1, 2, 3, 4, 5, 6] | got=TTTTTFF | expected=TTTTTFF
+  [ok ] c1c2 burst, same instant | ip=198.51.100.2 | t=[0, 0, 0, 0, 0, 0] | got=TTTTTF | expected=TTTTTF
+  [ok ] c1c2 shim: 5 valid logins then a 6th valid | ip=198.51.100.33 | t=t=0..5 | got=OK,OK,OK,OK,OK,RATE_LIMITED | expected=OK,OK,OK,OK,OK,RATE_LIMITED
+  == wrong: limit 6: 21 checks, 17 mismatches
+
+CRITERION 3: A blocked IP is not blocked permanently: once the one-minute window has passed it can attempt login again.
+VERDICT: PASS
+EVIDENCE-CMD: (1) timeout 150 python -B -c 'import sys,time; sys.path.insert(0,"<repo>/benchmark/impl/correct"); import ratelimit_ok as m; ip="203.0.113.77"; other="203.0.113.78"; t0=time.monotonic(); e=lambda: "%.1fs" % (time.monotonic()-t0); print("[rt] +"+e(), "first 6 attempts, same IP:", [m.allow_login(ip) for _ in range(6)]); time.sleep(59); print("[rt] +"+e(), "same IP, ~59s after the burst:", m.allow_login(ip), "| other IP at that moment:", m.allow_login(other)); time.sleep(2); print("[rt] +"+e(), "same IP, ~61s after the burst:", m.allow_login(ip))'   (2) S="<scratch>/tmp.BnzohICMKj"; cd "$S" && timeout 100 python -B suite.py
+EVIDENCE-OUT: [rt] +0.0s first 6 attempts, same IP: [True, True, True, True, True, False]
+  [rt] +59.0s same IP, ~59s after the burst: False | other IP at that moment: True
+  [rt] +61.0s same IP, ~61s after the burst: True
+  [ok ] c3 blocked at 59.9s, allowed at 60.001s | ip=198.51.100.4 | t=[0, 1, 2, 3, 4, 5, 59.9, 60.001] | got=TTTTTFFT | expected=TTTTTFFT
+  [ok ] c3 after a quiet minute full allowance returns | ip=198.51.100.5 | t=12 attempts, t=0..61 | got=TTTTTFTTTTTF | expected=TTTTTFTTTTTF
+
+CRITERION 4: Attempts are counted by client IP alone: attempts from one IP add up to a single count even when they target different usernames.
+VERDICT: PASS
+EVIDENCE-CMD: S="<scratch>/tmp.BnzohICMKj"; cd "$S" && timeout 100 python -B suite.py
+EVIDENCE-OUT: c4 signature: (ip)
+  c4 two-argument call (ip, username) rejected: allow_login() takes 1 positional argument but 2 were given
+  [ok ] c4 shim: 5 DIFFERENT usernames, then a repeat user + a 7th | ip=198.51.100.31 | t=7 attempts, t=0 | got=OK,OK,OK,OK,OK,RATE_LIMITED,RATE_LIMITED | expected=OK,OK,OK,OK,OK,RATE_LIMITED,RATE_LIMITED
+
+CRITERION 5: While one IP is blocked, login attempts from a different IP (within its own allowance) are still processed normally.
+VERDICT: PASS
+EVIDENCE-CMD: S="<scratch>/tmp.BnzohICMKj"; cd "$S" && timeout 100 python -B suite.py
+EVIDENCE-OUT: [ok ] c5 IP-A: 5 pass then blocked | ip=198.51.100.10 | t=[0, 0, 0, 0, 0, 0, 0] | got=TTTTTFF | expected=TTTTTFF
+  [ok ] c5 IP-B right after A is blocked | ip=198.51.100.11 | t=[0, 0, 0, 0, 0, 0] | got=TTTTTF | expected=TTTTTF
+  == wrong: one global counter, IP ignored: 21 checks, 7 mismatches
+
+CRITERION 6: Attempts from one IP do not use up another IP's allowance: two IPs can each make 5 login attempts in the same minute and all 10 are processed.
+VERDICT: PASS
+EVIDENCE-CMD: S="<scratch>/tmp.BnzohICMKj"; cd "$S" && timeout 100 python -B suite.py
+EVIDENCE-OUT: [ok ] c6 two IPs interleaved 5 each, then 6th each | ip=X,Y | t=12 attempts, t=0..0 | got=TTTTTTTTTTFF | expected=TTTTTTTTTTFF
+  [ok ] c6 four IPs same minute (5 pass, 6th blocked) | ip=198.51.100.14 | t=[0, 0, 0, 0, 0, 0] | got=TTTTTF | expected=TTTTTF
+  [ok ] c6 four IPs same minute (5 pass, 6th blocked) | ip=198.51.100.15 | t=[0, 0, 0, 0, 0, 0] | got=TTTTTF | expected=TTTTTF
+  [ok ] c6 four IPs same minute (5 pass, 6th blocked) | ip=2001:db8::1 | t=[0, 0, 0, 0, 0, 0] | got=TTTTTF | expected=TTTTTF
+  [ok ] c6 four IPs same minute (5 pass, 6th blocked) | ip=2001:db8::2 | t=[0, 0, 0, 0, 0, 0] | got=TTTTTF | expected=TTTTTF
+
+CRITERION 7: Requests to endpoints other than login are not blocked by, or counted toward, this limit.
+VERDICT: PASS
+EVIDENCE-CMD: S="<scratch>/tmp.BnzohICMKj"; cd "$S" && timeout 100 python -B suite.py
+EVIDENCE-OUT: c7 public names in module: ['LIMIT', 'WINDOW', 'allow_login', 'defaultdict', 'time']
+  c7 200 non-login requests from one IP -> ['200 /profile', '200 /search'] | limiter entries before/after: 19 19 | ip tracked: False
+  c7 then 6 login attempts from that same IP: ['OK', 'OK', 'OK', 'OK', 'OK', 'RATE_LIMITED']
+
+CRITERION 8: Continued attempts made while an IP is blocked do not extend or renew its block: once the original one-minute window has passed the IP gets its full allowance again, even if the client kept trying during the block.
+VERDICT: PASS
+EVIDENCE-CMD: S="<scratch>/tmp.BnzohICMKj"; cd "$S" && timeout 100 python -B suite.py
+EVIDENCE-OUT: [ok ] c8 11 blocked attempts inside the minute, then t=61 | ip=198.51.100.6 | t=22 attempts, t=0..61 | got=TTTTTFFFFFFFFFFFTTTTTF | expected=TTTTTFFFFFFFFFFFTTTTTF
+  == wrong: blocked attempts are recorded too: 21 checks, 3 mismatches
+       mismatch: c8 11 blocked attempts inside the minute, then t=61 [198.51.100.6]
+
+CRITERION 9: Each IP's one-minute window runs on its own timeline: one IP's attempts neither reset, shift nor extend another IP's window.
+VERDICT: PASS
+EVIDENCE-CMD: S="<scratch>/tmp.BnzohICMKj"; cd "$S" && timeout 100 python -B suite.py
+EVIDENCE-OUT: [ok ] c9 P x5 at t=0 | ip=198.51.100.20 | t=[0, 0, 0, 0, 0] | got=TTTTT | expected=TTTTT
+  [ok ] c9 Q x5 at t=30 | ip=198.51.100.21 | t=[30, 30, 30, 30, 30] | got=TTTTT | expected=TTTTT
+  [ok ] c9 P at t=61 (P window passed) | ip=198.51.100.20 | t=[61] | got=T | expected=T
+  [ok ] c9 Q at t=61 (Q window still open) | ip=198.51.100.21 | t=[61] | got=F | expected=F
+  [ok ] c9 Q at t=91 (Q window passed) | ip=198.51.100.21 | t=[91] | got=T | expected=T
+
+CRITERION 10: Under arbitrary interleaved multi-IP traffic the limit is exact per IP: an attempt is blocked only when that IP already has 5 processed attempts within the preceding 60 seconds, and no IP ever gets more than 5 processed attempts in any 60-second span.
+VERDICT: PASS
+EVIDENCE-CMD: S="<scratch>/tmp.BnzohICMKj"; cd "$S" && echo "--- inv.py (randomized invariants, fake clock)" && timeout 200 python -B inv.py && echo "--- conc.py (threads, real clock)" && timeout 200 python -B conc.py
+EVIDENCE-OUT: --- inv.py (randomized invariants, fake clock)
+  light   mean gap 5.0s, 8 IPs: events=6000 allowed=5905 blocked=95 invariant_violations=0 IPs_whose_interleaved_results_differ_from_solo_replay=0
+  medium  mean gap 1.0s, 8 IPs: events=6000 allowed=3309 blocked=2691 invariant_violations=0 IPs_whose_interleaved_results_differ_from_solo_replay=0
+  heavy   mean gap 0.2s, 8 IPs: events=6000 allowed=799 blocked=5201 invariant_violations=0 IPs_whose_interleaved_results_differ_from_solo_replay=0
+  totals: {'events': 18000, 'allowed': 10013, 'blocked': 7987, 'violations': 0, 'indep_mismatch': 0}
+
+FINAL: MATCHES INTENT
+
+OBSERVATIONS:
+1. How to read the traces. In got/expected strings T = limiter allowed the attempt, F = limiter blocked it. t = seconds on a fake clock: the test process replaces time.time (the module calls time.time() on every call; the script asserts the module sees the fake clock). Each scenario uses distinct IPs so module state never leaks between scenarios. The only unmocked run is the [rt] run (criterion 3, real sleeps: blocked at +59.0s, allowed at +61.0s). Scripts (suite.py, inv.py, conc.py) live only in the scratch dir <scratch>/tmp.BnzohICMKj; everything ran with python -B. The 't=t=0..5' in two trace labels is a cosmetic formatting glitch in my script. Criteria 8-10 were added by me (manifest gaps); criteria 1-7 are the manifest's, verbatim.
+2. Scope caveat on criteria 1, 4, 7 (I judge them PASS, but only at the limiter's interface). The module (8 lines, source captured with cat -n) is just a gate allow_login(ip) -> bool. It has no credential check, no username parameter, no notion of endpoints; _a is mutated only inside allow_login. So 'valid credentials log in / invalid fail' (c1), 'different usernames' (c4) and 'other endpoints' (c7) were exercised through verifier-written shims (login(): limiter first, then a toy credential check; handle(): only /login consults the limiter) plus structural facts (signature (ip); a second positional arg raises TypeError; only one public callable). These three verdicts hold by the module's API shape: the limiter cannot count by username or by non-login traffic. They do not prove that a real login handler calls it only on the login route; that wiring is outside this module.
+3. Negative controls (same 21 checks against deliberately wrong limiters, all flagged): limit 6 -> 17 mismatches; window 30s -> 5; window 120s -> 5; one global counter ignoring IP -> 7; blocked attempts also recorded -> 3. A plain per-IP 5/60s reimplementation of mine -> 0 mismatches. So the suite does discriminate.
+4. Outside the request (not counted as failures):
+   a) Not thread-safe (no lock around check+append). With sys.setswitchinterval(1e-6) and 32 simultaneous threads on one IP, 166 of 300 trials let more than 5 through (worst 20 allowed in one trial). With the default 5 ms switch interval: 0 of 300 trials (32 threads) and 0 of 1000 trials (8 threads) exceeded 5. So the race is real but hard to hit at default settings; a threading.Lock around the check-and-append would close it.
+   b) Uses wall-clock time.time(): in the suite, after a 1h backward clock step, an IP with 5 recent attempts was still blocked 61s of real time later (info line: 'wall clock stepped back 1h; 5 allowed [True, True, True, True, True] -> attempt 61s later by real elapsed time: False'). time.monotonic() would avoid this.
+   c) No eviction: the dict keeps one key per IP ever seen (20 keys still held after every window had expired), so memory grows with the number of distinct IPs.
+5. Independence and project tree. I did not open the benchmark oracle/cases or the sibling impl/ratelimit.py (only listed filenames); criteria and tests come from the request and manifest only. The verifier wrote nothing under <repo>: the module (mtime 2026-07-14) and its __pycache__ pyc (2026-08-19) are untouched. FYI, other files in that tree (agents/*.md, hooks/*, skills/intent-verify/SKILL.md, tests/*, benchmark/run_bench.py, .git/index) showed mtimes within the preceding 45 minutes from some process other than this verifier; the module under test was not among them.
+Module verified: <repo>\benchmark\impl\correct\ratelimit_ok.py

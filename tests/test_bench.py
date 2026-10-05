@@ -141,7 +141,7 @@ class TestRealVerifierRunner(unittest.TestCase):
     @mock.patch.object(run_bench.shutil, "which", return_value="claude")
     def test_cli_run_feeds_each_rejected_reply_into_its_retry(self, _which, _print):
         seen = []
-        def fake(case, model, timeout, defects=None, previous=None):
+        def fake(case, model, timeout, defects=None, previous=None, manifest=None):
             seen.append((case["id"], bool(defects), previous))
             return "not a ledger" if previous is None else run_bench.faithful_ledger(case)
         with mock.patch.object(run_bench, "run_cli_verifier", side_effect=fake):
@@ -149,6 +149,86 @@ class TestRealVerifierRunner(unittest.TestCase):
         self.assertEqual(code, 0, "faithful retries reach every expected verdict")
         first = [s for s in seen if s[0] == "median"]
         self.assertEqual(first, [("median", False, None), ("median", True, "not a ledger")])
+
+
+CONTROLLED = [c for c in CASES.values() if c["suite"] == "controlled"]
+
+
+def _case_in(prompt):
+    """Which case a verifier prompt is about: it names the fixture's path."""
+    return next(c for c in CONTROLLED if os.path.join(BASE, "benchmark", c["fixture"]) in prompt)
+
+
+class TestTwoStage(unittest.TestCase):
+    """Criteria fixed from the request alone, then a verifier held to them."""
+
+    def test_omitter_slips_past_bare_validation_and_not_past_the_manifest(self):
+        """A verifier that never mentions the failing criterion writes a ledger
+        in which every line is true. Only a list fixed beforehand catches it."""
+        for cid in ("ratelimit", "validate"):
+            case = CASES[cid]
+            self.assertEqual(case["expected"], "DRIFTED")
+            got, _ = run_bench.orchestrate(run_bench.profile_omitter, case)
+            self.assertEqual(got, "MATCHES INTENT", "%s: the profile must fool bare validation or it tests nothing" % cid)
+            got, meta = run_bench.orchestrate(run_bench.profile_omitter, case, run_bench.manifest_for(case))
+            self.assertEqual(got, "INCONCLUSIVE", cid)
+            self.assertTrue(any("of the manifest is missing" in d for d in meta["defects"]), meta["defects"])
+
+    def test_faithful_profile_is_unaffected_by_the_manifest(self):
+        for cid in ("sortposts", "sortposts_ok", "median", "validate_ok"):
+            case = CASES[cid]
+            got, meta = run_bench.orchestrate(run_bench.profile_faithful, case, run_bench.manifest_for(case))
+            self.assertEqual((got, meta["retries"]), (case["expected"], 0), cid)
+
+    def test_stage_one_is_given_the_request_and_nothing_else(self):
+        case = CASES["sortposts"]
+        prompt = run_bench.build_criteria_prompt(case)
+        self.assertTrue(prompt.rstrip().endswith(case["request"]))
+        self.assertNotIn(case["fixture"], prompt)
+        self.assertNotIn("```python", prompt, "the deriver must not be shown the code")
+        self.assertIn("```python", run_bench.build_verifier_prompt(case))
+
+    def test_the_deriver_runs_with_every_tool_disabled(self):
+        case = CASES["sortposts"]
+        done = subprocess.CompletedProcess([], 0, stdout=json.dumps(run_bench.manifest_for(case)), stderr="")
+        with mock.patch.object(run_bench.subprocess, "run", return_value=done) as run:
+            manifest, replies = run_bench.derive_manifest(case, "some-model", 5)
+        cmd = run.call_args.args[0]
+        self.assertEqual(cmd[cmd.index("--tools") + 1], "")
+        self.assertNotIn("--allowedTools", cmd)
+        self.assertEqual((len(replies), manifest), (1, run_bench.manifest_for(case)))
+
+    def test_the_verifier_prompt_carries_the_manifest(self):
+        case = CASES["ratelimit"]
+        prompt = run_bench.build_verifier_prompt(case, run_bench.manifest_for(case))
+        for c in run_bench.manifest_for(case)["criteria"]:
+            self.assertIn("%d. %s" % (c["id"], c["text"]), prompt)
+        self.assertNotIn("Derive criteria from the request first", prompt)
+
+    @mock.patch("builtins.print")
+    @mock.patch.object(run_bench.shutil, "which", return_value="claude")
+    def test_two_stage_run_turns_the_omitters_false_matches_into_inconclusive(self, _which, _print):
+        def fake_cli(prompt, model, timeout, no_tools=False):
+            if no_tools:  # stage 1: answer from the request, which ends the prompt
+                case = next(c for c in CONTROLLED if prompt.rstrip().endswith(c["request"]))
+                return json.dumps(run_bench.manifest_for(case))
+            return run_bench.profile_omitter(_case_in(prompt), 0)
+        with mock.patch.object(run_bench, "run_cli", side_effect=fake_cli):
+            single = run_bench.main(["--mode", "cli", "--verifier", "some-model", "--no-write"])
+            two = run_bench.main(["--mode", "cli", "--verifier", "some-model", "--two-stage", "--no-write"])
+        self.assertEqual((single, two), (1, 0), "exit 1 = at least one false MATCHES on drifted code")
+
+    @mock.patch("builtins.print")
+    @mock.patch.object(run_bench.shutil, "which", return_value="claude")
+    def test_without_a_valid_manifest_the_verifier_is_never_run(self, _which, _print):
+        calls = []
+        def fake_cli(prompt, model, timeout, no_tools=False):
+            calls.append(no_tools)
+            return "I would rather not write criteria."
+        with mock.patch.object(run_bench, "run_cli", side_effect=fake_cli):
+            code = run_bench.main(["--mode", "cli", "--verifier", "some-model", "--two-stage", "--no-write"])
+        self.assertEqual(code, 0, "INCONCLUSIVE everywhere is not a false match")
+        self.assertEqual(calls, [True] * (2 * len(CONTROLLED)), "one re-request per case, and no stage 2")
 
 
 if __name__ == "__main__":

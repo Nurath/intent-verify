@@ -1,0 +1,10 @@
+{"manifest": 1,
+ "criteria": [
+  {"id": 1, "text": "In the sorted task list, every task appears before all tasks of lower priority, so priority runs from highest to lowest regardless of due dates.", "quote": "Sort tasks by priority, highest first"},
+  {"id": 2, "text": "Among tasks with the same priority, the task with the earlier due date appears before the task with the later due date.", "quote": "break ties by earliest due date"},
+  {"id": 3, "text": "Sorting keeps exactly the same set of tasks: none are dropped, duplicated or altered.", "quote": null}
+ ],
+ "ambiguities": [
+  "If priority is numeric or ranked, is the highest priority the largest value or the smallest (e.g. P1 as the top priority)?",
+  "Where should tasks with no due date go among tasks of equal priority: after all dated tasks, or before them?"
+ ]}

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Machine validation of an intent-verify verifier ledger.
+"""Machine validation for intent-verify: verifier ledgers and criterion manifests.
 
-The verifier's output (agents/verifier.md) is only trustworthy if it kept the
-evidence contract. This validator enforces, mechanically, the properties that a
-lenient or weak verifier breaks first:
+A LEDGER is the verifier's reply (agents/verifier.md). It is only trustworthy
+if it kept the evidence contract, so this enforces, mechanically, the
+properties that a lenient or weak verifier breaks first:
 
   - header present (INTENT-VERIFY LEDGER v1), a mode line, at least one criterion
   - criteria are numbered 1..N in order, with no gaps or repeats
@@ -26,27 +26,47 @@ lenient or weak verifier breaks first:
     line that is not PASS can never validate as MATCHES INTENT.
   - STRUCTURED mode: at most 5 criteria exercised (PASS/FAIL); requirements
     beyond that budget must be listed as NOT-EXERCISED, never dropped
+  - with --manifest: every criterion of the manifest is in the ledger under the
+    same number with the same text. A requirement the verifier left out, or a
+    reply cut off before its last criteria, is then a defect instead of
+    something a reader has to notice. The verifier may append further criteria.
+
+A MANIFEST is the list of criteria fixed before anyone looked at the code
+(agents/criteria.md, or criteria the user supplied):
+    {"manifest": 1,
+     "criteria": [{"id": 1, "text": "...", "quote": "..." | null}, ...],
+     "ambiguities": ["..."]}
+--check-manifest validates a deriver's reply: ids run 1..N, each text is one
+line, and every quote really occurs in the request, so a criterion cannot be
+invented and attributed to the user. It also lists the parts of the request no
+criterion quotes; that is a hint, since it may be context or a missed
+requirement.
 
 What it cannot do:
   - detect *forged* output -- that is why below-floor models are excluded by
     selection rather than "validated harder" (see docs/MODEL-COMPAT.md);
-  - know which requirements the request actually had. It checks that the ledger
-    is internally complete, not that the verifier derived every criterion or
-    that its reply was not cut off before later ones.
+  - know whether a manifest is COMPLETE. What a request demands is still a
+    model's judgement; the manifest only makes that judgement explicit, early
+    and checkable.
 
-Usage:
-  python3 tools/validate_ledger.py <ledger-file>     # or - for stdin
-  (use `python` where `python3` is not installed, e.g. stock Windows)
-Exit codes: 0 valid; 1 invalid (defects listed on stdout, one per line, so the
-orchestrator can quote them in its single bounded re-request); 2 usage error.
-Any other outcome means the validator itself failed, not the ledger.
+Usage (use `python` where `python3` is not installed, e.g. stock Windows):
+  validate_ledger.py LEDGER [--manifest MANIFEST]        # LEDGER may be - for stdin
+  validate_ledger.py --check-manifest REPLY [--request FILE] [--out MANIFEST]
+  validate_ledger.py --manifest-from FILE [--out MANIFEST]
+Exit codes: 0 valid; 1 invalid (defects on stdout, one per line, so they can be
+quoted in the single bounded re-request); 2 usage error or unreadable file.
+Any other outcome means the validator itself failed, not what it was given.
 """
+import argparse
+import json
 import re
 import sys
+import textwrap
 
 HEADER = "INTENT-VERIFY LEDGER v1"
 VERDICTS = {"PASS", "FAIL", "NOT-EXERCISED"}
 STRUCTURED_BUDGET = 5
+NOTES_SHOWN = 10
 
 # Horizontal whitespace only. A single-line field's value must sit on the
 # field's own line: with \s here an empty "EVIDENCE-CMD:" swallowed the line
@@ -54,6 +74,10 @@ STRUCTURED_BUDGET = 5
 _VALUE = r"[ \t]*(\S[^\n]*)$"
 _CRIT_HEAD = r"CRITERION[ \t]+\d+[ \t]*:"
 _FIELD_START = r"^(?:VERDICT:|EVIDENCE-CMD:|REASON:|" + _CRIT_HEAD + r"|FINAL:|OBSERVATIONS:)"
+
+
+def _norm(s):
+    return " ".join(s.split()).casefold()
 
 
 def extract_ledger(text):
@@ -68,7 +92,11 @@ def extract_ledger(text):
 
 def parse(text):
     ledger = {"mode": None, "criteria": [], "final": None, "stray_verdicts": 0}
-    body = extract_ledger(text.replace("\r\n", "\n").replace("\r", "\n"))
+    # A harness that relays a subagent's reply may indent every line of it. No
+    # keyword then sits at column 0 and a perfectly good ledger had "no
+    # CRITERION blocks". Only an indent shared by EVERY non-blank line is
+    # removed, so a ledger quoted inside a prose reply stays quoted.
+    body = extract_ledger(textwrap.dedent(text.replace("\r\n", "\n").replace("\r", "\n")))
     if body is None:
         return None, ["missing header line 'INTENT-VERIFY LEDGER v1'"]
 
@@ -111,7 +139,7 @@ def parse(text):
     return ledger, []
 
 
-def validate(text):
+def validate(text, manifest=None):
     ledger, defects = parse(text)
     if ledger is None:
         return None, defects
@@ -130,6 +158,18 @@ def validate(text):
     nums = [c["n"] for c in crits]
     if nums != list(range(1, len(nums) + 1)):
         defects.append(f"criteria must be numbered 1..N in order with no gaps or repeats, found {nums}")
+
+    # The manifest was fixed before the code was read. Each of its criteria must
+    # come back under the same number, word for word; what the verifier adds
+    # goes after them.
+    if manifest is not None:
+        by_n = {c["n"]: c for c in crits}
+        for want in manifest["criteria"]:
+            got = by_n.get(want["id"])
+            if got is None:
+                defects.append(f"criterion {want['id']} of the manifest is missing from the ledger: {want['text']!r}")
+            elif _norm(got["text"]) != _norm(want["text"]):
+                defects.append(f"criterion {want['id']} does not match the manifest; copy its text exactly: {want['text']!r}")
 
     exercised = [c for c in crits if c["verdict"] in ("PASS", "FAIL")]
     if ledger["mode"] == "STRUCTURED" and len(exercised) > STRUCTURED_BUDGET:
@@ -197,6 +237,121 @@ def verdict_of(ledger):
     return None
 
 
+# ------------------------------------------------------------------ manifests
+def _find_json_object(text, key):
+    """The first JSON object in a model's reply that has `key`; prose and code
+    fences around it are ignored."""
+    decoder = json.JSONDecoder()
+    for m in re.finditer(r"\{", text):
+        try:
+            obj, _end = decoder.raw_decode(text, m.start())
+        except ValueError:
+            continue
+        if isinstance(obj, dict) and key in obj:
+            return obj
+    return None
+
+
+def check_manifest(text, request=None):
+    """Validate a criterion manifest. Returns (manifest, defects, notes): the
+    manifest in normalised form, and as notes the parts of the request that no
+    criterion quotes."""
+    obj = _find_json_object(text, "criteria")
+    if obj is None:
+        return None, ["no JSON object with a 'criteria' list found"], []
+    raw = obj.get("criteria")
+    if not isinstance(raw, list) or not raw:
+        return None, ["'criteria' must be a non-empty list"], []
+
+    defects, criteria = [], []
+    wanted = _norm(request) if request is not None else None
+    for i, c in enumerate(raw, 1):
+        if not isinstance(c, dict):
+            defects.append(f"criterion {i}: must be an object with id, text and quote")
+            continue
+        if c.get("id") != i:
+            defects.append(f"criterion {i}: ids must run 1..N in order, found id {c.get('id')!r}")
+        body, quote = c.get("text"), c.get("quote")
+        if not isinstance(body, str) or not body.strip() or "\n" in body.strip():
+            defects.append(f"criterion {i}: 'text' must be one non-empty line")
+            body = ""
+        if quote is not None and (not isinstance(quote, str) or not quote.strip()):
+            defects.append(f"criterion {i}: 'quote' must be a piece of the request, or null")
+            quote = None
+        elif quote is not None and wanted is not None and _norm(quote) not in wanted:
+            defects.append(f"criterion {i}: its quote does not occur in the request: {quote!r}")
+        criteria.append({"id": i, "text": " ".join(body.split()), "quote": quote})
+
+    ambiguities = obj.get("ambiguities") or []
+    if not isinstance(ambiguities, list) or not all(isinstance(a, str) for a in ambiguities):
+        defects.append("'ambiguities' must be a list of strings")
+        ambiguities = []
+    manifest = {"manifest": 1, "criteria": criteria, "ambiguities": [a.strip() for a in ambiguities if a.strip()]}
+    notes = _uncovered(manifest, request) if request is not None and not defects else []
+    return manifest, defects, notes
+
+
+def _uncovered(manifest, request):
+    quotes = [_norm(c["quote"]) for c in manifest["criteria"] if c["quote"]]
+    notes = []
+    for sentence in re.split(r"(?<=[.!?])\s+|\n+", request):
+        words = _norm(sentence).split()
+        if len(words) < 4:
+            continue
+        flat = " ".join(words)
+        grams = {" ".join(words[i:i + 3]) for i in range(len(words) - 2)}
+        if not any(q in flat or any(g in q for g in grams) for q in quotes):
+            notes.append(" ".join(sentence.split()))
+    return notes
+
+
+def manifest_from_lines(text):
+    """A manifest from criteria somebody already wrote down, one per line.
+    Bullets, numbering and checkboxes are dropped; headings are skipped."""
+    items = []
+    for line in text.splitlines():
+        s = re.sub(r"^\s*(?:[-*+]|\d+[.)])\s+", "", line).strip()
+        s = re.sub(r"^\[[ xX]\]\s+", "", s)
+        if s and not s.startswith("#"):
+            items.append(s)
+    return {"manifest": 1, "criteria": [{"id": i, "text": t, "quote": None} for i, t in enumerate(items, 1)],
+            "ambiguities": []}
+
+
+# ------------------------------------------------------------------------ cli
+def _read(path):
+    if path == "-":
+        return sys.stdin.read()
+    with open(path, encoding="utf-8", errors="replace") as f:
+        return f.read()
+
+
+def _report(defects):
+    for d in defects:
+        print(f"DEFECT: {d}")
+    print(f"INVALID ({len(defects)} defect(s))")
+    return 1
+
+
+def _emit_manifest(manifest, notes, out):
+    print(f"VALID: {len(manifest['criteria'])} criteria")
+    for c in manifest["criteria"]:
+        print(f"  {c['id']}. {c['text']}  " + (f"[quote: {c['quote']!r}]" if c["quote"] else "[no quote]"))
+    for a in manifest["ambiguities"]:
+        print(f"AMBIGUITY: {a}")
+    # A hint, so it must stay readable: a long request has hundreds of sentences
+    # that are context and not requirements.
+    for n in notes[:NOTES_SHOWN]:
+        print(f"NOTE: no criterion quotes this part of the request: {n}")
+    if len(notes) > NOTES_SHOWN:
+        print(f"NOTE: ... and {len(notes) - NOTES_SHOWN} more parts of the request that no criterion quotes")
+    if out:
+        with open(out, "w", encoding="utf-8", newline="\n") as f:
+            json.dump(manifest, f, ensure_ascii=False, indent=2)
+            f.write("\n")
+    return 0
+
+
 def main(argv):
     # The report echoes ledger text, which can hold any character. On Windows
     # the default console/pipe encoding is a legacy codepage, where printing an
@@ -207,22 +362,49 @@ def main(argv):
             stream.reconfigure(encoding="utf-8", errors="replace")
         except (AttributeError, ValueError):
             pass
-    if len(argv) != 2:
-        print(__doc__)
+    ap = argparse.ArgumentParser(
+        prog="validate_ledger.py", description="Validate an intent-verify ledger or criterion manifest.",
+        epilog="Exit codes: 0 valid, 1 invalid (defects listed), 2 usage error or unreadable file.")
+    ap.add_argument("ledger", nargs="?", help="a verifier's reply, or - for stdin")
+    ap.add_argument("--manifest", metavar="FILE", help="criteria the ledger must cover")
+    ap.add_argument("--check-manifest", metavar="REPLY", help="validate a criteria deriver's reply instead of a ledger")
+    ap.add_argument("--request", metavar="FILE", help="with --check-manifest: the frozen request each quote must occur in")
+    ap.add_argument("--manifest-from", metavar="FILE", help="build a manifest from criteria you already have, one per line")
+    ap.add_argument("--out", metavar="FILE", help="with --check-manifest or --manifest-from: write the manifest here")
+    a = ap.parse_args(argv[1:])
+    if sum(x is not None for x in (a.ledger, a.check_manifest, a.manifest_from)) != 1:
+        ap.print_usage(sys.stderr)
+        print("validate_ledger.py: give a ledger, or --check-manifest, or --manifest-from", file=sys.stderr)
         return 2
-    if argv[1] == "-":
-        text = sys.stdin.read()
-    else:
-        with open(argv[1], encoding="utf-8", errors="replace") as f:
-            text = f.read()
-    ledger, defects = validate(text)
+
+    try:
+        if a.manifest_from is not None:
+            manifest = manifest_from_lines(_read(a.manifest_from))
+            if not manifest["criteria"]:
+                return _report(["no criteria found (one per line)"])
+            return _emit_manifest(manifest, [], a.out)
+        if a.check_manifest is not None:
+            request = _read(a.request) if a.request else None
+            manifest, defects, notes = check_manifest(_read(a.check_manifest), request)
+            return _report(defects) if defects else _emit_manifest(manifest, notes, a.out)
+
+        manifest = None
+        if a.manifest:
+            manifest, defects, _notes = check_manifest(_read(a.manifest))
+            if defects:
+                print(f"validate_ledger.py: {a.manifest} is not a valid manifest: {defects[0]}", file=sys.stderr)
+                return 2
+        text = _read(a.ledger)
+    except OSError as e:
+        # Exit 1 means "invalid". A file that is not there is a different problem.
+        print(f"validate_ledger.py: cannot read or write {e.filename}: {e.strerror}", file=sys.stderr)
+        return 2
+
+    ledger, defects = validate(text, manifest)
     if defects:
-        for d in defects:
-            print(f"DEFECT: {d}")
-        print(f"INVALID ({len(defects)} defect(s))")
-        return 1
-    n = len(ledger["criteria"])
-    print(f"VALID: {n} criteria, final = {ledger['final']}")
+        return _report(defects)
+    covered = f" (all {len(manifest['criteria'])} manifest criteria covered)" if manifest else ""
+    print(f"VALID: {len(ledger['criteria'])} criteria{covered}, final = {ledger['final']}")
     return 0
 
 

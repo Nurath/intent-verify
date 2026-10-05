@@ -1,9 +1,11 @@
+import glob
 import json
 import os
 import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -11,25 +13,38 @@ HOOKS = os.path.join(BASE, "hooks")
 MIB = 1024 * 1024
 
 
+def data_dir(project_dir):
+    """Where the Node hook is told to keep its ledger in tests: beside the project."""
+    return project_dir + ".data"
+
+
 def run_hook(cmd, payload, project_dir, extra_env=None):
     """payload: str (sent as text) or bytes (sent verbatim)."""
-    env = {**os.environ, "CLAUDE_PROJECT_DIR": project_dir, **(extra_env or {})}
+    env = {**os.environ, "CLAUDE_PROJECT_DIR": project_dir, "INTENT_VERIFY_DATA": data_dir(project_dir),
+           **(extra_env or {})}
     if isinstance(payload, bytes):
         return subprocess.run(cmd, input=payload, capture_output=True, timeout=60, env=env)
     return subprocess.run(cmd, input=payload, capture_output=True, text=True, timeout=60, env=env)
 
 
 def read_jsonl(project_dir):
-    p = os.path.join(project_dir, ".intent", "log.jsonl")
-    if not os.path.exists(p):
-        return []
-    with open(p, encoding="utf-8") as f:
-        return [json.loads(l) for l in f if l.strip()]
+    """Every captured entry, oldest first, wherever the runtime keeps it: the Node
+    hook writes one file per session under the data directory, the alternates
+    write <project>/.intent/log.jsonl."""
+    files = sorted(glob.glob(os.path.join(data_dir(project_dir), "projects", "*", "sessions", "*.jsonl")))
+    files.append(os.path.join(project_dir, ".intent", "log.jsonl"))
+    entries = []
+    for p in files:
+        if os.path.exists(p):
+            with open(p, encoding="utf-8") as f:
+                entries += [json.loads(l) for l in f if l.strip()]
+    return sorted(entries, key=lambda e: e.get("ts", ""))
 
 
 class HookContract:
     """Shared contract every runtime implementation must satisfy."""
     CMD = None
+    IN_PROJECT = True  # the runtime writes <project>/.intent/ (everything except the Node hook)
 
     # Only an unmistakable request to RUN verification is tagged. A task that
     # merely starts with "verify this ..." defines work: tagging it would hide
@@ -55,6 +70,7 @@ class HookContract:
 
     def tearDown(self):
         shutil.rmtree(self.dir, ignore_errors=True)
+        shutil.rmtree(data_dir(self.dir), ignore_errors=True)
 
     def test_captures_prompt(self):
         r = run_hook(self.CMD, json.dumps({"prompt": "sort by date, newest first"}), self.dir)
@@ -90,8 +106,11 @@ class HookContract:
         entries = read_jsonl(self.dir)
         self.assertNotIn(secret, entries[0]["prompt"])
         self.assertIn("[REDACTED:github-token]", entries[0]["prompt"])
-        with open(os.path.join(self.dir, ".intent", "log.md"), encoding="utf-8") as f:
-            self.assertNotIn(secret, f.read())
+        for root in (self.dir, data_dir(self.dir)):  # no file the hook wrote may hold it
+            for d, _dirs, names in os.walk(root):
+                for name in names:
+                    with open(os.path.join(d, name), encoding="utf-8", errors="replace") as f:
+                        self.assertNotIn(secret, f.read(), name)
 
     def test_redacts_prefixed_api_keys(self):
         """sk-proj-... and sk-ant-api03-... bodies contain '-' and '_'; the old
@@ -139,16 +158,19 @@ class HookContract:
         self.assertEqual((e["session_id"], e["transcript_path"]), ("s-1", "/t/s-1.jsonl"))
 
     def test_md_fences_never_collide(self):
+        if not self.IN_PROJECT:
+            self.skipTest("only the in-project layout keeps a markdown mirror")
         run_hook(self.CMD, json.dumps({"prompt": "look:\n```py\nx=1\n```\n---\n## fake"}), self.dir)
         with open(os.path.join(self.dir, ".intent", "log.md"), encoding="utf-8") as f:
             md = f.read()
         self.assertIn("````", md)
 
     @unittest.skipUnless(shutil.which("git"), "git not available")
-    def test_ledger_dir_ignores_itself(self):
-        """The ledger holds raw prompts inside the USER's repository, where this
-        plugin's own .gitignore does not apply. A broad `git add .` must not be
-        able to stage it."""
+    def test_capture_leaves_nothing_git_would_stage(self):
+        """Raw prompts must never be something a broad `git add .` can pick up in
+        the USER's repository, where this plugin's own .gitignore does not
+        apply. The Node hook writes outside the project; the alternates write a
+        .intent/ directory that ignores itself."""
         subprocess.run(["git", "init", "-q", self.dir], check=True, capture_output=True)
         run_hook(self.CMD, json.dumps({"prompt": "add a dark mode toggle"}), self.dir)
         self.assertTrue(read_jsonl(self.dir), "nothing was captured")
@@ -179,22 +201,69 @@ class HookContract:
 @unittest.skipUnless(shutil.which("node"), "node not available")
 class TestNodeHook(HookContract, unittest.TestCase):
     CMD = ["node", os.path.join(HOOKS, "capture-intent.js")]
+    IN_PROJECT = False
+
+    QUESTION = {"question": "Ship now or later?", "header": "Ship", "multiSelect": False,
+                "options": [{"label": "Now", "description": "today"}, {"label": "Later", "description": "next week"}]}
 
     def _cli(self, *args):
-        return subprocess.run(self.CMD + list(args) + ["--project", self.dir],
+        return subprocess.run(self.CMD + list(args) + ["--project", self.dir, "--data", data_dir(self.dir)],
                               capture_output=True, text=True, encoding="utf-8", timeout=30)
 
     def _from_file(self, payload):
         src = os.path.join(self.dir, "payload.json")
         with open(src, "w", encoding="utf-8") as f:
             f.write(payload)
-        env = {**os.environ, "CLAUDE_PROJECT_DIR": self.dir}
+        env = {**os.environ, "CLAUDE_PROJECT_DIR": self.dir, "INTENT_VERIFY_DATA": data_dir(self.dir)}
         with open(src, "rb") as fh:
             return subprocess.run(self.CMD, stdin=fh, capture_output=True, text=True, timeout=60, env=env)
+
+    def _answered(self, response):
+        return json.dumps({"hook_event_name": "PostToolUse", "tool_name": "AskUserQuestion", "session_id": "A",
+                           "prompt_id": "p-1", "tool_input": {"questions": [self.QUESTION]}, "tool_response": response})
+
+    def _stale_and_fresh(self):
+        """An old and a recent session file plus a stray note in a project the
+        hook created, and an old file in a directory it did not create."""
+        projects = os.path.join(data_dir(self.dir), "projects")
+        ours = os.path.join(projects, "0123456789abcdef", "sessions")
+        foreign = os.path.join(projects, "someone-elses", "sessions")
+        os.makedirs(ours)
+        os.makedirs(foreign)
+        with open(os.path.join(projects, "0123456789abcdef", "project.json"), "w") as f:
+            json.dump({"path": "/somewhere"}, f)
+        paths = [os.path.join(ours, n) for n in ("old.jsonl", "recent.jsonl", "notes.txt")]
+        paths.append(os.path.join(foreign, "old.jsonl"))
+        long_ago = time.time() - 40 * 86400
+        for p in paths:
+            open(p, "w").close()
+            if "recent" not in p:
+                os.utime(p, (long_ago, long_ago))
+        return paths
 
     def test_selftest_green(self):
         r = subprocess.run(self.CMD + ["--selftest"], capture_output=True, text=True, timeout=60)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
+    def test_writes_one_file_per_session_and_nothing_in_the_project(self):
+        run_hook(self.CMD, json.dumps({"prompt": "add a 404 handler", "session_id": "A", "prompt_id": "p-1"}), self.dir)
+        run_hook(self.CMD, json.dumps({"prompt": "unrelated", "session_id": "B"}), self.dir)
+        self.assertEqual(os.listdir(self.dir), [], "the plugin hook must not write inside the project")
+        files = glob.glob(os.path.join(data_dir(self.dir), "projects", "*", "sessions", "*.jsonl"))
+        self.assertEqual(sorted(os.path.basename(f) for f in files), ["A.jsonl", "B.jsonl"])
+        self.assertEqual(read_jsonl(self.dir)[0]["prompt_id"], "p-1")
+        with open(os.path.join(os.path.dirname(os.path.dirname(files[0])), "project.json"), encoding="utf-8") as f:
+            self.assertTrue(json.load(f)["path"])
+
+    def test_truncation_keeps_both_ends(self):
+        """With a long paste the instruction sits at one end; cutting only the
+        tail could remove the instruction itself."""
+        run_hook(self.CMD, json.dumps({"prompt": "START " + "y" * 9000 + " fix the bug above"}), self.dir,
+                 extra_env={"INTENT_VERIFY_MAX_PROMPT": "1000"})
+        e = read_jsonl(self.dir)[0]
+        self.assertTrue(e["truncated"])
+        self.assertTrue(e["prompt"].startswith("START "))
+        self.assertTrue(e["prompt"].endswith(" fix the bug above"))
 
     def test_stdin_cap_does_not_break_the_stream_lifecycle(self):
         """Regression: the >10MiB memory guard used process.stdin.pause().
@@ -217,9 +286,33 @@ class TestNodeHook(HookContract, unittest.TestCase):
         self.assertEqual(r.returncode, 0)
         self.assertEqual([e["kind"] for e in read_jsonl(self.dir)], ["capture-incomplete"])
 
+    def test_records_an_answered_question_as_a_decision(self):
+        """An answer to a multiple-choice question is not a prompt, so it was
+        missing from the ledger even when it decided the scope of the work."""
+        r = run_hook(self.CMD, self._answered({"questions": [self.QUESTION], "answers": {"Ship now or later?": "Later"}}), self.dir)
+        self.assertEqual((r.returncode, r.stdout), (0, ""))
+        e = read_jsonl(self.dir)[0]
+        self.assertEqual((e["kind"], e["session_id"], e["prompt_id"]), ("decision", "A", "p-1"))
+        self.assertIn("Q: Ship now or later?", e["prompt"])
+        self.assertIn("- Later: next week", e["prompt"])
+        self.assertTrue(e["prompt"].endswith("A: Later"))
+
+    def test_an_answer_in_an_unknown_shape_is_kept_as_text(self):
+        run_hook(self.CMD, self._answered('Your questions have been answered: "Ship now or later?"="Later"'), self.dir)
+        e = read_jsonl(self.dir)[0]
+        self.assertEqual(e["kind"], "decision")
+        self.assertIn('"Ship now or later?"="Later"', e["prompt"])
+
+    def test_other_tool_results_are_not_recorded(self):
+        payload = json.dumps({"hook_event_name": "PostToolUse", "tool_name": "Write", "session_id": "A",
+                              "tool_input": {"file_path": "x"}, "tool_response": {}})
+        r = run_hook(self.CMD, payload, self.dir)
+        self.assertEqual((r.returncode, r.stdout), (0, ""))
+        self.assertEqual(read_jsonl(self.dir), [])
+
     def test_list_is_scoped_to_the_session(self):
-        """Every session in a project writes to one ledger, so 'the newest task'
-        is often somebody else's prompt."""
+        """Several sessions work in one project, so 'the newest task' is often
+        somebody else's prompt."""
         run_hook(self.CMD, json.dumps({"prompt": "mine: sort newest first", "session_id": "A"}), self.dir)
         run_hook(self.CMD, json.dumps({"prompt": "theirs: unrelated work", "session_id": "B"}), self.dir)
         out = self._cli("--list", "--session", "A").stdout
@@ -232,32 +325,114 @@ class TestNodeHook(HookContract, unittest.TestCase):
         # unscoped listing is otherwise indistinguishable from a scoped one.
         self.assertIn("session id unavailable", self._cli("--list", "--session", "").stdout)
 
+    def test_list_hides_background_agent_reports_and_labels_other_harness_prompts(self):
+        """The harness submits prompts of its own. A background agent's report is
+        never the user's request; a message from another session, a scheduled
+        task or a CI event can be the thing that started the work."""
+        prompts = ["sort newest first",
+                   "<task-notification>\n<task-id>x1</task-id> agent finished",
+                   "<agent-message from=\"other\">please also add tests",
+                   "<ci-monitor-event>1 CI check failed"]
+        for p in prompts:
+            run_hook(self.CMD, json.dumps({"prompt": p, "session_id": "A"}), self.dir)
+        out = self._cli("--list", "--session", "A").stdout
+        self.assertNotIn("agent finished", out)
+        self.assertIn("1 background-agent reports hidden", out)
+        self.assertIn("  agent-message  ", out)
+        self.assertIn("  ci-monitor-event  ", out)
+        self.assertIn("agent finished", self._cli("--list", "--session", "A", "--all").stdout)
+
+    def test_list_says_where_it_looked_when_it_finds_nothing(self):
+        out = self._cli("--list").stdout
+        self.assertIn("0 entries", out)
+        self.assertIn(data_dir(self.dir), out)
+
+    def test_show_prints_one_request_in_full(self):
+        text = "line one\nline two"
+        run_hook(self.CMD, json.dumps({"prompt": text, "session_id": "A"}), self.dir)
+        r = self._cli("--show", read_jsonl(self.dir)[0]["id"])
+        self.assertEqual((r.returncode, r.stdout), (0, text + "\n"))
+        self.assertEqual(self._cli("--show", "nope").returncode, 2)
+
     def test_freeze_writes_the_request_verbatim(self):
         text = "line one\n```py\nx = 1\n```\n  two trailing spaces  "
         run_hook(self.CMD, json.dumps({"prompt": text, "session_id": "A"}), self.dir)
-        r = self._cli("--freeze", read_jsonl(self.dir)[0]["id"])
+        out = os.path.join(data_dir(self.dir), "frozen", "request.md")
+        r = self._cli("--freeze", read_jsonl(self.dir)[0]["id"], "--out", out)
         self.assertEqual(r.returncode, 0, r.stderr)
         meta = json.loads(r.stdout)
-        self.assertFalse(meta["truncated"])
-        with open(meta["file"], encoding="utf-8", newline="") as f:
+        self.assertEqual((meta["file"], meta["truncated"], len(meta["parts"])), (out, False, 1))
+        with open(out, encoding="utf-8", newline="") as f:
             self.assertEqual(f.read(), text)
+        self.assertEqual(os.listdir(self.dir), [], "freezing must not write inside the project either")
+
+    def test_freeze_joins_a_task_and_the_decision_that_scoped_it(self):
+        """One prompt is often not the whole request."""
+        run_hook(self.CMD, json.dumps({"prompt": "fix what the review found", "session_id": "A"}), self.dir)
+        run_hook(self.CMD, self._answered({"questions": [self.QUESTION], "answers": {"Ship now or later?": "Later"}}), self.dir)
+        ids = [e["id"] for e in read_jsonl(self.dir)]
+        out = os.path.join(data_dir(self.dir), "request.md")
+        r = self._cli("--freeze", ",".join(reversed(ids)), "--out", out)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual([p["kind"] for p in json.loads(r.stdout)["parts"]], ["task", "decision"])
+        with open(out, encoding="utf-8") as f:
+            text = f.read()
+        self.assertLess(text.index("fix what the review found"), text.index("A: Later"))
 
     def test_freeze_exits_3_for_a_truncated_request(self):
         """An incomplete request must be impossible to miss: verifying against
         it can pass a change that violates the part that was cut off."""
         run_hook(self.CMD, json.dumps({"prompt": "y" * 5000}), self.dir,
                  extra_env={"INTENT_VERIFY_MAX_PROMPT": "1000"})
-        r = self._cli("--freeze", read_jsonl(self.dir)[0]["id"])
+        r = self._cli("--freeze", read_jsonl(self.dir)[0]["id"], "--out", os.path.join(data_dir(self.dir), "r.md"))
         self.assertEqual(r.returncode, 3)
         self.assertTrue(json.loads(r.stdout)["truncated"])
 
     def test_freeze_rejects_unknown_ids(self):
-        self.assertEqual(self._cli("--freeze", "nope").returncode, 2)
-        self.assertEqual(self._cli("--freeze", "../escape").returncode, 2)
+        run_hook(self.CMD, json.dumps({"prompt": "a real one"}), self.dir)
+        real = read_jsonl(self.dir)[0]["id"]
+        for ids in ("nope", "../escape", real + ",nope"):
+            self.assertEqual(self._cli("--freeze", ids).returncode, 2, ids)
+
+    def test_reads_a_ledger_left_inside_the_project(self):
+        """Requests captured by 0.2.x, or by an alternate hook, stay where they
+        are. The reader still finds them and the hook no longer adds to them."""
+        legacy = os.path.join(self.dir, ".intent")
+        os.makedirs(legacy)
+        with open(os.path.join(legacy, "log.jsonl"), "w", encoding="utf-8") as f:
+            f.write(json.dumps({"id": "old-1", "ts": "2026-01-01T00:00:00Z", "kind": "task",
+                                "prompt": "an older request", "session_id": "A"}) + "\n")
+        run_hook(self.CMD, json.dumps({"prompt": "a newer request", "session_id": "A"}), self.dir)
+        out = self._cli("--list", "--session", "A").stdout
+        self.assertLess(out.index("an older request"), out.index("a newer request"))
+        self.assertIn("ledger inside the project", out)
+        self.assertEqual(os.listdir(legacy), ["log.jsonl"])
+        frozen = os.path.join(data_dir(self.dir), "old.md")
+        self.assertEqual(self._cli("--freeze", "old-1", "--out", frozen).returncode, 0)
+
+    def test_stale_session_files_are_deleted(self):
+        """Retention replaces rotation: per-session files would otherwise pile up
+        for good. Only session files are ever removed."""
+        old, recent, note, foreign = self._stale_and_fresh()
+        run_hook(self.CMD, json.dumps({"prompt": "anything"}), self.dir)
+        self.assertEqual([os.path.exists(p) for p in (old, recent, note, foreign)], [False, True, True, True])
+
+    def test_retention_can_be_switched_off(self):
+        old = self._stale_and_fresh()[0]
+        run_hook(self.CMD, json.dumps({"prompt": "anything"}), self.dir, extra_env={"INTENT_VERIFY_RETENTION_DAYS": "0"})
+        self.assertTrue(os.path.exists(old))
 
 
 class TestPythonHook(HookContract, unittest.TestCase):
     CMD = [sys.executable, os.path.join(HOOKS, "capture-intent.py")]
+
+    def test_rotation(self):
+        for i in range(4):
+            run_hook(self.CMD, json.dumps({"prompt": "p%d " % i + "z" * 400}), self.dir,
+                     extra_env={"INTENT_VERIFY_MAX_LOG": "600"})
+        d = os.path.join(self.dir, ".intent")
+        rotated = [f for f in os.listdir(d) if f.endswith(".old")]
+        self.assertTrue(rotated, "expected rotation archives at tiny INTENT_VERIFY_MAX_LOG")
 
 
 def _ps_hook(exe):
@@ -278,15 +453,10 @@ class TestPwshHook(HookContract, unittest.TestCase):
 
 @unittest.skipUnless(os.name == "posix", "sh dispatcher is POSIX-only")
 class TestShDispatcher(HookContract, unittest.TestCase):
+    """With node on PATH the dispatcher hands over to the Node hook, so this is
+    the Node hook's behaviour reached through sh."""
     CMD = ["sh", os.path.join(HOOKS, "capture-intent.sh")]
-
-    def test_rotation(self):
-        for i in range(4):
-            run_hook(self.CMD, json.dumps({"prompt": "p%d " % i + "z" * 400}), self.dir,
-                     extra_env={"INTENT_VERIFY_MAX_LOG": "600"})
-        d = os.path.join(self.dir, ".intent")
-        rotated = [f for f in os.listdir(d) if f.endswith(".old")]
-        self.assertTrue(rotated, "expected rotation archives at tiny INTENT_VERIFY_MAX_LOG")
+    IN_PROJECT = not shutil.which("node")
 
 
 @unittest.skipUnless(os.name == "posix", "sh dispatcher is POSIX-only")
