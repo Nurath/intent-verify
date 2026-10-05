@@ -36,8 +36,10 @@ Three code-level mechanisms + one policy mechanism absorb these:
 2. **Mechanical ledger validation** (`tools/validate_ledger.py`) — the
    orchestrator validates structure (numbering without gaps, one verdict per
    criterion, values on their own line) + evidence presence + verdict
-   consistency. One bounded re-request on defects, then `INCONCLUSIVE`. Never
-   loops, never launders an unverifiable answer into `MATCHES INTENT`.
+   consistency, and holds the ledger to the criterion manifest fixed before the
+   code was read, so a criterion a weak verifier skips is a defect. One bounded
+   re-request on defects, then `INCONCLUSIVE`. Never loops, never launders an
+   unverifiable answer into `MATCHES INTENT`.
 3. **Execution budget** (`agents/verifier.md`) — ≤3 attempts per criterion,
    ~15 commands total, non-interactive, nothing installed, timeouts on anything
    that can block. Budget exhaustion → `NOT-EXERCISED`, honestly.

@@ -16,6 +16,10 @@
 # -> markdown-only last resort. The old script hard-required a bare `python`,
 # which no longer exists on stock Ubuntu/Debian/macOS, so capture silently
 # failed on the most common dev platforms.
+#
+# With node the ledger goes where capture-intent.js puts it: outside the
+# project since 0.3. Every other path below writes the 0.2 layout,
+# <project>/.intent/, which the reader in capture-intent.js still reads.
 
 input=$(cat 2>/dev/null) || exit 0
 [ -n "$input" ] || exit 0

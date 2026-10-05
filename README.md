@@ -2,8 +2,8 @@
 
 **An independent second-opinion check that an AI-written change did what you *actually asked* — not just what the diff claims, and not just "tests pass."**
 
-`intent-verify` is a Claude Code plugin (a skill, a verifier subagent and a
-capture hook) that catches
+`intent-verify` is a Claude Code plugin (a skill, two subagents and a capture
+hook) that catches
 **intent drift**: the failure where an AI coding agent confidently builds the
 *wrong thing correctly*. The code runs, tests go green, the diff reads fine — but
 it isn't what you asked for, and ordinary review can't see the gap because it
@@ -30,25 +30,33 @@ That's the entire job of this tool.
 ## How it works
 
 ```
-                 ┌──────────────────────────────────────────────┐
-   your request  │  1. FREEZE  the original request verbatim     │
-   ───────────▶  │            (a UserPromptSubmit hook, or       │
-                 │             a pasted intent ledger)           │
-                 └──────────────────────┬───────────────────────┘
-                                        ▼
-                 ┌──────────────────────────────────────────────┐
-   agent's diff  │  2. VERIFY  a fresh-context subagent, on a    │
-   ───────────▶  │            DIFFERENT model, derives criteria  │
-                 │            from the request BEFORE reading the │
-                 │            code, then RUNS the app to exercise │
-                 │            each one, capturing evidence.       │
-                 └──────────────────────┬───────────────────────┘
-                                        ▼
-                 ┌──────────────────────────────────────────────┐
-                 │  3. LEDGER  per-criterion PASS / FAIL /       │
-                 │            NOT-EXERCISED (+ evidence), and     │
-                 │            a verdict: MATCHES INTENT / DRIFTED │
-                 └──────────────────────────────────────────────┘
+                 ┌────────────────────────────────────────────────┐
+   your request  │  1. FREEZE    what you asked, verbatim: the    │
+   ───────────▶  │               prompt, later corrections, and   │
+                 │               the questions you answered       │
+                 └────────────────────────┬───────────────────────┘
+                                          ▼
+                 ┌────────────────────────────────────────────────┐
+                 │  2. CRITERIA  an agent that is given only the  │
+                 │               request, and has no tool to read │
+                 │               the project, lists what must be  │
+                 │               true                             │
+                 └────────────────────────┬───────────────────────┘
+                                          ▼
+                 ┌────────────────────────────────────────────────┐
+   agent's diff  │  3. VERIFY    a fresh-context subagent, on a   │
+   ───────────▶  │               DIFFERENT model, RUNS the code   │
+                 │               against each criterion and keeps │
+                 │               the evidence                     │
+                 └────────────────────────┬───────────────────────┘
+                                          ▼
+                 ┌────────────────────────────────────────────────┐
+                 │  4. LEDGER    PASS / FAIL / NOT-EXERCISED per  │
+                 │               criterion, checked by machine    │
+                 │               against the list from step 2:    │
+                 │               MATCHES INTENT / DRIFTED /       │
+                 │               INCONCLUSIVE                     │
+                 └────────────────────────────────────────────────┘
 ```
 
 ### The three design decisions (each defends a specific failure mode)
@@ -58,10 +66,13 @@ Each one answers a specific way a reviewer ends up agreeing with the author:
 | Lever | Defends against | Why |
 |-------|-----------------|-----|
 | **Different model** for the verifier | Shared blind spot | A blind spot in the weights survives a fresh context, so a same-model judge can share the author's misreading. This is a design argument: it was on in every benchmark run and never ablated (see [Honest limitations](#honest-limitations)). |
-| **Criteria before code** | Confirmation bias | If the verifier reads the diff first, it reverse-engineers criteria the code already satisfies. Derive criteria from the request *first*. |
+| **Criteria before code** | Confirmation bias | Whoever has seen the code writes criteria the code already satisfies. So the criteria are fixed first, by an agent that is given the request and has no tool to read the project, and the verifier is then held to that list by the validator. |
 | **Evidence required for PASS** | Lenient judge | "Looks right" is the exact failure. No criterion passes without captured runtime output. |
 
-Full skill text: [`skills/intent-verify/SKILL.md`](skills/intent-verify/SKILL.md). Verifier subagent: [`agents/verifier.md`](agents/verifier.md).
+Skill: [`skills/intent-verify/SKILL.md`](skills/intent-verify/SKILL.md).
+Subagents: [`agents/criteria.md`](agents/criteria.md),
+[`agents/verifier.md`](agents/verifier.md). How the parts fit:
+[`docs/architecture.md`](docs/architecture.md).
 
 ---
 
@@ -69,6 +80,11 @@ Full skill text: [`skills/intent-verify/SKILL.md`](skills/intent-verify/SKILL.md
 
 Everything below is reproducible from [`benchmark/`](benchmark/): the cases, the
 method, and the captured verifier output are all on disk.
+
+The two July results were produced by the single-stage flow, in which the
+verifier was *told* to derive criteria before reading the code. The two-stage
+flow that 0.3 ships has had a first look and no more; see the end of this
+section.
 
 ### Controlled benchmark (n=16, cross-model, evidence-required)
 
@@ -108,6 +124,25 @@ implementations produced *naturally* by Opus (×3) and Haiku (×4) with no trap 
 - **Field recall could not be measured**: all 7 natural implementations came out
   *correct*, so there was no drift to catch.
 
+### The two-stage flow — a first look, not a measurement
+
+- **Offline, deterministic:** a simulated verifier that reports only what passes
+  and never mentions the criterion that would fail gets 2 false `MATCHES INTENT`
+  on the 8 drifted cases when its ledger is validated alone, and 0 when the
+  ledger is held to a manifest. Its ledgers are well-formed and every line in
+  them is true; only a list fixed beforehand catches the omission.
+- **Real models, 8 runs:** criteria derived from the request alone were valid on
+  the first reply for all three requests tried, and the verifier held to them
+  reached the expected verdict on 4 of 4 fixtures (2 drifted, 2 correct). The
+  manifest for the tie-break case contained the tie-break, which is the
+  requirement ordinary review missed in July.
+
+Read that second line with its caveats: one run per cell, two requests, and the
+agent deriving the criteria was told not to use tools without anything
+enforcing it. The record, and what the run showed that the design had not
+expected, is in
+[`benchmark/results/2026-10-05-two-stage-smoke.md`](benchmark/results/2026-10-05-two-stage-smoke.md).
+
 ---
 
 ## When to use it (and when not to)
@@ -121,11 +156,11 @@ finding): **drift shows up where the request leaves room for a wrong reading.**
 - ➖ **On crisp, example-rich specs it had nothing to catch in our trial.** All 7
   natural implementations were already correct and it raised no false alarm.
   Seven tasks cannot show that it never will, and a run is not free: it spends
-  a verifier pass that executes your code.
+  two subagent passes, one of which executes your code.
 - ⚠️ **Its own limit** (failure mode #1): on *genuinely* ambiguous requests there
-  is often no single ground truth, so the verifier — like any reviewer — can only
-  check what the words actually committed to. Freezing a vague ask does not
-  manufacture intent.
+  is often no single ground truth. The criteria agent lists the places a
+  request can be read two ways and the skill asks you about them once; if you
+  are not there to answer, it can only check what the words committed to.
 
 ---
 
@@ -134,19 +169,24 @@ finding): **drift shows up where the request leaves room for a wrong reading.**
 Invoke `intent-verify` after an agent completes a non-trivial change, or say
 *"verify this did what I asked."* The skill:
 
-1. Freezes your original request: it lists the prompts captured for the current
-   session, picks the one that started the change, and writes it out verbatim
-   (`capture-intent.js --list` / `--freeze`). A request that was cut at the
-   capture cap, or never captured, is reported rather than guessed at. With no
-   ledger it asks you to paste the request.
-2. Derives acceptance criteria from the request.
-3. Dispatches the verifier subagent **on a different model**, handing it those
-   criteria as a floor; the verifier still derives its own before reading code.
-4. Validates the verifier's ledger mechanically (evidence-required PASS,
-   consistent verdict, no skipped criterion numbers), checks that every
-   criterion from step 2 is in it, then returns it + a verdict: `MATCHES INTENT`
-   / `DRIFTED` / `INCONCLUSIVE` (when the change couldn't honestly be exercised,
-   or the request itself was incomplete — never laundered into a pass).
+1. **Freezes what you asked.** It lists what was captured for the current
+   session — your prompts, and the multiple-choice questions you answered —
+   picks the entries that define the work, and writes them to one file. A
+   request that was cut at the capture cap, or never captured, is reported
+   rather than guessed at. With no ledger it asks you to paste the request.
+2. **Gets the criteria fixed.** If you already have acceptance criteria, those
+   are used. Otherwise the criteria agent derives them from the request alone;
+   each one has to quote the words it rests on, and the quote is checked. Where
+   the request can be read two ways, you are asked, once.
+3. **Dispatches the verifier** on a different model, with the request, the
+   criteria and the code.
+4. **Validates the ledger mechanically** — evidence for every PASS, a consistent
+   verdict, every criterion from step 2 present — and returns it with a verdict:
+   `MATCHES INTENT` / `DRIFTED` / `INCONCLUSIVE` (when the change couldn't
+   honestly be exercised, or the request itself was incomplete — never
+   laundered into a pass).
+
+Nothing in that procedure writes inside your project.
 
 ### Install as a plugin
 
@@ -157,50 +197,67 @@ This repo is its own Claude Code marketplace. From Claude Code:
 /plugin install intent-verify
 ```
 
-Then the `UserPromptSubmit` hook auto-captures each request to the intent
-ledger, the skill invokes on change-verification, and the verifier runs as a
-bundled subagent — no manual wiring.
+Two hooks then record what you ask for — each prompt (`UserPromptSubmit`) and
+each multiple-choice question you answer (`PostToolUse` on `AskUserQuestion`).
+The skill runs on request, and the two subagents are bundled. No manual wiring.
 
-The capture hook runs via `node` in exec form — the documented cross-platform
-pattern — so it behaves the same on macOS, Linux, and Windows (no Git Bash
-required). It does require `node` on PATH (present for every npm-based Claude
-Code install); without Node, wire one of the alternates in your settings
-instead, e.g. `{"type": "command", "command": "python3", "args":
-["${CLAUDE_PLUGIN_ROOT}/hooks/capture-intent.py"]}`.
+To update an existing install from a shell, then restart Claude Code:
 
-The alternates are not all equal:
+```bash
+claude plugin marketplace update intent-verify
+```
 
-- `capture-intent.py` and `capture-intent.ps1` pass the same capture contract as
-  the Node script in CI (redaction, caps, tagging, self-ignoring ledger). Two
-  differences: only the Node script has the `--list`/`--freeze` reader the skill
-  uses, and a prompt too large to read is stored truncated by the `.ps1` but
-  recorded as a `capture-incomplete` marker by Node and Python.
-- `capture-intent.sh` is a dispatcher: it runs the Node script when `node`
-  exists, then Python. With neither it falls back to `jq`, then to a raw
-  markdown-only entry. Those two fallbacks are best-effort: a shorter redaction
-  list, no session id, and the raw path cannot tag verification requests.
+```bash
+claude plugin update intent-verify@intent-verify
+```
 
-Capture details, all bounded by design:
+The hooks run via `node` in exec form — the documented cross-platform pattern —
+so they behave the same on macOS, Linux, and Windows (no Git Bash required).
+They do require `node` on PATH (present for every npm-based Claude Code
+install).
 
-- Canonical ledger is `.intent/log.jsonl` (one JSON entry per prompt, with
-  `id`/`ts`/`kind`/`session_id`), plus a human-readable `log.md` mirror. JSONL
-  means prompts containing `---`/`##`/code fences can't corrupt entry
-  boundaries.
-- Entries are capped at 64k characters (`INTENT_VERIFY_MAX_PROMPT`) and files
-  rotate at 1 MiB (`INTENT_VERIFY_MAX_LOG`, 3 archives kept). A capped entry is
-  flagged `truncated`, and the skill will not return `MATCHES INTENT` against a
-  request it does not have in full.
-- **The ledger holds your prompts in plaintext inside the project.** The hook
-  writes `.intent/.gitignore` (`*`) so the directory ignores itself in whatever
-  repository it lands in, and redacts common credential shapes (GitHub, `sk-`
-  API keys including the `sk-proj-`/`sk-ant-api03-` forms, Slack, AWS, private
-  keys) before writing. Redaction is partial by nature: treat `.intent/` as
-  sensitive.
-- Prompts that only *invoke* verification ("verify this did what I asked",
-  `/intent-verify`) are tagged `verify-invocation`, so the freeze step skips
-  them. A task that merely begins with "verify this …" stays a task.
-- Hook input too large to read (over 10 MiB) leaves a `capture-incomplete`
-  marker instead of a silent gap.
+### Where your prompts are kept
+
+- **Outside your project.** The hook writes under the plugin's data directory
+  (Claude Code's `${CLAUDE_PLUGIN_DATA}`, `~/.claude/plugins/data/<plugin>/`),
+  in `projects/<key>/sessions/<session>.jsonl`. Set `INTENT_VERIFY_DATA` to put
+  it somewhere else.
+- **One file per session.** Several sessions working in the same project no
+  longer share a ledger.
+- **For 30 days.** A session file nobody has written to for that long is
+  deleted (`INTENT_VERIFY_RETENTION_DAYS`; `0` keeps everything). Claude Code
+  removes a plugin's data directory when the plugin is uninstalled.
+- **In plaintext.** Common credential shapes (GitHub, `sk-` API keys including
+  the `sk-proj-`/`sk-ant-api03-` forms, Slack, AWS, private keys) are redacted
+  on the way in. Redaction is partial by nature: treat the ledger as sensitive.
+- **Capped at 256,000 characters per entry** (`INTENT_VERIFY_MAX_PROMPT`). A
+  longer prompt keeps its start and its end and is flagged `truncated`, and the
+  skill will not return `MATCHES INTENT` against a request it does not have in
+  full. Hook input too large to read at all (over 10 MiB) leaves a
+  `capture-incomplete` marker instead of a silent gap.
+- **Labelled.** Entries are a `task`, a `verify-invocation` ("verify this did
+  what I asked", `/intent-verify`), a `decision` (a question you answered) or
+  a `capture-incomplete` marker. Prompts the harness submits by itself — a
+  background agent reporting back, a message from another session, a scheduled
+  task, a CI event — are marked when the ledger is listed, and background-agent
+  reports are left out unless you ask for them.
+
+A ledger that 0.2.x left in `<project>/.intent/` is not touched and is still
+read. Delete that directory once its requests no longer matter.
+
+To look at your own ledger, from the plugin's directory:
+`node hooks/capture-intent.js --list --project <dir>` and `--show <id>`.
+
+### Without Node
+
+`capture-intent.py`, `capture-intent.ps1` and `capture-intent.sh` are alternates
+for wiring a prompt hook by hand, e.g. `{"type": "command", "command":
+"python3", "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/capture-intent.py"]}`. They are
+as they were in 0.2.1: they write `<project>/.intent/`, which ignores itself in
+git, they record prompts only, and the reader still picks their entries up.
+They were not moved to the new layout because the reader the skill uses is the
+Node script: on a machine without Node the alternates can record a request but
+nothing can freeze it, so you would be pasting the request by hand either way.
 
 ---
 
@@ -223,18 +280,21 @@ that explicit instead of assuming a frontier verifier:
 `models/registry.json` (pinned snapshot, `as_of` dated): different model
 required, different family preferred, floor by change complexity, and a
 `weak-verifier` warning when the verifier trails the implementer by >25 points.
+The snapshot is from 2026-08-02 and does not know models released since; the
+selector refuses to guess a tier for those unless you pass `--assume-tier`.
 Full rationale: [`docs/MODEL-COMPAT.md`](docs/MODEL-COMPAT.md).
 
 ## Bounded by design (no verify↔fix loops)
 
 Everything that could loop is capped: re-verification stops after 2 rounds
-(the second re-runs every criterion, then the skill reports the persistent
-divergence instead of ping-ponging with a non-deterministic verifier), a
-malformed ledger gets exactly one re-request
-(then `INCONCLUSIVE`), the verifier has an execution budget (attempts per
-criterion, total commands, non-interactive, installs nothing) and is read-only
-— it can never "fix" the code it is judging. Verifier depth is always exactly
-one: no verifying the verifier.
+(the second re-runs every criterion against the same manifest, then the skill
+reports the persistent divergence instead of ping-ponging with a
+non-deterministic verifier), a malformed manifest or ledger gets exactly one
+re-request (then `INCONCLUSIVE`), ambiguities are put to you once, the verifier
+has an execution budget (attempts per criterion, total commands,
+non-interactive, installs nothing) and is read-only — it can never "fix" the
+code it is judging. Verifier depth is always exactly one: no verifying the
+verifier.
 
 ---
 
@@ -244,11 +304,20 @@ one: no verifying the verifier.
 |---|---|---|---|
 | Ordinary diff review | code + its description | — | ✗ (inherits the omission) |
 | Native `verify` skill | **the diff** as ground truth | yes | ✗ structurally (trusts the diff) |
+| Spec-first harness, e.g. [Claude Code Harness](https://github.com/Chachamaru127/claude-code-harness) | acceptance criteria you approve before the work | yes | by design, for work planned through it (not evaluated here) |
 | Aviator Verify (commercial) | original intent + criteria | **no** (proprietary/hosted) | ✓ |
-| **intent-verify** | **the original request** | **yes** | ✓ (on ambiguous requests) |
+| **intent-verify** | **the prompt as you typed it** | **yes** | ✓ (on ambiguous requests) |
 
-The concept is validated to the point of having a funded commercial product
-(Aviator). The open-source, local, request-anchored slice is what this fills.
+Fixing acceptance criteria before the work and checking results criterion by
+criterion is established practice, and a spec-first harness does it properly:
+per its README, Claude Code Harness has you approve the criteria before any
+work and reviews separately against them. If you plan through one, its criteria
+are better ground truth than anything derived afterwards — hand them to
+intent-verify, or use the harness's own review.
+
+intent-verify is for the change that was *not* planned that way: an ordinary
+prompt, an agent that went and built something, and the question of whether it
+built what the prompt said.
 
 ---
 
@@ -259,20 +328,23 @@ The concept is validated to the point of having a funded commercial product
   plugin.json                plugin manifest (name, version, hooks)
   marketplace.json           marketplace listing (one-command install)
 skills/intent-verify/
-  SKILL.md                   the orchestration skill (bounded rounds, model floors)
+  SKILL.md                   the orchestration skill (two stages, bounded rounds, model floors)
 agents/
-  verifier.md                the independent verifier subagent (budget, ledger grammar)
+  criteria.md                stage 1: criteria from the request alone (no file or shell tools)
+  verifier.md                stage 2: the independent verifier (budget, ledger grammar)
 hooks/
-  hooks.json                 registers the UserPromptSubmit hook (node, exec form)
-  capture-intent.js          canonical capture (redact/cap/rotate) + --list/--freeze reader
-  capture-intent.py/.ps1     capture-only alternates for manual wiring
-  capture-intent.sh          POSIX dispatcher: node -> python -> jq -> raw
+  hooks.json                 registers the two capture hooks (node, exec form)
+  capture-intent.js          capture + the --list / --show / --freeze reader
+  capture-intent.py/.ps1/.sh alternates for manual wiring (0.2 in-project layout)
 models/
   registry.json              AA Intelligence Index snapshot -> tiers, floors
 tools/
   select_verifier.py         capability-aware verifier selection (policy as code)
-  validate_ledger.py         mechanical ledger/evidence/verdict validation
+  validate_ledger.py         validates ledgers and criterion manifests
 docs/
+  architecture.md            how the parts fit, contracts, storage, how to release
+  handoff_quickstart.md      where to start when picking this repo up
+  DESIGN-v0.3.md             the 0.3 proposal, and what was and was not built from it
   MODEL-COMPAT.md            design: surviving weak verifier models
 benchmark/
   cases.md / cases.json      every case documented / machine-readable
@@ -280,8 +352,10 @@ benchmark/
   run_bench.py               runnable harness: --mode mock (orchestration) / cli (real models)
   impl/                      "confidently wrong" + correct fixtures (rounds 1-3)
   field/ field-recall/       rounds 4-5 — real cost.py implementations
-  results/                   captured runs (2026-07-14 rounds 1-5, + generated)
-tests/                       hook contract per runtime, validator, selector, oracle, orchestration
+  results/                   dated records of every run, with raw replies where kept
+logs/                        one file per working day: what was done, what is open
+tests/                       hook contract per runtime, validator, manifests, selector,
+                             oracle, orchestration, and the plugin's prose and config
 .github/workflows/ci.yml     Linux + macOS + Windows (PS 5.1 & 7) CI, shellcheck, mock bench
 ```
 
@@ -293,27 +367,33 @@ Two runnable paths (plus the original manual one):
 
 ```bash
 # Orchestration robustness, offline + deterministic: simulated verifier
-# profiles (faithful/verbose/sloppy/lazy/fabricator) against all 16 controlled
-# cases, evidence backed by real fixture execution via benchmark/oracle.py.
+# profiles (faithful/verbose/sloppy/lazy/omitter/fabricator) against all 16
+# controlled cases, evidence backed by real fixture execution.
 python3 benchmark/run_bench.py --mode mock
+```
 
-# Real verifier skill, any model the `claude` CLI can reach — e.g. a smaller
-# model, to see where capability floors actually bite:
+```bash
+# Real verifier, any model the `claude` CLI can reach (the CLI must be logged in):
 python3 benchmark/run_bench.py --mode cli --verifier claude-opus-4-8
-python3 benchmark/run_bench.py --mode cli --verifier claude-haiku-4-5 --suite controlled
+```
+
+```bash
+# The same, two-stage: criteria first, from the request alone and with every
+# tool disabled, then a verifier held to them.
+python3 benchmark/run_bench.py --mode cli --verifier claude-opus-4-8 --two-stage
 ```
 
 cli mode grants the verifier `Bash,Read,Grep,Glob` (it must run the fixtures to
 gather evidence) — that means executing the benchmark's deliberately-wrong but
 benign code; run it where you'd run any untrusted test suite.
 
-Both write a dated report under `benchmark/results/`; cli mode also keeps every
-raw verifier reply beside it, so a verdict can be audited. A verifier that
-times out or cannot be launched scores that case `INCONCLUSIVE` and the run
-continues. Note that this harness hands the verifier the request and the code
+Each writes a dated report under `benchmark/results/`; cli mode also keeps every
+raw reply beside it, so a verdict can be audited. A model that times out or
+cannot be launched scores that case `INCONCLUSIVE` and the run continues.
+Without `--two-stage` the harness hands the verifier the request and the code
 in one prompt, so it measures the verifier's skill, not whether criteria were
-fixed before the code was seen. Manual reproduction still
-works: point [`agents/verifier.md`](agents/verifier.md) at each fixture in
+fixed before the code was seen. Manual reproduction still works: point
+[`agents/verifier.md`](agents/verifier.md) at each fixture in
 `benchmark/impl/`, supplying the matching original request from
 [`benchmark/cases.md`](benchmark/cases.md), running the verifier on a **model
 different from whatever wrote the code**. Verifiers are non-deterministic;
@@ -332,20 +412,35 @@ to be the discriminators.
 - **The cross-model lever is unmeasured.** Every benchmark run used a verifier
   on a different model from the implementer; none compared that with a
   same-model verifier. The differential above isolates request-anchoring only.
-- **Coverage is checked by the orchestrator, not the validator.** The validator
-  proves a ledger is internally complete and consistent. It cannot know which
-  requirements the request had, so a requirement the verifier never listed is
-  caught only by the skill's own criteria. Both are written by a model.
+- **The two-stage flow is barely measured.** Eight real-model runs. The July
+  numbers above come from the single-stage flow and do not carry over.
+- **Three things 0.3 relies on have not been seen working on a live session:**
+  the criteria agent launching without file access, a `decision` being recorded
+  from an answered question, and the data directory being filled into the
+  skill's commands. Each fails safe — the skill falls back and says so, nothing
+  is recorded, the reader looks in the usual place — and each is a one-minute
+  check: [`benchmark/results/2026-10-05-platform-spikes.md`](benchmark/results/2026-10-05-platform-spikes.md).
+- **A manifest makes coverage checkable, not complete.** Whether the criteria
+  capture everything the request demands is still a model's judgement. The
+  report shows the criteria and the parts of the request none of them quotes.
+- **Criteria can outrun the code.** Written without sight of the code, a
+  criterion may ask for something the changed code has no way to show, and a
+  correct change would then come back `INCONCLUSIVE`. In the eight runs one
+  criterion went unexercised for this reason; the code in that run was wrong on
+  other criteria, so the verdict did not turn on it.
 - **The ledger is text with program output inside it.** A reply holding any
   verdict other than PASS cannot validate as `MATCHES INTENT`, whatever the
   program printed. A verifier that writes no ledger of its own and quotes one
   printed by the code under test is caught only by the skill reading the reply.
-- **One prompt is one request.** A task refined over several messages is
-  verified against the single entry that was frozen; say which one you mean.
-- **Prompts are stored in your project**, in plaintext, partly redacted.
+- **The session that wrote the code still handles the evidence.** It saves the
+  verifier's reply and runs the validator on it. Nothing detects a ledger that
+  was tidied on the way.
+- **Prompts are stored in plaintext**, partly redacted: in your home directory
+  with the plugin's hook, inside the project with the alternates.
 - **Ground-truth limit.** On genuinely ambiguous requests there may be no single
   right answer to check against.
-- **Thin moat.** If a first-party `verify` starts reading the task prompt, the edge
+- **Thin moat.** A spec-first harness already covers planned work, and if a
+  first-party `verify` starts reading the task prompt the remaining edge
   narrows. Acceptable for an OSS "help now" tool — stated openly.
 
 ---
@@ -366,13 +461,17 @@ to be the discriminators.
       oracle, Linux + macOS + Windows workflows
 - [x] **v0.2.1** — closes the false-pass paths in the ledger validator and the
       capture gaps found by an independent review (see [CHANGELOG](CHANGELOG.md))
-- [ ] **Criterion manifest** — criteria fixed before the verifier sees code and
-      enforced by the validator, instead of checked in prose
-- [ ] **Ledger outside the project tree**, and a structured ledger bound to the
-      run that produced it
+- [x] **v0.3.0** — criterion manifest with two-stage dispatch; ledger outside
+      the project, one file per session; answered questions recorded
+- [ ] Finish the three platform checks listed under Honest limitations
+- [ ] Measure the two-stage flow on the controlled set (criteria recall,
+      verdicts, cost), and how often correct code comes back `INCONCLUSIVE`
 - [ ] Cross-model ablation (same-model vs cross-model verifier, controlled set)
+- [ ] A structured ledger bound to its run and captured by a hook, so the
+      implementing session no longer handles the evidence
+      ([design](docs/DESIGN-v0.3.md), Change C)
 - [ ] Field recall on real *under-specified* tasks with a known intended answer
-- [ ] Registry refresh automation (pull the AA snapshot instead of hand-pinning)
+- [ ] Registry refresh (the snapshot predates current models)
 
 ## Status
 
@@ -392,6 +491,13 @@ that validated as `MATCHES INTENT` when they should not have, requests verified
 after being cut at capture, and a ledger directory that was not ignored in the
 projects it was written to. Each finding was reproduced, fixed, and kept as a
 regression test.
+
+v0.3.0 makes two of the tool's promises mechanical. "Criteria before code" was
+an instruction to the verifier; the criteria are now fixed by an agent that
+cannot read the project, and a ledger that leaves one out is invalid. "Your
+prompts stay out of git" was a self-ignoring directory inside the project; the
+ledger is now outside it. The mechanisms are tested; the two-stage flow as a
+whole has been run on real models eight times.
 
 ## License
 

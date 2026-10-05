@@ -6,7 +6,7 @@
   "plugins": [
     {
       "name": "intent-verify",
-      "description": "Request-anchored, cross-model, evidence-based drift verifier. Benchmark: recall 8/8, precision 8/8, differential 4/8 over diff-anchored review.",
+      "description": "Request-anchored, evidence-based drift verifier: criteria fixed before the code is read, then checked by running it. Controlled benchmark, 16 hand-built cases: recall 8/8, precision 8/8, 4/8 caught only by request-anchoring.",
       "source": "./",
       "category": "productivity"
     }

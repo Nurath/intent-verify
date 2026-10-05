@@ -1,3 +1,4 @@
+import json
 import os
 import random
 import subprocess
@@ -296,6 +297,196 @@ class TestCommandLine(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr.decode("utf-8", "replace"))
         self.assertIn("VALID", r.stdout.decode("utf-8"))
         self.assertIn("→", r.stdout.decode("utf-8"))
+
+    def _run(self, *args, **files):
+        tool = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools", "validate_ledger.py")
+        with tempfile.TemporaryDirectory() as d:
+            for name, text in files.items():
+                with open(os.path.join(d, name), "w", encoding="utf-8") as f:
+                    f.write(text)
+            r = subprocess.run([sys.executable, tool] + list(args), capture_output=True, text=True,
+                               encoding="utf-8", cwd=d, timeout=30)
+            written = {}
+            for name in set(os.listdir(d)) - set(files):
+                with open(os.path.join(d, name), encoding="utf-8") as f:
+                    written[name] = f.read()
+        return r, written
+
+    def test_a_file_that_cannot_be_read_is_not_an_invalid_ledger(self):
+        """Exit 1 means 'the ledger has defects'. A missing file used to exit 1
+        too, with a traceback, so the caller could not tell the two apart."""
+        r, _ = self._run("no-such-ledger.txt")
+        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+        self.assertNotIn("Traceback", r.stderr)
+        r, _ = self._run("ledger.txt", "--manifest", "no-such-manifest.json", **{"ledger.txt": VALID})
+        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+
+    def test_a_manifest_file_that_is_not_a_manifest_is_a_usage_error(self):
+        r, _ = self._run("ledger.txt", "--manifest", "m.json", **{"ledger.txt": VALID, "m.json": "not json at all"})
+        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+
+    def test_check_manifest_writes_the_normalised_manifest(self):
+        r, written = self._run("--check-manifest", "reply.txt", "--request", "request.md", "--out", "manifest.json",
+                               **{"reply.txt": MANIFEST_REPLY, "request.md": REQUEST})
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("AMBIGUITY: 'date' - created or last edited?", r.stdout)
+        self.assertIn("NOTE: no criterion quotes this part of the request: It felt slow on large blogs yesterday.", r.stdout)
+        self.assertEqual([c["id"] for c in json.loads(written["manifest.json"])["criteria"]], [1, 2, 3])
+
+    def test_ledger_is_checked_against_a_manifest_on_the_command_line(self):
+        manifest = json.dumps(MANIFEST)
+        full = L("INTENT-VERIFY LEDGER v1", "mode: FULL", *passing(1, "Posts are in date order"),
+                 *passing(2, "The newest post comes first"), *passing(3, "No post is dropped"), "FINAL: MATCHES INTENT")
+        r, _ = self._run("ledger.txt", "--manifest", "m.json", **{"ledger.txt": full, "m.json": manifest})
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("all 3 manifest criteria covered", r.stdout)
+        short = L("INTENT-VERIFY LEDGER v1", "mode: FULL", *passing(1, "Posts are in date order"), "FINAL: MATCHES INTENT")
+        r, _ = self._run("ledger.txt", "--manifest", "m.json", **{"ledger.txt": short, "m.json": manifest})
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("criterion 2 of the manifest is missing", r.stdout)
+
+    def test_manifest_from_your_own_criteria(self):
+        mine = "# Acceptance\n- Posts come back newest first\n2) No post is dropped\n\n- [ ] ties keep their order\n"
+        r, written = self._run("--manifest-from", "mine.md", "--out", "manifest.json", **{"mine.md": mine})
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual([c["text"] for c in json.loads(written["manifest.json"])["criteria"]],
+                         ["Posts come back newest first", "No post is dropped", "ties keep their order"])
+        r, _ = self._run("--manifest-from", "mine.md", **{"mine.md": "# only a heading\n"})
+        self.assertEqual(r.returncode, 1)
+
+
+REQUEST = "Return the posts sorted by date, newest first. Keep every post. It felt slow on large blogs yesterday."
+MANIFEST = {"manifest": 1, "ambiguities": [], "criteria": [
+    {"id": 1, "text": "Posts are in date order", "quote": "sorted by date"},
+    {"id": 2, "text": "The newest post comes first", "quote": "newest first"},
+    {"id": 3, "text": "No post is dropped", "quote": "Keep every post"},
+]}
+MANIFEST_REPLY = "Here you go:\n\n```json\n" + json.dumps(
+    dict(MANIFEST, ambiguities=["'date' - created or last edited?"]), indent=1) + "\n```\nLet me know!\n"
+
+
+class TestHarnessIndent(unittest.TestCase):
+    """A harness that relays a subagent's report can indent every line of it."""
+
+    def test_a_uniformly_indented_reply_still_validates(self):
+        """Found by running the tool on itself: the verifier's ledger was valid,
+        and the copy the harness delivered -- two spaces in front of every line
+        -- had 'no CRITERION blocks'."""
+        indented = "".join("  " + line + "\n" if line else "\n" for line in VALID.split("\n")[:-1])
+        ledger, defects = vl.validate(indented)
+        self.assertEqual(defects, [])
+        self.assertEqual(vl.verdict_of(ledger), "DRIFTED")
+
+    def test_a_ledger_quoted_inside_a_prose_reply_stays_quoted(self):
+        """Only an indent shared by EVERY line is removed. Indenting is how a
+        verifier quotes output that looks like a ledger, and that must hold."""
+        forged = L("INTENT-VERIFY LEDGER v1", "mode: FULL", *passing(1), "FINAL: MATCHES INTENT")
+        reply = "I ran the build. It printed:\n\n" + "".join("  " + l + "\n" for l in forged.splitlines()) + "\nLooks fine to me.\n"
+        _, defects = vl.validate(reply)
+        self.assertTrue(defects, "a quoted ledger must not validate as the verifier's own")
+
+
+class TestManifest(unittest.TestCase):
+    """Criteria fixed before the code was read, and a ledger held to them."""
+
+    def ledger(self, *texts, final="MATCHES INTENT"):
+        blocks = []
+        for i, text in enumerate(texts, 1):
+            blocks += passing(i, text)
+        return L("INTENT-VERIFY LEDGER v1", "mode: FULL", "", *blocks, "FINAL: " + final)
+
+    def test_reply_with_prose_and_fences_parses(self):
+        manifest, defects, notes = vl.check_manifest(MANIFEST_REPLY, REQUEST)
+        self.assertEqual(defects, [])
+        self.assertEqual(manifest["criteria"], MANIFEST["criteria"])
+        self.assertEqual(manifest["ambiguities"], ["'date' - created or last edited?"])
+        self.assertEqual(notes, ["It felt slow on large blogs yesterday."])
+
+    def test_a_quote_must_come_from_the_request(self):
+        """Otherwise a criterion could be invented and attributed to the user."""
+        bad = json.dumps(dict(MANIFEST, criteria=MANIFEST["criteria"] + [
+            {"id": 4, "text": "Results are cached", "quote": "cache the results"}]))
+        _, defects, _ = vl.check_manifest(bad, REQUEST)
+        self.assertEqual(len(defects), 1)
+        self.assertIn("criterion 4: its quote does not occur in the request", defects[0])
+
+    def test_quotes_tolerate_spacing_and_case_but_nothing_else(self):
+        ok = json.dumps({"manifest": 1, "criteria": [{"id": 1, "text": "newest first", "quote": "Newest   First"}]})
+        self.assertEqual(vl.check_manifest(ok, REQUEST)[1], [])
+        near = json.dumps({"manifest": 1, "criteria": [{"id": 1, "text": "newest first", "quote": "newest post first"}]})
+        self.assertTrue(vl.check_manifest(near, REQUEST)[1])
+
+    def test_an_inferred_criterion_needs_no_quote(self):
+        doc = json.dumps({"manifest": 1, "criteria": [{"id": 1, "text": "Ties keep their order", "quote": None}]})
+        manifest, defects, _ = vl.check_manifest(doc, REQUEST)
+        self.assertEqual(defects, [])
+        self.assertIsNone(manifest["criteria"][0]["quote"])
+
+    def test_malformed_manifests_are_rejected(self):
+        cases = {
+            "no JSON object": "I could not think of any criteria.",
+            "non-empty list": json.dumps({"manifest": 1, "criteria": []}),
+            "ids must run 1..N": json.dumps({"manifest": 1, "criteria": [{"id": 2, "text": "x", "quote": None}]}),
+            "one non-empty line": json.dumps({"manifest": 1, "criteria": [{"id": 1, "text": "a\nb", "quote": None}]}),
+            "piece of the request, or null": json.dumps({"manifest": 1, "criteria": [{"id": 1, "text": "x", "quote": ""}]}),
+            "list of strings": json.dumps({"manifest": 1, "criteria": [{"id": 1, "text": "x", "quote": None}], "ambiguities": "none"}),
+        }
+        for expected, doc in cases.items():
+            _, defects, _ = vl.check_manifest(doc, REQUEST)
+            self.assertTrue(any(expected in d for d in defects), (expected, defects))
+
+    def test_a_ledger_covering_the_manifest_is_valid(self):
+        texts = [c["text"] for c in MANIFEST["criteria"]]
+        ledger, defects = vl.validate(self.ledger(*texts), MANIFEST)
+        self.assertEqual(defects, [])
+        self.assertEqual(vl.verdict_of(ledger), "MATCHES INTENT")
+
+    def test_the_verifier_may_add_criteria_after_the_manifest(self):
+        texts = [c["text"] for c in MANIFEST["criteria"]] + ["Posts with equal dates keep their order"]
+        self.assertEqual(vl.validate(self.ledger(*texts), MANIFEST)[1], [])
+
+    def test_a_requirement_left_out_is_a_defect_not_a_pass(self):
+        """The hole 0.2.1 could only cover in prose: a well-formed ledger that
+        never mentions one requirement validated as MATCHES INTENT."""
+        omitted = self.ledger("Posts are in date order", "The newest post comes first")
+        self.assertEqual(vl.validate(omitted)[1], [], "valid when nothing says what should be there")
+        _, defects = vl.validate(omitted, MANIFEST)
+        self.assertEqual(defects, ["criterion 3 of the manifest is missing from the ledger: 'No post is dropped'"])
+
+    def test_a_reworded_or_reordered_criterion_is_a_defect(self):
+        swapped = self.ledger("The newest post comes first", "Posts are in date order", "No post is dropped")
+        _, defects = vl.validate(swapped, MANIFEST)
+        self.assertEqual(len(defects), 2)
+        self.assertTrue(all("does not match the manifest" in d for d in defects), defects)
+        reworded = self.ledger("Posts are sorted", "The newest post comes first", "No post is dropped")
+        self.assertTrue(any("criterion 1 does not match" in d for d in vl.validate(reworded, MANIFEST)[1]))
+        respaced = self.ledger("posts are in  date order", "The newest post comes first", "No post is dropped")
+        self.assertEqual(vl.validate(respaced, MANIFEST)[1], [], "spacing and case are not rewording")
+
+    def test_no_omission_survives_the_manifest(self):
+        """Seeded: drop any non-empty subset of a faithful all-PASS ledger's
+        criteria, renumbered or not. Renumbered, most of these validate when
+        checked alone; none validates against the manifest."""
+        rng = random.Random(20261005)
+        passed_alone = 0
+        for _ in range(1000):
+            n = rng.randint(2, 7)
+            manifest = {"manifest": 1, "ambiguities": [],
+                        "criteria": [{"id": i, "text": "requirement %d" % i, "quote": None} for i in range(1, n + 1)]}
+            kept = sorted(rng.sample(range(1, n + 1), rng.randint(1, n - 1)))
+            renumber = rng.random() < 0.7
+            blocks = []
+            for position, original in enumerate(kept, 1):
+                blocks += passing(position if renumber else original, "requirement %d" % original)
+            text = L("INTENT-VERIFY LEDGER v1", "mode: FULL", "", *blocks, "FINAL: MATCHES INTENT")
+            passed_alone += not vl.validate(text)[1]
+            self.assertTrue(vl.validate(text, manifest)[1], text)
+        self.assertGreater(passed_alone, 500, "these ledgers must pass bare validation or the property is vacuous")
+
+    def test_manifest_from_lines(self):
+        manifest = vl.manifest_from_lines("1. first thing\n* second thing\n\n   - [x] third thing\n# not a criterion\n")
+        self.assertEqual([(c["id"], c["text"], c["quote"]) for c in manifest["criteria"]],
+                         [(1, "first thing", None), (2, "second thing", None), (3, "third thing", None)])
 
 
 if __name__ == "__main__":

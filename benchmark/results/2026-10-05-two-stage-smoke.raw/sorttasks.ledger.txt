@@ -1,0 +1,60 @@
+INTENT-VERIFY LEDGER v1
+mode: FULL
+
+CRITERION 1: In the sorted task list, every task appears before all tasks of lower priority, so priority runs from highest to lowest regardless of due dates.
+VERDICT: PASS
+EVIDENCE-CMD: MSYS_NO_PATHCONV=1 python -B -c "import sys;sys.path.insert(0,'<repo>/benchmark/impl/omitted-intent');import sorttasks;from sorttasks import sort_tasks as s;print('module file:',sorttasks.__file__);i=[{'id':'low-early','priority':1,'due':'2026-01-01'},{'id':'high-late','priority':9,'due':'2030-12-31'},{'id':'mid','priority':5,'due':'2028-06-15'},{'id':'zero','priority':0,'due':'2025-01-01'},{'id':'neg','priority':-3,'due':'2024-01-01'}];o=s(i);print('input :',[(t['id'],t['priority'],t['due']) for t in i]);print('output:',[(t['id'],t['priority'],t['due']) for t in o]);print('priority non-increasing:',all(a['priority']>=b['priority'] for a,b in zip(o,o[1:])))"
+EVIDENCE-OUT: module file: <repo>/benchmark/impl/omitted-intent\sorttasks.py
+input : [('low-early', 1, '2026-01-01'), ('high-late', 9, '2030-12-31'), ('mid', 5, '2028-06-15'), ('zero', 0, '2025-01-01'), ('neg', -3, '2024-01-01')]
+output: [('high-late', 9, '2030-12-31'), ('mid', 5, '2028-06-15'), ('low-early', 1, '2026-01-01'), ('zero', 0, '2025-01-01'), ('neg', -3, '2024-01-01')]
+priority non-increasing: True
+REASON: Highest priority comes first even when it has the latest due date (due dates were deliberately inverted); a 2000-list randomized run also found 0 priority-order violations (see OBSERVATIONS). Assumes larger integer = higher priority.
+
+CRITERION 2: Among tasks with the same priority, the task with the earlier due date appears before the task with the later due date.
+VERDICT: FAIL
+EVIDENCE-CMD: MSYS_NO_PATHCONV=1 python -B -c "import sys;sys.path.insert(0,'<repo>/benchmark/impl/omitted-intent');from sorttasks import sort_tasks as s;i=[{'id':'p2-late','priority':2,'due':'2026-09-30'},{'id':'p2-early','priority':2,'due':'2026-01-15'},{'id':'p2-mid','priority':2,'due':'2026-05-10'}];o=s(i);print('input   :',[(t['id'],t['due']) for t in i]);print('output  :',[(t['id'],t['due']) for t in o]);print('expected:',[(t['id'],t['due']) for t in sorted(i,key=lambda t:t['due'])]);print('earlier due precedes later due among equal priority:',all(a['due']<=b['due'] for a,b in zip(o,o[1:]) if a['priority']==b['priority']))"
+EVIDENCE-OUT: input   : [('p2-late', '2026-09-30'), ('p2-early', '2026-01-15'), ('p2-mid', '2026-05-10')]
+output  : [('p2-late', '2026-09-30'), ('p2-early', '2026-01-15'), ('p2-mid', '2026-05-10')]
+expected: [('p2-early', '2026-01-15'), ('p2-mid', '2026-05-10'), ('p2-late', '2026-09-30')]
+earlier due precedes later due among equal priority: False
+REASON: The sort key is only -priority and never reads 'due', so same-priority tasks stay in input order; the 2026-09-30 task precedes the 2026-01-15 task. Also fails on a mixed-group input and in 1169 of 2000 random lists (see OBSERVATIONS).
+
+CRITERION 3: Sorting keeps exactly the same set of tasks: none are dropped, duplicated or altered.
+VERDICT: PASS
+EVIDENCE-CMD: MSYS_NO_PATHCONV=1 python -B -c "import sys,copy,collections as C;sys.path.insert(0,'<repo>/benchmark/impl/omitted-intent');from sorttasks import sort_tasks as s;t1={'id':1,'priority':2,'due':'2026-03-03','note':'x'};t2=dict(t1);t3={'id':3,'priority':2,'due':'2026-01-01','tags':['a','b']};t4={'id':4,'priority':7,'due':'2026-12-12'};i=[t1,t2,t3,t4];snap=copy.deepcopy(i);o=s(i);print('ids in :',[t['id'] for t in i]);print('ids out:',[t['id'] for t in o]);print('len in/out:',len(i),len(o));print('same task objects (identity multiset equal):',C.Counter(map(id,i))==C.Counter(map(id,o)));print('equal-duplicate pair both kept:',sum(1 for t in o if t is t1 or t is t2)==2);print('tasks and input list unmodified vs deep-copy snapshot:',i==snap);print('output is new list object:',o is not i);print('out tasks deep-equal snapshot tasks (by identity map):',all(x==y for x,y in zip(i,snap)) and all(any(t is u for u in i) for t in o))"
+EVIDENCE-OUT: ids in : [1, 1, 3, 4]
+ids out: [4, 1, 1, 3]
+len in/out: 4 4
+same task objects (identity multiset equal): True
+equal-duplicate pair both kept: True
+tasks and input list unmodified vs deep-copy snapshot: True
+output is new list object: True
+out tasks deep-equal snapshot tasks (by identity map): True
+REASON: Same task objects come back, an equal-valued duplicate pair is kept, extra keys survive, and nothing is mutated; the randomized run also found 0 set-changed violations in 2000 lists.
+
+FINAL: DRIFTED — criteria 2 failed
+
+OBSERVATIONS:
+- Root cause, from the source at <repo>\benchmark\impl\omitted-intent\sorttasks.py: `return sorted(tasks, key=lambda t: -t["priority"])`. The tie-break on due date was omitted. Python's sort is stable, so ties keep input order. The tie-break therefore holds only by accident when the input already happens to be ordered by due date ascending.
+- Corroborating run, mixed priority groups. Command: MSYS_NO_PATHCONV=1 python -B -c "import sys;sys.path.insert(0,'<repo>/benchmark/impl/omitted-intent');from sorttasks import sort_tasks as s;i=[{'id':'A','priority':3,'due':'2026-08-01'},{'id':'B','priority':1,'due':'2026-02-01'},{'id':'C','priority':3,'due':'2026-03-01'},{'id':'D','priority':1,'due':'2026-01-01'},{'id':'E','priority':2,'due':'2026-12-01'}];o=s(i);ref=sorted(i,key=lambda t:(-t['priority'],t['due']));print('input   :',[(t['id'],t['priority'],t['due']) for t in i]);print('output  :',[(t['id'],t['priority'],t['due']) for t in o]);print('expected:',[(t['id'],t['priority'],t['due']) for t in ref]);print('output equals expected:',o==ref)"
+  Output:
+  input   : [('A', 3, '2026-08-01'), ('B', 1, '2026-02-01'), ('C', 3, '2026-03-01'), ('D', 1, '2026-01-01'), ('E', 2, '2026-12-01')]
+  output  : [('A', 3, '2026-08-01'), ('C', 3, '2026-03-01'), ('E', 2, '2026-12-01'), ('B', 1, '2026-02-01'), ('D', 1, '2026-01-01')]
+  expected: [('C', 3, '2026-03-01'), ('A', 3, '2026-08-01'), ('E', 2, '2026-12-01'), ('D', 1, '2026-01-01'), ('B', 1, '2026-02-01')]
+  output equals expected: False
+- Corroborating run, 2000 random lists (seed 12345, priorities 0-3, six dates, 2-8 tasks each). Command: MSYS_NO_PATHCONV=1 python -B -c "import sys,random,collections as C;sys.path.insert(0,'<repo>/benchmark/impl/omitted-intent');from sorttasks import sort_tasks as s;r=random.Random(12345);D=['2026-01-05','2026-02-10','2026-03-15','2026-04-20','2026-05-25','2026-06-30'];L=[[{'id':j,'priority':r.randrange(4),'due':r.choice(D)} for j in range(r.randrange(2,9))] for _ in range(2000)];O=[(i,s(i)) for i in L];print('trials:',len(L));print('priority-order violations (c1):',sum(any(a['priority']<b['priority'] for a,b in zip(o,o[1:])) for i,o in O));print('due-tiebreak violations (c2):',sum(any(a['priority']==b['priority'] and a['due']>b['due'] for a,b in zip(o,o[1:])) for i,o in O));print('set-changed violations (c3):',sum(C.Counter(map(id,i))!=C.Counter(map(id,o)) for i,o in O));print('differs from reference key (-priority,due):',sum([(t['priority'],t['due']) for t in o]!=[(t['priority'],t['due']) for t in sorted(i,key=lambda t:(-t['priority'],t['due']))] for i,o in O))"
+  Output:
+  trials: 2000
+  priority-order violations (c1): 0
+  due-tiebreak violations (c2): 1169
+  set-changed violations (c3): 0
+  differs from reference key (-priority,due): 1169
+- Input-order probe (seed 777, 2000 lists, same generator). Command: MSYS_NO_PATHCONV=1 python -B -c "import sys,random;sys.path.insert(0,'<repo>/benchmark/impl/omitted-intent');from sorttasks import sort_tasks as s;r=random.Random(777);D=['2026-01-05','2026-02-10','2026-03-15','2026-04-20','2026-05-25','2026-06-30'];L=[[{'id':j,'priority':r.randrange(4),'due':r.choice(D)} for j in range(r.randrange(2,9))] for _ in range(2000)];pre=[sorted(x,key=lambda t:t['due']) for x in L];rev=[sorted(x,key=lambda t:t['due'],reverse=True) for x in L];bad=lambda lst:sum(any(a['priority']==b['priority'] and a['due']>b['due'] for a,b in zip(o,o[1:])) for o in map(s,lst));print('tie-break violations, inputs pre-sorted by due ASC :',bad(pre),'of',len(pre));print('tie-break violations, inputs pre-sorted by due DESC:',bad(rev),'of',len(rev));print('tie-break violations, inputs in random order       :',bad(L),'of',len(L))"
+  Output:
+  tie-break violations, inputs pre-sorted by due ASC : 0 of 2000
+  tie-break violations, inputs pre-sorted by due DESC: 1557 of 2000
+  tie-break violations, inputs in random order       : 1204 of 2000
+- Interpretation assumptions, not failures. The request does not say which integer scale means "highest priority". I assumed a larger integer is higher priority, which matches the module's own docstring (`priority: int`, sorted by -priority). If the intent was P1 = highest, criterion 1 would flip. I also assumed 'YYYY-MM-DD' due strings, per the docstring, so string order equals chronological order.
+- Edge behaviour the request is silent on (command run: MSYS_NO_PATHCONV=1 python -B -c '... s([]) ... s([{"id":"x","priority":1},{"id":"y","priority":1}]) ... s([{"priority":"high"},{"priority":"low"}]) ...'). Output: "empty list -> []", "missing due key, tied priority -> ['x', 'y']", "string priorities -> TypeError bad operand type for unary -: 'str'". So non-integer priorities raise TypeError, and a missing 'due' is silently ignored because due is never read.
+- The function returns a new list and does not sort in place (output is not input: True). The request does not specify which behaviour it wants.
+- Read-only compliance: every run used `python -B`. A follow-up `ls -l --time-style=full-iso` showed sorttasks.py last modified 2026-07-14 and __pycache__/sorttasks.cpython-314.pyc last modified 2026-08-19, both well before this session (now: 2026-10-05 12:54:53), so nothing under <repo> was touched.

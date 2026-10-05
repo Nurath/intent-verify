@@ -1,7 +1,60 @@
 # intent-verify v0.3 — design proposal
 
-**Status:** proposal for review. Nothing in this document is built.
+**Status:** Changes A and B and the smaller fixes were built in 0.3.0. Change C
+was not. The proposal below is kept as it was reviewed; this box records what
+came of it.
 **Baseline:** v0.2.1 (PR #2). **Written:** 2026-10-05.
+
+## What was built from this, and where it departs
+
+| Part | 0.3.0 |
+|---|---|
+| **A** criterion manifest, two-stage dispatch | Built: `agents/criteria.md`, `validate_ledger.py --check-manifest / --manifest / --manifest-from`, the skill's stage 1 and ambiguity question, `run_bench.py --two-stage`, the `omitter` mock profile. |
+| **B** ledger outside the project | Built for the plugin's hook: per-session files under the data directory, retention, legacy `.intent/` read as a fallback, `--show`. |
+| **C** verdict path without the implementer | Not built. C1 still needs spikes S2 and S3 and measurements M3 and M4. |
+| Smaller fixes | 1 to 4 built. 5 (`maxTurns`) not: it needs a number from real runs. |
+| Measurements M1–M5 | None run. Eight real-model runs as a smoke test instead: `benchmark/results/2026-10-05-two-stage-smoke.md`. |
+| Spikes | S5 (hook half) and S7 seen. S1, S4 and the skill half of S5 not run: `benchmark/results/2026-10-05-platform-spikes.md`. |
+
+Departures from the text below, each deliberate:
+
+- **Only the Node hook moved (B).** "One rule for every runtime" was not
+  followed. The `.py`, `.ps1` and `.sh` alternates still write
+  `<project>/.intent/`. The skill's reader is the Node script, so a machine
+  without Node cannot freeze a request whatever layout the alternate wrote;
+  porting the layout to three more runtimes would have bought nothing and
+  added three places for it to go wrong.
+- **No `runs/` directory (B).** A run's working files live in a scratch
+  directory the orchestrator chooses. Nothing needs them kept until a hook
+  writes them, which is Change C.
+- **No `request_sha256` in the manifest (A).** Nothing would have read it.
+- **`--criteria` is spelled `--manifest-from` (A).**
+- **The deriver's allowlist names two inert tools**, not one, so that it
+  resolves both where `TodoWrite` exists and where it does not.
+- **Harness events are labelled when the ledger is read**, not when it is
+  written, so entries captured by any version are covered.
+- **The cap went to 256,000 characters** as well as keeping both ends.
+
+What the work showed that this document got wrong or did not foresee:
+
+- **Stage 1 is not "small next to the verifier run"** (Change A, Cost). In the
+  session it was tried in, a criteria run was reported at 95k–106k tokens,
+  mostly standing context, against 57k–140k for a verifier run on a
+  one-function fixture.
+- **Criteria written without sight of the code can ask for something the code
+  cannot show**, which would turn a correct change into INCONCLUSIVE. The
+  criteria prompt now tells the deriver to say only what the request commits
+  to. How often this happens is unmeasured.
+- **The deriver over-produces ambiguities** (2, 4 and 5 on three requests). It
+  is now limited to four, most consequential first.
+- **The harness indents a background subagent's report**, and the 0.2.1
+  validator rejected a valid ledger copied from it. This strengthens the case
+  for C: a reply captured by a hook is never reformatted on the way.
+- **The verifier's command budget is exceeded in practice**: 8 to 13 shell
+  commands on one-function fixtures and 18 on the 0.2.1 release, against a
+  stated budget of about 15.
+
+---
 
 ## The short version
 

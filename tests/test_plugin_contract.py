@@ -1,0 +1,94 @@
+"""Checks on the parts of the plugin that are prose or configuration.
+
+The skill, the agent definitions and the hook registration are instructions and
+JSON, not code, so nothing else exercises them. Each test here pins a promise
+that one of those files makes and that a later edit could quietly break.
+"""
+import json
+import os
+import re
+import unittest
+
+BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def read(*parts):
+    with open(os.path.join(BASE, *parts), encoding="utf-8") as f:
+        return f.read()
+
+
+def frontmatter(*parts):
+    block = read(*parts).split("---", 2)[1]
+    return dict(line.split(":", 1) for line in block.strip().splitlines() if ":" in line and not line.startswith(" "))
+
+
+class TestSkillText(unittest.TestCase):
+    SKILL = read("skills", "intent-verify", "SKILL.md")
+
+    def test_every_bundled_helper_is_called_through_the_plugin_root(self):
+        """The skill runs inside the user's project. 0.2.0 called its helpers by
+        a path relative to this repository, which does not exist there."""
+        for helper, folder in (("capture-intent.js", "hooks"), ("validate_ledger.py", "tools"),
+                               ("select_verifier.py", "tools")):
+            prefix = "${CLAUDE_PLUGIN_ROOT}/%s/" % folder
+            hits = [m.start() for m in re.finditer(re.escape(helper), self.SKILL)]
+            self.assertTrue(hits, "%s is never mentioned" % helper)
+            for at in hits:
+                self.assertEqual(self.SKILL[at - len(prefix):at], prefix, "%s at offset %d" % (helper, at))
+
+    def test_reader_commands_say_where_the_ledger_is(self):
+        commands = [l for l in self.SKILL.splitlines() if "capture-intent.js" in l]
+        self.assertEqual(len(commands), 2, "one --list and one --freeze")
+        for line in commands:
+            self.assertIn('--data "${CLAUDE_PLUGIN_DATA}"', line)
+            self.assertIn('--project "${CLAUDE_PROJECT_DIR}"', line)
+        self.assertIn('--session "${CLAUDE_SESSION_ID}"', commands[0])
+
+    def test_the_procedure_writes_nothing_inside_the_project(self):
+        self.assertNotIn(".intent/frozen", self.SKILL)
+        targets = re.findall(r'--out "([^"]+)"', self.SKILL)
+        self.assertTrue(targets)
+        for target in targets:
+            self.assertTrue(target.startswith("<scratch>/"), target)
+
+    def test_the_ledger_is_validated_against_the_manifest(self):
+        validations = [l for l in self.SKILL.splitlines() if '"<scratch>/ledger.txt"' in l and "validate_ledger.py" in l]
+        self.assertEqual(len(validations), 1)
+        self.assertIn('--manifest "<scratch>/manifest.json"', validations[0])
+
+
+class TestPluginFiles(unittest.TestCase):
+    READS_OR_RUNS = {"Read", "Grep", "Glob", "Bash", "PowerShell", "Edit", "Write", "NotebookEdit", "WebFetch",
+                     "WebSearch", "Agent", "Skill", "LSP", "Monitor", "ToolSearch", "Artifact", "SendMessage"}
+
+    def tools(self, name):
+        return {t.strip() for t in frontmatter("agents", name)["tools"].split(",")}
+
+    def test_the_criteria_agent_has_no_tool_that_reads_or_runs(self):
+        """'Criteria before code' rests on this list. It is an allowlist, so a
+        tool added to Claude Code later is not granted by default."""
+        front = frontmatter("agents", "criteria.md")
+        self.assertNotIn("disallowedTools", front)
+        self.assertTrue(self.tools("criteria.md"))
+        self.assertEqual(self.tools("criteria.md") & self.READS_OR_RUNS, set())
+        self.assertEqual(front["omitClaudeMd"].strip(), "true")
+
+    def test_the_verifier_agent_cannot_edit(self):
+        self.assertEqual(self.tools("verifier.md"), {"Read", "Grep", "Glob", "Bash"})
+
+    def test_hooks_register_both_capture_events_in_exec_form(self):
+        hooks = json.loads(read("hooks", "hooks.json"))["hooks"]
+        self.assertEqual(sorted(hooks), ["PostToolUse", "UserPromptSubmit"])
+        self.assertEqual(hooks["PostToolUse"][0]["matcher"], "AskUserQuestion")
+        for entries in hooks.values():
+            for hook in entries[0]["hooks"]:
+                self.assertEqual((hook["command"], hook["args"]), ("node", ["${CLAUDE_PLUGIN_ROOT}/hooks/capture-intent.js"]))
+
+    def test_the_version_matches_the_changelog(self):
+        version = json.loads(read(".claude-plugin", "plugin.json"))["version"]
+        latest = re.search(r"^## (\d+\.\d+\.\d+)", read("CHANGELOG.md"), re.M).group(1)
+        self.assertEqual(version, latest)
+
+
+if __name__ == "__main__":
+    unittest.main()

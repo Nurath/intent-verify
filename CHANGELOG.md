@@ -1,5 +1,85 @@
 # Changelog
 
+## 0.3.0 — 2026-10-05
+
+The two changes 0.2.1 could not make without changing a contract, the smaller
+capture fixes, and what running the tool on its own release turned up. The
+proposal, with the reasoning behind each choice and what was left out, is
+`docs/DESIGN-v0.3.md`.
+
+### Added — criteria fixed before the code is read
+- **Criterion manifest.** `validate_ledger.py --manifest` requires every
+  criterion of a manifest in the ledger under the same number with the same
+  text. A requirement the verifier never mentions, or a reply cut off before
+  its last criteria, is now a defect. In 0.2.1 such a ledger validated, and the
+  omission was caught only if the orchestrator noticed it.
+- **`intent-criteria` agent (stage 1).** Derives the manifest from the request
+  alone; its tool allowlist holds nothing that reads files or runs commands.
+  Each criterion quotes the words of the request it rests on, and
+  `--check-manifest` verifies every quote, so a requirement cannot be invented
+  and attributed to the user. It also lists the places where the request can be
+  read two ways; the skill puts those to the user once, before verifying.
+- **Your own criteria win.** `--manifest-from FILE` builds the manifest from
+  criteria you already have, one per line.
+- **Benchmark.** `--two-stage` for real-model runs: criteria first, with every
+  tool disabled, then a verifier held to them. A new mock profile, `omitter`,
+  reports only what passes: 2 false MATCHES on the drifted cases when its
+  ledgers are validated alone, 0 against a manifest.
+
+### Changed — where your prompts are kept
+- **The ledger is outside the project.** The plugin's hook writes under the
+  plugin data directory (`${CLAUDE_PLUGIN_DATA}`; `INTENT_VERIFY_DATA`
+  overrides it; `~/.claude/intent-verify` when neither exists), one file per
+  session. Nothing is written inside the project any more, by the hook or by
+  the skill, whose working files now go to a scratch directory.
+- **Retention replaces rotation.** A session file untouched for 30 days is
+  deleted (`INTENT_VERIFY_RETENTION_DAYS`; 0 keeps everything). The `log.md`
+  mirror is gone; `--list` and the new `--show <id>` are the readable view.
+- **An existing `.intent/` directory is left alone and still read.** `--list`
+  says when it is reading one. Delete it once its requests no longer matter.
+- **The capture cap is 256,000 characters**, up from 64,000, and a prompt over
+  it keeps its start and its end: with a long paste the instruction sits at one
+  end, and cutting only the tail could remove it.
+- `--freeze` takes `--out FILE` and no longer writes `.intent/frozen-<id>.md`.
+
+### Added — capture
+- **Answered questions are recorded.** A second hook (`PostToolUse` on
+  `AskUserQuestion`) stores the question, its options and the answer as a
+  `decision` entry. The scope of 0.2.1 itself was decided by such an answer,
+  and it was missing from the ledger.
+- **A request can be several entries.** `--freeze id1,id2` joins a task, its
+  follow-ups and its decisions into one request, oldest first.
+- **Prompts the harness submits are labelled** when the ledger is listed:
+  background-agent reports, messages from other sessions, scheduled tasks, CI
+  events. In our own ledgers 104 of 706 "tasks" were such prompts. Agent
+  reports are left out of `--list` unless `--all` is given; the others can be
+  real requests, so they are marked and kept.
+- Entries carry `prompt_id`.
+
+### Fixed
+- **A valid ledger was rejected when the harness had indented it.** A
+  background subagent's report is delivered with two spaces in front of every
+  line, which left no keyword at column 0: "no CRITERION blocks found". The
+  validator now removes an indent shared by every line. A ledger quoted inside
+  a prose reply is still not accepted as the verifier's own.
+- **A file that could not be read exited 1**, the code for "the ledger has
+  defects", with a traceback. It exits 2.
+
+### Not in this release
+- **The alternate hooks** (`.py`, `.ps1`, `.sh`) still write `<project>/.intent/`
+  and record prompts only. The reader is the Node script, so on a machine
+  without Node they could not serve the skill either way.
+- **Change C of the design**: a structured ledger bound to its run and captured
+  by a hook. The session that wrote the code still saves and validates the
+  verifier's reply.
+- **Measurements.** The two-stage flow has been run on real models eight times
+  (`benchmark/results/2026-10-05-two-stage-smoke.md`). The controlled set has
+  not been re-run with it, and the cross-model ablation has not been run.
+- **Three platform behaviours have not been seen on a live session**: the
+  criteria agent launching without file access, a decision being recorded, and
+  the data directory being filled into the skill's commands. Each fails safe;
+  see `benchmark/results/2026-10-05-platform-spikes.md`.
+
 ## 0.2.1 — 2026-10-05
 
 Correctness release. An independent review of 0.2.0 found ways to get a wrong

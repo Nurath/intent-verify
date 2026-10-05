@@ -1,0 +1,16 @@
+{"manifest": 1,
+ "criteria": [
+  {"id": 1, "text": "The posts on the blog index are in chronological order by their date (compared as real dates, not as text), running consistently in one direction from first to last with no out-of-order entries.", "quote": "Sort the posts by date"},
+  {"id": 2, "text": "The blog index loads measurably faster than it did before the change (lower load or response time than the pre-change baseline).", "quote": "make it fast"},
+  {"id": 3, "text": "Every post that appeared on the blog index before still appears on it exactly once after the sort and speed-up; none are dropped or duplicated.", "quote": null},
+  {"id": 4, "text": "The RSS feed is still served at its existing URL and responds successfully.", "quote": "break the RSS feed"},
+  {"id": 5, "text": "The RSS feed output is still well-formed, valid RSS that a feed reader or validator accepts.", "quote": "break the RSS feed"},
+  {"id": 6, "text": "The RSS feed still contains every post it contained before, each item with the same title, link and date; none are dropped, duplicated or malformed.", "quote": "break the RSS feed"}
+ ],
+ "ambiguities": [
+  "Sort direction: newest first (the usual blog index convention) or oldest first? The request says only 'by date'.",
+  "Which date counts, if posts carry both a publish date and a last-updated date?",
+  "What does 'fast' mean: is there a target time or just a noticeable improvement over today, and which timing is slow (server response, page load, or site build)?",
+  "Should the RSS feed's item order stay exactly as it is now, or also follow the new date order if it shares the same post list?",
+  "May the speed-up change what the index shows (for example paginate, truncate or lazy-load the post list), or must it still list every post as it does today?"
+ ]}

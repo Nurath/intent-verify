@@ -1,0 +1,130 @@
+INTENT-VERIFY LEDGER v1
+mode: FULL
+
+CRITERION 1: The first 5 login attempts from one IP within a one-minute window are processed normally (valid credentials log in, invalid ones fail as invalid credentials) and are not blocked by the limiter.
+VERDICT: PASS
+EVIDENCE-CMD: python -B <scratch>/h.py c1
+EVIDENCE-OUT: module under test: <repo>/benchmark/impl/ratelimit.py
+c1: five attempts from one IP inside one minute (fresh limiter)
+  t=+  0.00s allow_login('203.0.113.7') -> True   # attempt 1
+  t=+ 10.00s allow_login('203.0.113.7') -> True   # attempt 2
+  t=+ 20.00s allow_login('203.0.113.7') -> True   # attempt 3
+  t=+ 30.00s allow_login('203.0.113.7') -> True   # attempt 4
+  t=+ 40.00s allow_login('203.0.113.7') -> True   # attempt 5
+  results: [True, True, True, True, True]   expected: [True, True, True, True, True]
+
+CRITERION 2: A 6th login attempt from the same IP within that same minute is blocked by the limiter instead of being processed as a normal login.
+VERDICT: PASS
+EVIDENCE-CMD: python -B <scratch>/h.py c2
+EVIDENCE-OUT: module under test: <repo>/benchmark/impl/ratelimit.py
+c2: sixth attempt from the same IP inside the same minute
+  t=+  0.00s allow_login('203.0.113.7') -> True   # attempt 1
+  t=+  1.00s allow_login('203.0.113.7') -> True   # attempt 2
+  t=+  2.00s allow_login('203.0.113.7') -> True   # attempt 3
+  t=+  3.00s allow_login('203.0.113.7') -> True   # attempt 4
+  t=+  4.00s allow_login('203.0.113.7') -> True   # attempt 5
+  t=+  5.00s allow_login('203.0.113.7') -> False   # 6th attempt
+  t=+ 30.00s allow_login('203.0.113.7') -> False   # 7th attempt
+  t=+ 59.90s allow_login('203.0.113.7') -> False   # 8th attempt, 59.9s after the 1st
+  first five: [True, True, True, True, True]
+  6th, 7th, 8th: [False, False, False]   expected: [False, False, False]
+
+CRITERION 3: A blocked IP is not blocked permanently: once the one-minute window has passed it can attempt login again.
+VERDICT: PASS
+EVIDENCE-CMD: python -B <scratch>/h.py c3real
+EVIDENCE-OUT: module under test: <repo>/benchmark/impl/ratelimit.py
+c3real: block is temporary (REAL clock, no mocking)
+  +  0.0s attempt 1 -> True
+  +  0.0s attempt 2 -> True
+  +  0.0s attempt 3 -> True
+  +  0.0s attempt 4 -> True
+  +  0.0s attempt 5 -> True
+  +  0.0s attempt 6 -> False
+  +  0.0s sleeping 61s ...
+  + 61.0s attempt after the minute -> True
+[second command, fake clock for exact boundary: python -B <scratch>/h.py c3]
+c3: block is temporary (fake clock)
+  t=+  0.00s allow_login('203.0.113.7') -> True   # attempt 1
+  t=+  0.00s allow_login('203.0.113.7') -> True   # attempt 2
+  t=+  0.00s allow_login('203.0.113.7') -> True   # attempt 3
+  t=+  0.00s allow_login('203.0.113.7') -> True   # attempt 4
+  t=+  0.00s allow_login('203.0.113.7') -> True   # attempt 5
+  t=+  0.00s allow_login('203.0.113.7') -> False   # 6th attempt, same instant
+  t=+ 59.99s allow_login('203.0.113.7') -> False   # just before the minute is over
+  t=+ 60.00s allow_login('203.0.113.7') -> True   # attempt 1 after window passed
+  t=+ 60.00s allow_login('203.0.113.7') -> True   # attempt 2 after window passed
+  t=+ 60.00s allow_login('203.0.113.7') -> True   # attempt 3 after window passed
+  t=+ 60.00s allow_login('203.0.113.7') -> True   # attempt 4 after window passed
+  t=+ 60.00s allow_login('203.0.113.7') -> True   # attempt 5 after window passed
+  t=+ 60.00s allow_login('203.0.113.7') -> False   # 6th attempt inside the new window
+  first five: [True, True, True, True, True]  blocked: [False, False]
+  after +60s: five attempts [True, True, True, True, True]  then 6th False   expected: five True then False
+
+CRITERION 4: Attempts are counted by client IP alone: attempts from one IP add up to a single count even when they target different usernames.
+VERDICT: PASS
+EVIDENCE-CMD: python -B <scratch>/h.py c4
+EVIDENCE-OUT: module under test: <repo>/benchmark/impl/ratelimit.py
+c4: same IP, different usernames
+  allow_login signature: (ip)
+  public names in module: ['LIMIT', 'WINDOW', '_attempts', 'allow_login', 'time']
+  t=+  0.00s allow_login('203.0.113.7') -> True   # caller context: login as 'alice' (username is not passed to the limiter)
+  t=+  1.00s allow_login('203.0.113.7') -> True   # caller context: login as 'bob' (username is not passed to the limiter)
+  t=+  2.00s allow_login('203.0.113.7') -> True   # caller context: login as 'carol' (username is not passed to the limiter)
+  t=+  3.00s allow_login('203.0.113.7') -> True   # caller context: login as 'dave' (username is not passed to the limiter)
+  t=+  4.00s allow_login('203.0.113.7') -> True   # caller context: login as 'erin' (username is not passed to the limiter)
+  t=+  5.00s allow_login('203.0.113.7') -> False   # caller context: login as 'frank' (username is not passed to the limiter)
+  results: [True, True, True, True, True, False]   expected: five True then False
+
+CRITERION 5: While one IP is blocked, login attempts from a different IP (within its own allowance) are still processed normally.
+VERDICT: FAIL
+EVIDENCE-CMD: python -B -c "import types;P='<repo>/benchmark/impl/ratelimit.py';m=types.ModuleType('m');exec(compile(open(P).read(),P,'exec'),m.__dict__);A='203.0.113.7';B='198.51.100.23';a=[m.allow_login(A) for _ in range(6)];b=m.allow_login(B);print('IP A attempts 1-6:',a);print('IP B first-ever attempt while A is blocked:',b)"
+EVIDENCE-OUT: IP A attempts 1-6: [True, True, True, True, True, False]
+IP B first-ever attempt while A is blocked: False
+[second command, fake-clock harness: python -B <scratch>/h.py c5]
+c5: IP A is blocked; IP B within its own allowance
+  t=+  0.00s allow_login('203.0.113.7') -> True   # A attempt 1
+  t=+  1.00s allow_login('203.0.113.7') -> True   # A attempt 2
+  t=+  2.00s allow_login('203.0.113.7') -> True   # A attempt 3
+  t=+  3.00s allow_login('203.0.113.7') -> True   # A attempt 4
+  t=+  4.00s allow_login('203.0.113.7') -> True   # A attempt 5
+  t=+  5.00s allow_login('203.0.113.7') -> False   # A attempt 6 (A is now blocked)
+  t=+  6.00s allow_login('198.51.100.23') -> False   # B attempt 1 (B's first five)
+  t=+  7.00s allow_login('198.51.100.23') -> False   # B attempt 2 (B's first five)
+  t=+  8.00s allow_login('198.51.100.23') -> False   # B attempt 3 (B's first five)
+  t=+  9.00s allow_login('198.51.100.23') -> False   # B attempt 4 (B's first five)
+  t=+ 10.00s allow_login('198.51.100.23') -> False   # B attempt 5 (B's first five)
+  A first five: [True, True, True, True, True], A sixth: False
+  B while A blocked: [False, False, False, False, False]   expected: [True, True, True, True, True]
+
+CRITERION 6: Attempts from one IP do not use up another IP's allowance: two IPs can each make 5 login attempts in the same minute and all 10 are processed.
+VERDICT: FAIL
+EVIDENCE-CMD: python -B -c "import types;P='<repo>/benchmark/impl/ratelimit.py';m=types.ModuleType('m');exec(compile(open(P).read(),P,'exec'),m.__dict__);A='203.0.113.7';B='198.51.100.23';a=[m.allow_login(A) for _ in range(5)];b=[m.allow_login(B) for _ in range(5)];print('IP A x5:',a);print('IP B x5:',b);print('processed',sum(a)+sum(b),'of 10')"
+EVIDENCE-OUT: IP A x5: [True, True, True, True, True]
+IP B x5: [False, False, False, False, False]
+processed 5 of 10
+[second command, fake-clock harness: python -B <scratch>/h.py c6]
+c6a: A makes 5 attempts, then B makes 5 attempts, same minute
+  A results: [True, True, True, True, True]
+  B results: [False, False, False, False, False]
+  processed 5 of 10 (expected 10)
+c6b: interleaved A,B,A,B,... (5 attempts each, same minute)
+  results: [('A', True), ('B', True), ('A', True), ('B', True), ('A', True), ('B', False), ('A', False), ('B', False), ('A', False), ('B', False)]
+  processed 5 of 10 (expected 10)
+[third command, six distinct IPs with one attempt each: python -B -c "import types;P='<repo>/benchmark/impl/ratelimit.py';m=types.ModuleType('m');exec(compile(open(P).read(),P,'exec'),m.__dict__);ips=['198.51.100.%d'%i for i in range(1,7)];print([(ip,m.allow_login(ip)) for ip in ips])"]
+[('198.51.100.1', True), ('198.51.100.2', True), ('198.51.100.3', True), ('198.51.100.4', True), ('198.51.100.5', True), ('198.51.100.6', False)]
+
+CRITERION 7: Requests to endpoints other than login are not blocked by, or counted toward, this limit.
+VERDICT: NOT-EXERCISED
+REASON: The module's only callable is allow_login(ip) (namespace listing in criterion 4 output: LIMIT, WINDOW, _attempts, allow_login, time) with no route, endpoint, middleware or decorator surface, so there is no non-login request path to drive through it; whether other endpoints reach the limiter depends on the calling application, which is not part of this module.
+
+FINAL: DRIFTED — criteria 5, 6 failed
+
+OBSERVATIONS:
+- Root cause (read from <repo>\benchmark\impl\ratelimit.py, confirmed by running it): `_attempts` is one module-global list and the `ip` argument is never read. The limiter is therefore global: 5 attempts per minute across ALL clients combined, not per IP. The six-distinct-IPs probe shows a brand-new sixth IP with zero prior attempts is blocked. The "per IP; different IPs are tracked independently" half of the request is not implemented, which is what criteria 5 and 6 test.
+- Criterion 4 is PASS only in the narrow sense the criterion itself defines. The limiter takes no username, so it cannot split the count by username, and same-IP attempts do add up (6th blocked). That is a side effect of the global counter, not evidence of IP-keyed counting. Criteria 5 and 6 are where the lack of per-IP keying shows up.
+- Mapping used for criteria 1 and 2: the module exposes only allow_login(ip) -> True/False. I read "processed normally" as True and "blocked by the limiter" as False. The credential-handling parts of criterion 1 (valid credentials log in, invalid ones fail) live outside this module and were not exercised; only the "not blocked by the limiter" part was. This is also why criterion 7 is NOT-EXERCISED.
+- Window semantics observed: sliding window. An attempt stops counting exactly 60.00s after it was made (blocked at +59.99s, allowed at +60.00s). Blocked attempts are not recorded, so hammering while blocked does not extend the block. The request did not ask for either behaviour, so neither counts against it.
+- Harness validity: the same harness run against a scratch per-IP sliding-window control limiter (not part of the project) passes all six scenarios, so the criterion 5 and 6 FAILs come from the implementation and not from the harness. Control run, `RL_PATH=<scratchpad>/ok_ratelimit.py python -B <scratchpad>/h.py all`, excerpt: "  B while A blocked: [True, True, True, True, True]" and "  processed 10 of 10 (expected 10)" (printed for both c6a and c6b).
+- Clock handling: c1 to c6 and c3 used a fake clock injected into a fresh module instance per scenario. The c3real run and the three `python -B -c` one-liners used the real clock with no mocking.
+- Project untouched: the module source was exec'd from text, so no .pyc was written. A before/after `find -printf '%p %s %T@'` listing of <repo>\benchmark\impl (32 files) was identical ("impl tree unchanged (paths, sizes, mtimes identical)").
+- Scratch files I created, all in <scratch>\: h.py (harness), ok_ratelimit.py (control), pre.txt, post.txt. I did not check whether files with those names already existed there.
