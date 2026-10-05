@@ -1,0 +1,13 @@
+{"manifest": 1,
+ "criteria": [
+  {"id": 1, "text": "A username whose trimmed length is between 3 and 20 characters is valid", "quote": "A username is valid if it is 3 to 20 characters"},
+  {"id": 2, "text": "A username with a trimmed length of exactly 3 characters is valid (lower bound inclusive)", "quote": "3 to 20 characters"},
+  {"id": 3, "text": "A username with a trimmed length of exactly 20 characters is valid (upper bound inclusive)", "quote": "3 to 20 characters"},
+  {"id": 4, "text": "A username with a trimmed length of 2 or fewer characters is not valid", "quote": "3 to 20 characters"},
+  {"id": 5, "text": "A username with a trimmed length of 21 or more characters is not valid", "quote": "3 to 20 characters"},
+  {"id": 6, "text": "Leading and trailing whitespace is removed before the length is measured, so surrounding whitespace does not count toward the length (e.g. '  ab  ' is invalid, '  abc  ' is valid)", "quote": "trimming surrounding whitespace first"}
+ ],
+ "ambiguities": [
+  "Is the trimmed username (rather than the original) what gets stored or returned, or is trimming only applied for the length check?",
+  "Does whitespace inside the username (not surrounding it) count toward the length, and is it allowed?"
+ ]}

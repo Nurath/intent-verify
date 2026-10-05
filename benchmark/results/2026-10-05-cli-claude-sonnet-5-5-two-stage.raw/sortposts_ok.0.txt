@@ -1,0 +1,19 @@
+INTENT-VERIFY LEDGER v1
+mode: FULL
+
+CRITERION 1: Posts are returned/displayed ordered by their date, with the most recent date first and the oldest last
+VERDICT: PASS
+EVIDENCE-CMD: python "$TEMP/t.py" (imports sort_posts from sortposts_ok.py and calls it on 5 posts with ISO date strings, including a duplicate date)
+EVIDENCE-OUT: [(2, '2025-03-01'), (4, '2025-03-01'), (5, '2024-11-09'), (1, '2024-01-05'), (3, '2023-12-31')]
+
+CRITERION 2: Sorting does not drop or duplicate any posts: the same set of posts appears before and after sorting
+VERDICT: PASS
+EVIDENCE-CMD: python "$TEMP/t.py" (compares sorted ids and lengths before and after sorting, and sorts an empty list)
+EVIDENCE-OUT: True True
+  []
+
+FINAL: MATCHES INTENT
+
+OBSERVATIONS:
+- I only tested ISO-format date strings, which sort correctly as text. If dates were in a non-ISO string format such as "MM/DD/YYYY", this would order them wrongly. The request doesn't say what format the dates use.
+- Posts with equal dates keep their original relative order (ids 2 then 4). This matches Python's stable sort when `reverse=True`.

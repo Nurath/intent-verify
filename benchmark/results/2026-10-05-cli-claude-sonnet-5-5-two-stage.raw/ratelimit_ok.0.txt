@@ -1,0 +1,35 @@
+INTENT-VERIFY LEDGER v1
+mode: FULL
+
+CRITERION 1: Up to 5 login attempts from a single IP within one minute are processed normally (not rejected by the rate limit)
+VERDICT: PASS
+EVIDENCE-CMD: python3 t.py (from benchmark/impl/correct, imports ratelimit_ok): print([allow_login('A') for _ in range(5)])
+EVIDENCE-OUT: c1 [True, True, True, True, True]
+
+CRITERION 2: A 6th login attempt from the same IP within the same minute is rejected by the rate limit
+VERDICT: PASS
+EVIDENCE-CMD: same script: print(allow_login('A')) right after the 5 allowed attempts
+EVIDENCE-OUT: c2 False
+
+CRITERION 3: Once a single IP has hit the limit, a different IP can still make login attempts that are not rejected by the rate limit
+VERDICT: PASS
+EVIDENCE-CMD: same script: print(allow_login('B')) after IP 'A' was limited
+EVIDENCE-OUT: c3 True
+
+CRITERION 4: Attempts from one IP do not count toward the attempt total of any other IP
+VERDICT: PASS
+EVIDENCE-CMD: same script: print([allow_login('C') for _ in range(5)], [allow_login('D') for _ in range(5)])
+EVIDENCE-OUT: c4 [True, True, True, True, True] [True, True, True, True, True]
+
+CRITERION 5: After the one-minute window passes, a rate-limited IP can attempt login again
+VERDICT: PASS
+EVIDENCE-CMD: same script: monkeypatched time.time to t0+61, then print(allow_login('A')) for the still-limited IP 'A'
+EVIDENCE-OUT: c5 True
+
+FINAL: MATCHES INTENT
+
+OBSERVATIONS:
+- Criterion 5 was tested by patching `time.time`, not by sleeping 60 seconds. The code reads `time.time()` at call time, so the patch takes effect.
+- I did not test the exact 60-second boundary. The code uses `now - t < WINDOW`, so an attempt at exactly 60s counts as outside the window.
+- The module keeps state in a plain dict with no locking, so it is not thread-safe. The request did not ask for thread safety.
+- Entries for IPs that stop sending requests are never removed, so memory grows over time. The request did not ask for cleanup.

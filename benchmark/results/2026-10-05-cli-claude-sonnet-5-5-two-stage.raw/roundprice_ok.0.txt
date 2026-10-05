@@ -1,0 +1,43 @@
+INTENT-VERIFY LEDGER v1
+mode: FULL
+
+CRITERION 1: The result of rounding a price has at most 2 decimal places (e.g. 1.234 becomes 1.23).
+VERDICT: PASS
+EVIDENCE-CMD: python -c "from roundprice_ok import round_price as r; [print(repr(x), repr(r(x))) for x in [1.234,10.005,0.125,2.5]]" (run from benchmark/impl/correct; output below is from the equivalent batch run)
+EVIDENCE-OUT:
+  1.234 -> 1.23
+  10.005 -> 10.01
+  0.125 -> 0.13
+  2.5 -> 2.5
+
+CRITERION 2: A price exactly halfway at the third decimal rounds up (e.g. 1.005 becomes 1.01 and 2.675 becomes 2.68, not the binary-float results 1.00 and 2.67).
+VERDICT: PASS
+EVIDENCE-CMD: python -c "from roundprice_ok import round_price as r; ..." over 1.005, 2.675, 1.015, 0.005
+EVIDENCE-OUT:
+  1.005 -> 1.01
+  2.675 -> 2.68
+  1.015 -> 1.02
+  0.005 -> 0.01
+
+CRITERION 3: A price already at 2 or fewer decimal places is returned with the same value (e.g. 4.50 stays 4.50, 3 stays 3.00).
+VERDICT: PASS
+EVIDENCE-CMD: python -c "from roundprice_ok import round_price as r; ..." over 4.50, 3, 2.5
+EVIDENCE-OUT:
+  4.5 -> 4.5 (formatted %.2f: 4.50)
+  3 -> 3.0 (formatted %.2f: 3.00)
+  2.5 -> 2.5 (formatted %.2f: 2.50)
+
+CRITERION 4: A price below the halfway point rounds down and a price above it rounds up (e.g. 1.994 becomes 1.99, 1.996 becomes 2.00).
+VERDICT: PASS
+EVIDENCE-CMD: python -c "from roundprice_ok import round_price as r; ..." over 1.994, 1.996
+EVIDENCE-OUT:
+  1.994 -> 1.99
+  1.996 -> 2.0 (formatted %.2f: 2.00)
+
+FINAL: MATCHES INTENT
+
+OBSERVATIONS:
+- I ran one batch script covering all inputs. The EVIDENCE-CMD lines above are abbreviated forms of that script, not separate runs.
+- python3 isn't installed here, so I used `python` (3.14.3).
+- The function returns a float, so trailing zeros such as "4.50" and "3.00" only show up when formatted. The numeric values are correct.
+- It converts through `str(x)`, so the result is correct for the decimal repr of the input. For floats whose repr is longer than 2 decimals this is the intended behaviour for 1.005 and 2.675.

@@ -1,0 +1,36 @@
+INTENT-VERIFY LEDGER v1
+mode: FULL
+
+CRITERION 1: Every returned item contains the query as a substring.
+VERDICT: PASS
+EVIDENCE-CMD: python -c "from search_ok import search; items=['xABCx','xabcx','Abc','ab','zzz','HELLO world','']; print(search(items,'abc'))"
+EVIDENCE-OUT: ['xABCx', 'xabcx', 'Abc']
+
+CRITERION 2: Every item that contains the query as a substring is returned; none are dropped.
+VERDICT: PASS
+EVIDENCE-CMD: python -c "from search_ok import search; print(search(['Hello','HELLO','hello','help'],'hEl'))"
+EVIDENCE-OUT: ['Hello', 'HELLO', 'hello', 'help']
+
+CRITERION 3: Matching ignores letter case: an item matches when it contains the query in any combination of upper and lower case (e.g. query 'abc' matches 'xABCx', and query 'ABC' matches 'xabcx').
+VERDICT: PASS
+EVIDENCE-CMD: python -c "from search_ok import search; items=['xABCx','xabcx','Abc','ab','zzz','HELLO world','']; print(search(items,'abc')); print(search(items,'ABC')); print(search(items,'aBc'))"
+EVIDENCE-OUT: ['xABCx', 'xabcx', 'Abc']
+  ['xABCx', 'xabcx', 'Abc']
+  ['xABCx', 'xabcx', 'Abc']
+
+CRITERION 4: Items that do not contain the query (ignoring case) are excluded from the result.
+VERDICT: PASS
+EVIDENCE-CMD: python -c "from search_ok import search; items=['xABCx','xabcx','Abc','ab','zzz','HELLO world','']; print(search(items,'abc'))"
+EVIDENCE-OUT: ['xABCx', 'xabcx', 'Abc']  (the non-matching 'ab', 'zzz', 'HELLO world' and '' were excluded)
+
+CRITERION 5: Returned items keep their original text (case is not altered by the matching).
+VERDICT: PASS
+EVIDENCE-CMD: python -c "from search_ok import search; print(search(['Hello','HELLO','hello','help'],'hEl'))"
+EVIDENCE-OUT: ['Hello', 'HELLO', 'hello', 'help']  (the original casing is preserved in each returned item)
+
+FINAL: MATCHES INTENT
+
+OBSERVATIONS:
+- An empty query returns all items, which is the usual substring semantics.
+- Non-string items would raise AttributeError. The request did not cover them.
+- `lower()` is not full Unicode case folding (`casefold()`). The request did not cover this either.

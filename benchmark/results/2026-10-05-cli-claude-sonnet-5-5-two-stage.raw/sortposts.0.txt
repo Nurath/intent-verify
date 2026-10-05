@@ -1,0 +1,18 @@
+INTENT-VERIFY LEDGER v1
+mode: FULL
+
+CRITERION 1: Posts are returned/displayed ordered by their date, with the most recent date first and the oldest last.
+VERDICT: FAIL
+EVIDENCE-CMD: cd benchmark/impl && python -c "from sortposts import sort_posts; ps=[{'id':1,'date':'2024-01-05'},{'id':2,'date':'2025-03-01'},{'id':3,'date':'2023-12-31'},{'id':4,'date':'2025-03-01'}]; r=sort_posts(ps); print([p['id'] for p in r],[p['date'] for p in r])"
+EVIDENCE-OUT: [3, 1, 2, 4] ['2023-12-31', '2024-01-05', '2025-03-01', '2025-03-01']
+
+CRITERION 2: Sorting does not add or drop any posts; the same set of posts appears, only reordered.
+VERDICT: PASS
+EVIDENCE-CMD: same script, additionally printing len(r)==len(ps) and sorted(p['id'] for p in r)==[1,2,3,4]
+EVIDENCE-OUT: True True
+
+FINAL: DRIFTED — criteria 1 failed
+
+OBSERVATIONS:
+- `sort_posts` calls `sorted` with no `reverse=True`, so the order is oldest first. The request asked for newest first, and the docstring doesn't mention direction.
+- I ran it as `python`, because `python3` isn't installed here. It's Python 3.14.3.

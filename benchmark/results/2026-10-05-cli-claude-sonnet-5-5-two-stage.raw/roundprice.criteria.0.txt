@@ -1,0 +1,11 @@
+{"manifest": 1,
+ "criteria": [
+   {"id": 1, "text": "The result of rounding a price has exactly 2 decimal places of precision (e.g. 1.234 becomes 1.23).", "quote": "Round a price to 2 decimal places"},
+   {"id": 2, "text": "A price whose third decimal digit is exactly 5 with nothing after it rounds up (e.g. 1.005 becomes 1.01, 2.675 becomes 2.68, 0.125 becomes 0.13).", "quote": "rounding half up"},
+   {"id": 3, "text": "A price whose discarded part is below half a cent rounds down (e.g. 1.004 becomes 1.00), and one above half a cent rounds up (e.g. 1.006 becomes 1.01).", "quote": "rounding half up"},
+   {"id": 4, "text": "A price already at 2 or fewer decimal places is returned with the same value (e.g. 3.5 stays 3.50, 4.10 stays 4.10).", "quote": null}
+ ],
+ "ambiguities": [
+   "How should negative prices round at exactly half (e.g. -1.005): toward positive infinity (-1.00) or away from zero (-1.01)?",
+   "Must the exact decimal value be honored for binary floating-point inputs (e.g. float 1.005 or 2.675 giving 1.01 and 2.68), or is rounding the nearest-float value acceptable?"
+ ]}

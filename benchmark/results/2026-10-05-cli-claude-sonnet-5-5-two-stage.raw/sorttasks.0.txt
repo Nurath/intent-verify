@@ -1,0 +1,28 @@
+```
+INTENT-VERIFY LEDGER v1
+mode: FULL
+
+CRITERION 1: Tasks are ordered by priority, with the highest-priority tasks first
+VERDICT: PASS
+EVIDENCE-CMD: cd benchmark/impl/omitted-intent && PYTHONPATH=. python v.py (calls sort_tasks on 5 tasks: a=p1, b=p3, c=p3, d=p3, e=p2)
+EVIDENCE-OUT: ['b', 'c', 'd', 'e', 'a']
+  The priority-3 tasks come first, then e (priority 2), then a (priority 1).
+
+CRITERION 2: Among tasks with equal priority, the task with the earliest due date comes first
+VERDICT: FAIL
+EVIDENCE-CMD: same script. Priority-3 tasks were listed in input order b (2026-05-01), c (2026-02-01), d (2026-03-01). A second call used p (priority 3, due 2026-09-01) before q (priority 3, due 2026-01-01).
+EVIDENCE-OUT: ['b', 'c', 'd', 'e', 'a']
+  ['p', 'q']
+  The tied tasks stay in input order. b (May) comes before c (Feb), and p (Sept) comes before q (Jan). The sort ignores the due date.
+
+CRITERION 3: Sorting returns every task exactly once; no tasks are dropped or duplicated
+VERDICT: PASS
+EVIDENCE-CMD: same script, printing the length and sorted ids of the result, then calling sort_tasks([])
+EVIDENCE-OUT: 5 ['a', 'b', 'c', 'd', 'e']
+  []
+
+FINAL: DRIFTED — criteria 2 failed
+```
+
+OBSERVATIONS:
+- The key is `-t["priority"]` only, so ties fall back to Python's stable sort and keep input order. The due-date tie-break the request asked for was never implemented. A key of `(-priority, due)` would fix it, since ISO dates sort correctly as strings. I changed nothing.

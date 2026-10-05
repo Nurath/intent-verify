@@ -1,0 +1,10 @@
+{"manifest": 1,
+ "criteria": [
+  {"id": 1, "text": "Posts are returned/displayed ordered by their date, with the most recent date first and the oldest last", "quote": "Sort posts by date, newest first."},
+  {"id": 2, "text": "Sorting does not drop or duplicate any posts: the same set of posts appears before and after sorting", "quote": null}
+ ],
+ "ambiguities": [
+  "Which date determines the order if posts have more than one (e.g. created vs. last-edited/updated)?",
+  "How should posts with identical dates be ordered relative to each other?",
+  "Where should the sort apply: every place posts are listed, or only a specific view/endpoint?"
+ ]}

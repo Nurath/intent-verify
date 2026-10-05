@@ -1,0 +1,10 @@
+{"manifest": 1,
+ "criteria": [
+  {"id": 1, "text": "Tasks are ordered by priority, with higher-priority tasks appearing before lower-priority ones", "quote": "Sort tasks by priority, highest first"},
+  {"id": 2, "text": "Among tasks with equal priority, the task with the earlier due date appears first", "quote": "break ties by earliest due date"},
+  {"id": 3, "text": "Sorting does not drop or duplicate any tasks; the same set of tasks is returned", "quote": null}
+ ],
+ "ambiguities": [
+  "How should tasks with no due date be ordered among tasks of equal priority (before or after those with due dates)?",
+  "How is priority represented and ranked (e.g. numeric where larger is higher, or labels like high/medium/low), and should tasks with no priority be placed last?"
+ ]}

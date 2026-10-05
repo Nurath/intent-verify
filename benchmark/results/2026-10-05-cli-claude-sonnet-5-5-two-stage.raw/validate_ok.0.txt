@@ -1,0 +1,45 @@
+```
+INTENT-VERIFY LEDGER v1
+mode: FULL
+
+CRITERION 1: A username whose trimmed length is between 3 and 20 characters is valid
+VERDICT: PASS
+EVIDENCE-CMD: cd benchmark/impl/correct && python3 -c "from validate_ok import valid_username as v; ..." (14-case table)
+EVIDENCE-OUT: 'abcdefghij' True True OK
+  'abc' True True OK
+
+CRITERION 2: A username with a trimmed length of exactly 3 characters is valid (lower bound inclusive)
+VERDICT: PASS
+EVIDENCE-CMD: same script
+EVIDENCE-OUT: 'abc' True True OK
+  '  abc  ' True True OK
+
+CRITERION 3: A username with a trimmed length of exactly 20 characters is valid (upper bound inclusive)
+VERDICT: PASS
+EVIDENCE-CMD: same script
+EVIDENCE-OUT: 'aaaaaaaaaaaaaaaaaaaa' True True OK
+  ' aaaaaaaaaaaaaaaaaaaa ' True True OK
+
+CRITERION 4: A username with a trimmed length of 2 or fewer characters is not valid
+VERDICT: PASS
+EVIDENCE-CMD: same script
+EVIDENCE-OUT: 'ab' False False OK
+  'a' False False OK
+  '' False False OK
+  '   ' False False OK
+
+CRITERION 5: A username with a trimmed length of 21 or more characters is not valid
+VERDICT: PASS
+EVIDENCE-CMD: same script
+EVIDENCE-OUT: 'aaaaaaaaaaaaaaaaaaaaa' False False OK
+  ' aaaaaaaaaaaaaaaaaaaaa ' False False OK
+
+CRITERION 6: Leading and trailing whitespace is removed before the length is measured, so surrounding whitespace does not count toward the length (e.g. ' ab ' is invalid, ' abc ' is valid)
+VERDICT: PASS
+EVIDENCE-CMD: same script
+EVIDENCE-OUT: ' ab ' False False OK
+  ' abc ' True True OK
+  '\t\nabc\n' True True OK
+
+FINAL: MATCHES INTENT
+```

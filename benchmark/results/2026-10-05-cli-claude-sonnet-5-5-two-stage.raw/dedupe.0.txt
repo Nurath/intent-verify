@@ -1,0 +1,25 @@
+INTENT-VERIFY LEDGER v1
+mode: FULL
+
+CRITERION 1: The resulting list contains no email address more than once
+VERDICT: PASS
+EVIDENCE-CMD: cd benchmark/impl/omitted-intent && PYTHONHASHSEED=1 python -c 'from dedupe import dedupe; inp=["z@x.com","a@x.com","z@x.com","m@x.com","a@x.com","b@x.com","c@x.com","d@x.com"]; out=dedupe(inp); print(out); print("nodup", len(out)==len(set(out)))'
+EVIDENCE-OUT: ['z@x.com', 'd@x.com', 'b@x.com', 'm@x.com', 'c@x.com', 'a@x.com']
+  nodup True
+
+CRITERION 2: The remaining emails appear in the same relative order as in the original list
+VERDICT: FAIL
+EVIDENCE-CMD: same script, checking out==sorted(set(inp),key=inp.index), run with PYTHONHASHSEED=1, 2 and 3
+EVIDENCE-OUT: seed 1: ['z@x.com', 'd@x.com', 'b@x.com', 'm@x.com', 'c@x.com', 'a@x.com'] order False
+  seed 2: ['b@x.com', 'm@x.com', 'd@x.com', 'a@x.com', 'c@x.com', 'z@x.com'] order False
+  seed 3: ['a@x.com', 'm@x.com', 'z@x.com', 'c@x.com', 'b@x.com', 'd@x.com'] order False
+  (expected first-occurrence order: z, a, m, b, c, d)
+
+CRITERION 3: Every distinct email in the original list is still present in the result (only repeats are removed)
+VERDICT: PASS
+EVIDENCE-CMD: same script, checking set(out)==set(inp), run with PYTHONHASHSEED=1, 2 and 3
+EVIDENCE-OUT: allpresent True (all three runs)
+
+FINAL: DRIFTED — criteria 2 failed
+
+OBSERVATIONS: `dedupe` returns `list(set(emails))`, and sets don't preserve order. The output order depends on hash randomization, so it varies from run to run. `list(dict.fromkeys(emails))` would keep first-occurrence order.

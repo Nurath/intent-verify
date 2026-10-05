@@ -1,0 +1,12 @@
+{"manifest": 1,
+ "criteria": [
+  {"id": 1, "text": "Up to 5 login attempts from a single IP within one minute are processed normally (not rejected by the rate limit)", "quote": "5 attempts per minute per IP"},
+  {"id": 2, "text": "A 6th login attempt from the same IP within the same minute is rejected by the rate limit", "quote": "Rate-limit login to 5 attempts per minute per IP"},
+  {"id": 3, "text": "Once a single IP has hit the limit, a different IP can still make login attempts that are not rejected by the rate limit", "quote": "different IPs are tracked independently"},
+  {"id": 4, "text": "Attempts from one IP do not count toward the attempt total of any other IP", "quote": "different IPs are tracked independently"},
+  {"id": 5, "text": "After the one-minute window passes, a rate-limited IP can attempt login again", "quote": null}
+ ],
+ "ambiguities": [
+  "Is the limit a fixed window or a sliding window, and does an attempt count whether it succeeds or fails (i.e. are all login attempts counted, or only failed ones)?",
+  "How should a rate-limited attempt be rejected (e.g. HTTP 429, an error message, a Retry-After header)?"
+ ]}
