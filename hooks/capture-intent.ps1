@@ -29,7 +29,7 @@ try {
         @('-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z0-9 ]*PRIVATE KEY-----', '[REDACTED:private-key]'),
         @('\bgithub_pat_[A-Za-z0-9_]{22,}\b', '[REDACTED:github-pat]'),
         @('\bgh[pousr]_[A-Za-z0-9]{36,}\b', '[REDACTED:github-token]'),
-        @('\bsk-(?:ant-)?[A-Za-z0-9]{20,}\b', '[REDACTED:api-key]'),
+        @('\bsk-(?:(?:proj|svcacct|admin|ant-[a-z]+[0-9]*)-(?=[A-Za-z0-9_-]*[0-9])(?=[A-Za-z0-9_-]*[A-Z])[A-Za-z0-9_-]{20,}|(?:ant-)?[A-Za-z0-9]{20,}\b)', '[REDACTED:api-key]'),
         @('\bxox[baprs]-[A-Za-z0-9-]{10,}\b', '[REDACTED:slack-token]'),
         @('\bAKIA[0-9A-Z]{16}\b', '[REDACTED:aws-key-id]'),
         @('(?i)\b(aws_secret_access_key|api[_-]?key|auth[_-]?token|password)\s*[=:]\s*[''"]?[A-Za-z0-9+/=_-]{16,}[''"]?', '$1=[REDACTED:assigned-secret]'),
@@ -42,7 +42,7 @@ try {
     }
 
     # Truncate oversized prompts so the ledger cannot blow up a context window.
-    $maxLen = 16000
+    $maxLen = 64000
     if ($env:INTENT_VERIFY_MAX_PROMPT -match '^\d{1,9}$') { $maxLen = [int]$env:INTENT_VERIFY_MAX_PROMPT }
     $truncated = $false
     if ($prompt.Length -gt $maxLen) {
@@ -54,15 +54,23 @@ try {
     $root = if ($env:CLAUDE_PROJECT_DIR) { $env:CLAUDE_PROJECT_DIR } else { (Get-Location).Path }
     $dir = Join-Path $root '.intent'
     New-Item -ItemType Directory -Force -Path $dir | Out-Null
+    # Raw prompts live inside the user's project. A .gitignore holding "*" makes
+    # the directory ignore itself in any repository or worktree, so a broad
+    # 'git add .' cannot stage it. Written once; never overwritten.
+    $ignore = Join-Path $dir '.gitignore'
+    if (-not (Test-Path $ignore)) { [System.IO.File]::WriteAllText($ignore, "*`n", $utf8) }
 
     $ts = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
     $id = '{0:x}-{1:x4}' -f [int64]((Get-Date).ToUniversalTime() - (Get-Date '1970-01-01')).TotalMilliseconds, ($PID -band 0xFFFF)
     $kind = 'task'
-    if ($prompt -match '^\s*(/?\s*intent-verify\b|verify\s+(this|that|it)\b|did\s+(it|this|that)\s+(actually\s+)?do\s+what\s+i\s+(asked|wanted)|check\s+(it|this)\s+did\s+what\s+i\s+asked)') { $kind = 'verify-invocation' }
+    # Only an unmistakable request to RUN verification is tagged; a task that merely
+    # starts with "verify this ..." stays a task. Keep in sync with capture-intent.js.
+    if ($prompt -match '^\s*(?:/\s*intent-verify(?=[:\s]|$)|intent-verify[\s.!?]*$|verify\s+(?:this|that|it)(?:\s+\w+){0,2}\s+(?:did|does|do)\s+what\s+i\s+(?:asked|wanted)\b|did\s+(?:it|this|that)\s+(?:actually\s+)?do\s+what\s+i\s+(?:asked|wanted)\b|check\s+(?:it|this|that)\s+(?:actually\s+)?did\s+what\s+i\s+(?:asked|wanted)\b|verify\s+(?:this|that|it)[\s.!?]*$)') { $kind = 'verify-invocation' }
 
     $entry = [ordered]@{ id = $id; ts = $ts; kind = $kind; prompt = $prompt }
     if ($payload.session_id) { $entry.session_id = [string]$payload.session_id }
     if ($payload.cwd) { $entry.cwd = [string]$payload.cwd }
+    if ($payload.transcript_path) { $entry.transcript_path = [string]$payload.transcript_path }
     if ($truncated) { $entry.truncated = $true }
     if ($redactions -gt 0) { $entry.redactions = $redactions }
 

@@ -1,7 +1,8 @@
 # Model compatibility: making cross-model verification survive weak verifiers
 
-`intent-verify`'s most important lever is **a different model for the verifier**
-(see SKILL.md). But "different" spans a huge capability range — on the
+`intent-verify` asks for **a different model for the verifier** (see SKILL.md;
+that lever is a design argument and has not been ablated in the benchmark). But
+"different" spans a huge capability range — on the
 [Artificial Analysis Intelligence Index](https://artificialanalysis.ai/evaluations/artificial-analysis-intelligence-index)
 the gap between the strongest and weakest listed models is ~60 points. A
 verifier that is *different but far weaker* does not give you an independent
@@ -26,13 +27,17 @@ Observed/expected failure modes, in the order they appear as models get weaker:
 Three code-level mechanisms + one policy mechanism absorb these:
 
 1. **Protocol adaptation (`mode: STRUCTURED`)** — for T3 verifiers the skill
-   dispatches a simplified protocol: ≤5 criteria, one decisive execution per
-   criterion, fill-in ledger template, no prose. Weak models follow templates
-   far more reliably than open procedures.
+   dispatches a simplified protocol: at most 5 criteria exercised per run, one
+   decisive execution per criterion, fill-in ledger template, no prose. Every
+   requirement is still listed; those beyond the budget are `NOT-EXERCISED`,
+   which makes the run `INCONCLUSIVE` and tells the orchestrator to send
+   another batch. Weak models follow templates far more reliably than open
+   procedures.
 2. **Mechanical ledger validation** (`tools/validate_ledger.py`) — the
-   orchestrator validates structure + evidence presence + verdict consistency.
-   One bounded re-request on defects, then `INCONCLUSIVE`. Never loops, never
-   launders an unverifiable answer into `MATCHES INTENT`.
+   orchestrator validates structure (numbering without gaps, one verdict per
+   criterion, values on their own line) + evidence presence + verdict
+   consistency. One bounded re-request on defects, then `INCONCLUSIVE`. Never
+   loops, never launders an unverifiable answer into `MATCHES INTENT`.
 3. **Execution budget** (`agents/verifier.md`) — ≤3 attempts per criterion,
    ~15 commands total, non-interactive, nothing installed, timeouts on anything
    that can block. Budget exhaustion → `NOT-EXERCISED`, honestly.

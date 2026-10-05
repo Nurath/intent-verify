@@ -6,8 +6,13 @@ on:
   pull_request:
 
 jobs:
-  linux:
-    runs-on: ubuntu-latest
+  posix:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -25,9 +30,12 @@ jobs:
       - name: Hook selftest (node)
         run: node hooks/capture-intent.js --selftest
       - name: Shellcheck hook script
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update -q && sudo apt-get install -y -q shellcheck
           shellcheck hooks/capture-intent.sh
+      - name: jq is present (the sh fallback test skips without it)
+        run: jq --version
       - name: Unit tests
         run: python3 -m unittest discover -s tests -v
       - name: Benchmark — mock orchestration robustness

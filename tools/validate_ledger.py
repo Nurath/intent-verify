@@ -5,80 +5,109 @@ The verifier's output (agents/verifier.md) is only trustworthy if it kept the
 evidence contract. This validator enforces, mechanically, the properties that a
 lenient or weak verifier breaks first:
 
-  - header present (INTENT-VERIFY LEDGER v1) and at least one criterion
+  - header present (INTENT-VERIFY LEDGER v1), a mode line, at least one criterion
+  - criteria are numbered 1..N in order, with no gaps or repeats
   - every VERDICT is PASS | FAIL | NOT-EXERCISED
   - PASS and FAIL carry both EVIDENCE-CMD and non-empty EVIDENCE-OUT
   - NOT-EXERCISED carries a REASON
+  - a single-line field holds its value on its own line (an empty field can
+    never borrow the next line's text)
   - FINAL is present and CONSISTENT with the per-criterion verdicts:
       any FAIL            => DRIFTED, listing every failed criterion
       all PASS            => MATCHES INTENT
       no FAIL, some N-E   => INCONCLUSIVE
-  - STRUCTURED mode: at most 5 criteria
+    The LAST FINAL line is the conclusion, and every CRITERION block after the
+    header is parsed wherever it sits, so a "FINAL:" line inside captured
+    program output can neither end the ledger nor hide a criterion.
+  - every VERDICT line belongs to exactly one criterion and each criterion has
+    exactly one. A second one is ambiguous (usually captured output that starts
+    with a ledger keyword and was not indented). Together with the rule above
+    this gives the property the tests pin down: a reply holding any VERDICT
+    line that is not PASS can never validate as MATCHES INTENT.
+  - STRUCTURED mode: at most 5 criteria exercised (PASS/FAIL); requirements
+    beyond that budget must be listed as NOT-EXERCISED, never dropped
 
-It cannot detect *forged* output — that is why below-floor models are excluded
-by selection rather than "validated harder" (see docs/MODEL-COMPAT.md).
+What it cannot do:
+  - detect *forged* output -- that is why below-floor models are excluded by
+    selection rather than "validated harder" (see docs/MODEL-COMPAT.md);
+  - know which requirements the request actually had. It checks that the ledger
+    is internally complete, not that the verifier derived every criterion or
+    that its reply was not cut off before later ones.
 
 Usage:
   python3 tools/validate_ledger.py <ledger-file>     # or - for stdin
+  (use `python` where `python3` is not installed, e.g. stock Windows)
 Exit codes: 0 valid; 1 invalid (defects listed on stdout, one per line, so the
-orchestrator can quote them in its single bounded re-request).
+orchestrator can quote them in its single bounded re-request); 2 usage error.
+Any other outcome means the validator itself failed, not the ledger.
 """
 import re
 import sys
 
 HEADER = "INTENT-VERIFY LEDGER v1"
 VERDICTS = {"PASS", "FAIL", "NOT-EXERCISED"}
+STRUCTURED_BUDGET = 5
+
+# Horizontal whitespace only. A single-line field's value must sit on the
+# field's own line: with \s here an empty "EVIDENCE-CMD:" swallowed the line
+# below it and the ledger validated.
+_VALUE = r"[ \t]*(\S[^\n]*)$"
+_CRIT_HEAD = r"CRITERION[ \t]+\d+[ \t]*:"
+_FIELD_START = r"^(?:VERDICT:|EVIDENCE-CMD:|REASON:|" + _CRIT_HEAD + r"|FINAL:|OBSERVATIONS:)"
 
 
 def extract_ledger(text):
-    """Tolerate chatter/code-fences around the ledger: slice from the header to
-    the end of the FINAL line (weak models love wrapping output in prose)."""
+    """Tolerate chatter/code-fences around the ledger (weak models love wrapping
+    output in prose): everything from the header on is the ledger. It is not
+    cut at a FINAL line. Cutting at the first one let a later FAIL go unparsed
+    and validate as MATCHES INTENT; cutting at the last one still did whenever
+    the only FINAL was a line of captured program output."""
     i = text.find(HEADER)
-    if i == -1:
-        return None
-    tail = text[i:]
-    m = re.search(r"^FINAL:.*$", tail, re.M)
-    return tail[: m.end()] if m else tail
+    return None if i == -1 else text[i:]
 
 
 def parse(text):
-    ledger = {"mode": None, "criteria": [], "final": None}
-    body = extract_ledger(text)
+    ledger = {"mode": None, "criteria": [], "final": None, "stray_verdicts": 0}
+    body = extract_ledger(text.replace("\r\n", "\n").replace("\r", "\n"))
     if body is None:
         return None, ["missing header line 'INTENT-VERIFY LEDGER v1'"]
 
-    m = re.search(r"^mode:\s*(FULL|STRUCTURED)\s*$", body, re.M)
+    blocks = re.split(r"^(?=" + _CRIT_HEAD + ")", body, flags=re.M)
+    # Only the preamble sets the mode: a "mode:" line in captured output does not.
+    m = re.search(r"^mode:[ \t]*(FULL|STRUCTURED)[ \t]*$", blocks[0], re.M)
     if m:
         ledger["mode"] = m.group(1)
+    ledger["stray_verdicts"] = len(re.findall(r"^VERDICT:", blocks[0], re.M))
 
-    blocks = re.split(r"^(?=CRITERION\s+\d+\s*:)", body, flags=re.M)
     for block in blocks[1:]:
-        head = re.match(r"CRITERION\s+(\d+)\s*:\s*(.*)", block)
+        head = re.match(r"CRITERION[ \t]+(\d+)[ \t]*:[ \t]*([^\n]*)", block)
         crit = {
             "n": int(head.group(1)),
             "text": head.group(2).strip(),
             "verdict": None,
+            "verdicts": len(re.findall(r"^VERDICT:", block, re.M)),
             "cmd": None,
             "out": None,
             "reason": None,
         }
-        vm = re.search(r"^VERDICT:\s*(\S[^\n]*)$", block, re.M)
+        vm = re.search(r"^VERDICT:" + _VALUE, block, re.M)
         if vm:
             crit["verdict"] = vm.group(1).strip()
-        cm = re.search(r"^EVIDENCE-CMD:\s*(.+)$", block, re.M)
+        cm = re.search(r"^EVIDENCE-CMD:" + _VALUE, block, re.M)
         if cm:
             crit["cmd"] = cm.group(1).strip()
-        om = re.search(r"^EVIDENCE-OUT:\s*(.*?)(?=^(?:VERDICT:|EVIDENCE-CMD:|REASON:|CRITERION\s+\d+\s*:|FINAL:|OBSERVATIONS:)|\Z)", block, re.M | re.S)
+        # Multi-line by design: runs until the next field line.
+        om = re.search(r"^EVIDENCE-OUT:\s*(.*?)(?=" + _FIELD_START + r"|\Z)", block, re.M | re.S)
         if om:
             crit["out"] = om.group(1).strip()
-        rm = re.search(r"^REASON:\s*(.+)$", block, re.M)
+        rm = re.search(r"^REASON:" + _VALUE, block, re.M)
         if rm:
             crit["reason"] = rm.group(1).strip()
         ledger["criteria"].append(crit)
 
-    fm = re.search(r"^FINAL:\s*(.+)$", body, re.M)
-    if fm:
-        ledger["final"] = fm.group(1).strip()
+    finals = re.findall(r"^FINAL:" + _VALUE, body, re.M)
+    if finals:
+        ledger["final"] = finals[-1].strip()
     return ledger, []
 
 
@@ -91,17 +120,31 @@ def validate(text):
     if not crits:
         defects.append("no CRITERION blocks found")
         return ledger, defects
-    if ledger["mode"] == "STRUCTURED" and len(crits) > 5:
-        defects.append(f"STRUCTURED mode allows at most 5 criteria, found {len(crits)}")
+    if ledger["mode"] is None:
+        defects.append("missing 'mode: FULL' or 'mode: STRUCTURED' line")
+    if ledger["stray_verdicts"]:
+        defects.append("VERDICT line before the first CRITERION (every verdict must sit inside its criterion)")
 
-    seen = set()
+    # Without this a ledger holding only "CRITERION 3" validated: a dropped
+    # criterion was indistinguishable from a requirement nobody checked.
+    nums = [c["n"] for c in crits]
+    if nums != list(range(1, len(nums) + 1)):
+        defects.append(f"criteria must be numbered 1..N in order with no gaps or repeats, found {nums}")
+
+    exercised = [c for c in crits if c["verdict"] in ("PASS", "FAIL")]
+    if ledger["mode"] == "STRUCTURED" and len(exercised) > STRUCTURED_BUDGET:
+        defects.append(
+            f"STRUCTURED mode allows at most {STRUCTURED_BUDGET} exercised criteria, found {len(exercised)} "
+            "(list requirements beyond the budget as NOT-EXERCISED)")
+
     for c in crits:
         n = c["n"]
-        if n in seen:
-            defects.append(f"criterion {n}: duplicate number")
-        seen.add(n)
         if not c["text"]:
             defects.append(f"criterion {n}: empty criterion text")
+        if c["verdicts"] > 1:
+            defects.append(
+                f"criterion {n}: {c['verdicts']} VERDICT lines, exactly one is allowed "
+                "(indent any captured output line that starts with a ledger keyword)")
         if c["verdict"] not in VERDICTS:
             defects.append(f"criterion {n}: VERDICT must be PASS|FAIL|NOT-EXERCISED, got {c['verdict']!r}")
             continue
@@ -155,10 +198,23 @@ def verdict_of(ledger):
 
 
 def main(argv):
+    # The report echoes ledger text, which can hold any character. On Windows
+    # the default console/pipe encoding is a legacy codepage, where printing an
+    # arrow raised UnicodeEncodeError and exited 1 -- indistinguishable from
+    # "ledger invalid". Speak UTF-8 on every stream.
+    for stream in (sys.stdin, sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
     if len(argv) != 2:
         print(__doc__)
         return 2
-    text = sys.stdin.read() if argv[1] == "-" else open(argv[1], encoding="utf-8").read()
+    if argv[1] == "-":
+        text = sys.stdin.read()
+    else:
+        with open(argv[1], encoding="utf-8", errors="replace") as f:
+            text = f.read()
     ledger, defects = validate(text)
     if defects:
         for d in defects:

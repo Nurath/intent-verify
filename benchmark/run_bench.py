@@ -60,6 +60,11 @@ from oracle import CHECKS  # noqa: E402
 MAX_RETRIES = 1  # SKILL.md: one bounded re-request, then INCONCLUSIVE. Never a loop.
 
 
+def _read(path):
+    with open(path, encoding="utf-8") as f:
+        return f.read()
+
+
 # ---------------------------------------------------------------- oracle runs
 def run_check(fixture_path, expr):
     code = (
@@ -159,19 +164,31 @@ PROFILES = {
 
 
 # ---------------------------------------------------- orchestration under test
+class VerifierUnavailable(Exception):
+    """The verifier produced no reply to judge (timeout, launch failure, crash).
+    That is not a malformed ledger, so it earns no re-request: the case is
+    INCONCLUSIVE and the suite moves on."""
+
+
 def orchestrate(produce, case):
     """Reference implementation of SKILL.md step 6: validate, one bounded
-    re-request naming the defects, then classify. Returns (verdict, meta)."""
+    re-request naming the defects, then classify. Returns (verdict, meta);
+    meta["attempts"] holds every raw reply so a real run can be audited."""
     retries = 0
     last_defects = None
+    attempts = []
     for attempt in range(MAX_RETRIES + 1):
-        text = produce(case, attempt, last_defects)
+        try:
+            text = produce(case, attempt, last_defects)
+        except VerifierUnavailable as e:
+            return "INCONCLUSIVE", {"retries": retries, "defects": ["verifier unavailable: %s" % e], "attempts": attempts}
+        attempts.append(text)
         ledger, defects = validate_ledger.validate(text)
         if not defects:
-            return validate_ledger.verdict_of(ledger), {"retries": retries, "defects": []}
+            return validate_ledger.verdict_of(ledger), {"retries": retries, "defects": [], "attempts": attempts}
         retries += 1 if attempt < MAX_RETRIES else 0
         last_defects = defects
-    return "INCONCLUSIVE", {"retries": MAX_RETRIES, "defects": last_defects}
+    return "INCONCLUSIVE", {"retries": MAX_RETRIES, "defects": last_defects, "attempts": attempts}
 
 
 def score(rows):
@@ -189,27 +206,42 @@ def score(rows):
 
 # ----------------------------------------------------------------- cli mode
 def build_verifier_prompt(case):
-    agent = open(os.path.join(ROOT, "agents", "verifier.md"), encoding="utf-8").read()
+    agent = _read(os.path.join(ROOT, "agents", "verifier.md"))
     body = agent.split("---", 2)[2] if agent.startswith("---") else agent
     fixture = os.path.join(HERE, case["fixture"])
     return (
         body.strip()
         + "\n\n---\nMODE: FULL\n\nORIGINAL REQUEST (frozen, ground truth):\n\"%s\"\n\n" % case["request"]
         + "CODE TO VERIFY: %s\n" % fixture
-        + "Its content:\n```python\n%s```\n\n" % open(fixture, encoding="utf-8").read()
-        + "Derive criteria from the request first, run the code (python3 is available), then emit the ledger."
+        + "Its content:\n```python\n%s```\n\n" % _read(fixture)
+        + "Derive criteria from the request first, run the code (python3, or python where python3 "
+          "is not installed), then emit the ledger."
     )
 
 
-def run_cli_verifier(case, model, timeout, defects=None):
+def run_cli_verifier(case, model, timeout, defects=None, previous=None):
     prompt = build_verifier_prompt(case)
     if defects:
         prompt += ("\n\nYour previous ledger was REJECTED by mechanical validation for these defects:\n- "
-                   + "\n- ".join(defects)
-                   + "\nEmit a corrected INTENT-VERIFY LEDGER v1 and nothing else.")
-    cmd = ["claude", "-p", "--model", model, "--max-turns", "15",
+                   + "\n- ".join(defects))
+        if previous:
+            # A fresh `claude -p` remembers nothing: without its own reply it could
+            # only redo the work, not correct the ledger it already produced.
+            prompt += "\n\nYour previous reply was:\n<<<\n" + previous[-20000:] + "\n>>>"
+        prompt += "\nEmit a corrected INTENT-VERIFY LEDGER v1 and nothing else."
+    # Launch what PATH resolves to: on Windows the CLI can be a .cmd shim, which
+    # a bare "claude" cannot start (only .exe is tried).
+    cmd = [shutil.which("claude") or "claude", "-p", "--model", model, "--max-turns", "15",
            "--allowedTools", "Bash,Read,Grep,Glob"]
-    r = subprocess.run(cmd, input=prompt, capture_output=True, text=True, timeout=timeout)
+    try:
+        r = subprocess.run(cmd, input=prompt, capture_output=True, text=True,
+                           encoding="utf-8", errors="replace", timeout=timeout)
+    except subprocess.TimeoutExpired:
+        raise VerifierUnavailable("timed out after %ds" % timeout)
+    except OSError as e:
+        raise VerifierUnavailable("could not launch `claude`: %s" % e)
+    if r.returncode != 0 and not (r.stdout or "").strip():
+        raise VerifierUnavailable("exit %d: %s" % (r.returncode, (r.stderr or "").strip()[-300:]))
     return r.stdout
 
 
@@ -224,7 +256,7 @@ def main(argv=None):
     ap.add_argument("--no-write", action="store_true", help="don't write a results file")
     a = ap.parse_args(argv)
 
-    cases = json.load(open(os.path.join(HERE, "cases.json"), encoding="utf-8"))["cases"]
+    cases = json.loads(_read(os.path.join(HERE, "cases.json")))["cases"]
     if a.suite != "all":
         cases = [c for c in cases if c["suite"] == a.suite]
     if a.mode == "mock":
@@ -276,8 +308,12 @@ def main(argv=None):
         out.append("# Benchmark — %s — real verifier: %s (suite: %s, n=%d)\n" % (stamp, a.verifier, a.suite, len(cases)))
         rows = []
         for c in cases:
-            def produce(case, attempt, defects, _c=c):
-                return run_cli_verifier(_c, a.verifier, a.timeout, defects)
+            replies = []
+
+            def produce(case, attempt, defects, _c=c, _replies=replies):
+                text = run_cli_verifier(_c, a.verifier, a.timeout, defects, _replies[-1] if _replies else None)
+                _replies.append(text)
+                return text
             got, meta = orchestrate(produce, c)
             rows.append({"id": c["id"], "expected": c["expected"], "got": got, "meta": meta})
             print("%-18s expected=%-14s got=%-14s retries=%d" % (c["id"], c["expected"], got, meta["retries"]))
@@ -285,18 +321,28 @@ def main(argv=None):
         out.append("| metric | value |\n|---|---|")
         for k, v in s.items():
             out.append("| %s | %s |" % (k, v))
-        out.append("\n| case | expected | got | retries |\n|---|---|---|---|")
+        out.append("\n| case | expected | got | retries | note |\n|---|---|---|---|---|")
         for r in rows:
-            out.append("| %s | %s | %s | %d |" % (r["id"], r["expected"], r["got"], r["meta"]["retries"]))
+            note = "; ".join(r["meta"]["defects"])[:160].replace("|", "/")
+            out.append("| %s | %s | %s | %d | %s |" % (r["id"], r["expected"], r["got"], r["meta"]["retries"], note))
         exit_bad = s["false_match"] > 0
 
     report = "\n".join(out) + "\n"
     print(report)
     if not a.no_write:
-        dest = os.path.join(HERE, "results", "%s-%s.md" % (stamp, "mock-orchestration" if a.mode == "mock" else "cli-" + a.verifier))
+        name = "mock-orchestration" if a.mode == "mock" else "cli-" + re.sub(r"[^A-Za-z0-9._-]", "_", a.verifier)
+        dest = os.path.join(HERE, "results", "%s-%s.md" % (stamp, name))
         with open(dest, "w", encoding="utf-8") as f:
             f.write(report)
         print("written: %s" % os.path.relpath(dest, ROOT), file=sys.stderr)
+        if a.mode == "cli":
+            # Verdicts alone cannot be audited: keep every raw reply beside the report.
+            raw_dir = dest[:-3] + ".raw"
+            os.makedirs(raw_dir, exist_ok=True)
+            for r in rows:
+                for i, text in enumerate(r["meta"]["attempts"]):
+                    with open(os.path.join(raw_dir, "%s.%d.txt" % (r["id"], i)), "w", encoding="utf-8") as f:
+                        f.write(text or "")
     return 1 if exit_bad else 0
 
 
