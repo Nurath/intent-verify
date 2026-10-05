@@ -3,6 +3,7 @@ import os
 import subprocess
 import sys
 import unittest
+from unittest import mock
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(BASE, "benchmark"))
@@ -11,7 +12,8 @@ sys.path.insert(0, os.path.join(BASE, "tools"))
 import run_bench  # noqa: E402
 from oracle import CHECKS  # noqa: E402
 
-CASES = {c["id"]: c for c in json.load(open(os.path.join(BASE, "benchmark", "cases.json"), encoding="utf-8"))["cases"]}
+with open(os.path.join(BASE, "benchmark", "cases.json"), encoding="utf-8") as _f:
+    CASES = {c["id"]: c for c in json.load(_f)["cases"]}
 
 
 class TestOracle(unittest.TestCase):
@@ -95,6 +97,58 @@ class TestValidatorBypassRegression(unittest.TestCase):
         got, meta = run_bench.orchestrate(produce, case)
         self.assertEqual(got, case["expected"])
         self.assertTrue(seen["defects"], "retry must be told why the first ledger was rejected")
+
+
+class TestRealVerifierRunner(unittest.TestCase):
+    """--mode cli. Before v0.2.1 a timeout aborted the whole run with a
+    traceback, the exit status was ignored, and the retry was a fresh process
+    that never saw the reply it was asked to correct."""
+
+    def test_unavailable_verifier_is_inconclusive_and_not_retried(self):
+        calls = []
+        def produce(case, attempt, defects):
+            calls.append(attempt)
+            raise run_bench.VerifierUnavailable("timed out after 5s")
+        got, meta = run_bench.orchestrate(produce, CASES["median"])
+        self.assertEqual(got, "INCONCLUSIVE")
+        self.assertEqual(calls, [0], "nothing came back, so there is no ledger to correct")
+        self.assertIn("timed out", meta["defects"][0])
+
+    def test_timeout_launch_failure_and_silent_crash_are_unavailable(self):
+        outcomes = [subprocess.TimeoutExpired("claude", 5), FileNotFoundError("claude"),
+                    subprocess.CompletedProcess([], 1, stdout="", stderr="API error")]
+        for outcome in outcomes:
+            effect = outcome if isinstance(outcome, Exception) else None
+            with mock.patch.object(run_bench.subprocess, "run", side_effect=effect, return_value=outcome):
+                with self.assertRaises(run_bench.VerifierUnavailable, msg=repr(outcome)):
+                    run_bench.run_cli_verifier(CASES["median"], "some-model", 5)
+
+    def test_a_reply_is_judged_even_if_the_exit_status_is_nonzero(self):
+        done = subprocess.CompletedProcess([], 1, stdout="partial reply", stderr="")
+        with mock.patch.object(run_bench.subprocess, "run", return_value=done):
+            self.assertEqual(run_bench.run_cli_verifier(CASES["median"], "some-model", 5), "partial reply")
+
+    def test_retry_prompt_carries_the_defects_and_the_rejected_reply(self):
+        done = subprocess.CompletedProcess([], 0, stdout="ok", stderr="")
+        with mock.patch.object(run_bench.subprocess, "run", return_value=done) as run:
+            run_bench.run_cli_verifier(CASES["median"], "some-model", 5,
+                                       defects=["missing FINAL line"], previous="my earlier ledger")
+        prompt = run.call_args.kwargs["input"]
+        self.assertIn("missing FINAL line", prompt)
+        self.assertIn("my earlier ledger", prompt)
+
+    @mock.patch("builtins.print")
+    @mock.patch.object(run_bench.shutil, "which", return_value="claude")
+    def test_cli_run_feeds_each_rejected_reply_into_its_retry(self, _which, _print):
+        seen = []
+        def fake(case, model, timeout, defects=None, previous=None):
+            seen.append((case["id"], bool(defects), previous))
+            return "not a ledger" if previous is None else run_bench.faithful_ledger(case)
+        with mock.patch.object(run_bench, "run_cli_verifier", side_effect=fake):
+            code = run_bench.main(["--mode", "cli", "--verifier", "some-model", "--no-write"])
+        self.assertEqual(code, 0, "faithful retries reach every expected verdict")
+        first = [s for s in seen if s[0] == "median"]
+        self.assertEqual(first, [("median", False, None), ("median", True, "not a ledger")])
 
 
 if __name__ == "__main__":

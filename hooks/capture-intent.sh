@@ -30,7 +30,10 @@ fi
 root="${CLAUDE_PROJECT_DIR:-.}"
 dir="$root/.intent"
 mkdir -p "$dir" 2>/dev/null || exit 0
-max_prompt="${INTENT_VERIFY_MAX_PROMPT:-16000}"
+# Raw prompts live inside the user's project: make the directory ignore itself so
+# a broad `git add .` can never stage it. Written once; never overwritten.
+[ -f "$dir/.gitignore" ] || printf '*\n' > "$dir/.gitignore" 2>/dev/null
+max_prompt="${INTENT_VERIFY_MAX_PROMPT:-64000}"
 ts=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null)
 id="$(date +%s 2>/dev/null)-$$"
 
@@ -45,25 +48,43 @@ if [ -n "$PY" ] && [ -f "$self_dir/capture-intent.py" ]; then
 fi
 
 # Shared degraded-path helpers: redact the highest-risk shapes with sed,
-# truncate the WHOLE prompt with head -c, rotate at the size cap. Degraded
-# paths keep the bounded-ledger guarantees; only the redaction list is shorter.
+# truncate the WHOLE prompt with head -c, rotate at the size cap and keep 3
+# archives. These paths are best-effort, NOT equivalent to the canonical
+# script: the redaction list is shorter, entries carry no session id, and the
+# last-resort path cannot tell a verify-invocation from a task.
 max_log="${INTENT_VERIFY_MAX_LOG:-1048576}"
 redact_sed() {
     sed -E \
         -e 's/\bgithub_pat_[A-Za-z0-9_]{22,}/[REDACTED:github-pat]/g' \
         -e 's/\bgh[pousr]_[A-Za-z0-9]{36,}/[REDACTED:github-token]/g' \
+        -e 's/\bsk-(proj|svcacct|admin|ant-[a-z]+[0-9]*)-[A-Za-z0-9_-]{20,}/[REDACTED:api-key]/g' \
         -e 's/\bsk-(ant-)?[A-Za-z0-9]{20,}/[REDACTED:api-key]/g' \
         -e 's/\bxox[baprs]-[A-Za-z0-9-]{10,}/[REDACTED:slack-token]/g' \
         -e 's/\bAKIA[0-9A-Z]{16}/[REDACTED:aws-key-id]/g' 2>/dev/null || cat
 }
+prune_archives() {
+    # Keep the 3 newest rotation archives of "$1". The glob expands in name order
+    # and archive names embed a UTC timestamp, so the oldest come first.
+    set -- "$1".*.old
+    [ -e "$1" ] || return 0
+    while [ "$#" -gt 3 ]; do
+        rm -f "$1" 2>/dev/null
+        shift
+    done
+}
 rotate_at_cap() {
     for f in "$dir/log.jsonl" "$dir/log.md"; do
-        [ -f "$f" ] || continue
-        sz=$(wc -c < "$f" 2>/dev/null || echo 0)
-        [ "$sz" -gt "$max_log" ] 2>/dev/null && mv -f "$f" "$f.$(printf '%s' "$ts" | tr ':' '-').old" 2>/dev/null
+        if [ -f "$f" ]; then
+            sz=$(wc -c < "$f" 2>/dev/null || echo 0)
+            [ "$sz" -gt "$max_log" ] 2>/dev/null && mv -f "$f" "$f.$(printf '%s' "$ts" | tr ':' '-').old" 2>/dev/null
+        fi
+        prune_archives "$f"
     done
     return 0
 }
+# Only an unmistakable request to RUN verification is tagged; a task that merely
+# starts with "verify this ..." stays a task. Keep in sync with capture-intent.js.
+verify_re='^[[:space:]]*(/[[:space:]]*intent-verify([[:space:]:]|$)|intent-verify[[:space:].!?]*$|verify[[:space:]]+(this|that|it)([[:space:]]+[[:alnum:]_]+){0,2}[[:space:]]+(did|does|do)[[:space:]]+what[[:space:]]+i[[:space:]]+(asked|wanted)([^[:alnum:]_]|$)|did[[:space:]]+(it|this|that)[[:space:]]+(actually[[:space:]]+)?do[[:space:]]+what[[:space:]]+i[[:space:]]+(asked|wanted)([^[:alnum:]_]|$)|check[[:space:]]+(it|this|that)[[:space:]]+(actually[[:space:]]+)?did[[:space:]]+what[[:space:]]+i[[:space:]]+(asked|wanted)([^[:alnum:]_]|$)|verify[[:space:]]+(this|that|it)[[:space:].!?]*$)'
 
 # 3) jq path: extract AND JSON-encode safely (no hand-rolled escaping).
 if command -v jq >/dev/null 2>&1; then
@@ -72,9 +93,11 @@ if command -v jq >/dev/null 2>&1; then
     prompt=$(printf '%s' "$prompt" | redact_sed | head -c "$max_prompt")
     rotate_at_cap
     enc=$(printf '%s' "$prompt" | jq -Rs .) || exit 0
-    printf '{"id":"%s","ts":"%s","kind":"task","prompt":%s}\n' "$id" "$ts" "$enc" >> "$dir/log.jsonl" 2>/dev/null
+    kind=task
+    if printf '%s' "$prompt" | tr '\r\n' '  ' | grep -Eiq "$verify_re"; then kind=verify-invocation; fi
+    printf '{"id":"%s","ts":"%s","kind":"%s","prompt":%s}\n' "$id" "$ts" "$kind" "$enc" >> "$dir/log.jsonl" 2>/dev/null
     # shellcheck disable=SC2016  # literal backtick fence, not an expansion
-    printf '## %s · #%s · task\n\n````text\n%s\n````\n\n' "$ts" "$id" "$prompt" >> "$dir/log.md" 2>/dev/null
+    printf '## %s · #%s · %s\n\n````text\n%s\n````\n\n' "$ts" "$id" "$kind" "$prompt" >> "$dir/log.md" 2>/dev/null
     exit 0
 fi
 
