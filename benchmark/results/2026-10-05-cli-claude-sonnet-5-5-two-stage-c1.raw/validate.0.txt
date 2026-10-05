@@ -1,0 +1,12 @@
+{"ledger": 1,
+"nonce": "7a5993b7ad69c341326731abfff92b28",
+"mode": "FULL",
+"criteria": [
+{"id": 1, "text": "A username whose length after trimming surrounding whitespace is between 3 and 20 characters inclusive is valid", "verdict": "FAIL", "cmd": "python -c \"from validate import valid_username as v; print(repr('  '+'a'*20+'  '), v('  '+'a'*20+'  '))\"", "out": "'  aaaaaaaaaaaaaaaaaaaa  ' False (a 20-char name after trimming is rejected; boundary 'abc' True and 'a'*20 True without padding)"},
+{"id": 2, "text": "A username with fewer than 3 characters after trimming surrounding whitespace is invalid", "verdict": "FAIL", "cmd": "python -c \"from validate import valid_username as v; print(repr('  ab '), v('  ab '))\"", "out": "'  ab ' True (trimmed length is 2, yet reported valid)"},
+{"id": 3, "text": "A username with more than 20 characters after trimming surrounding whitespace is invalid", "verdict": "PASS", "cmd": "python -c \"from validate import valid_username as v; print(repr('a'*21), v('a'*21))\"", "out": "'aaaaaaaaaaaaaaaaaaaaa' False (21 chars with no whitespace is invalid; the same function wrongly accepts nothing here, but trimming is not involved in this case)"},
+{"id": 4, "text": "Surrounding whitespace is trimmed before the length is measured, so leading or trailing spaces do not count toward the length (e.g. ' ab ' is invalid, ' abc ' is valid)", "verdict": "FAIL", "cmd": "python -c \"from validate import valid_username as v; print(repr(' ab '), v(' ab '))\"", "out": "' ab ' True (expected False: no trimming is done, whitespace counts toward length)"}
+],
+"final": "DRIFTED — criteria 1, 2, 4 failed"}
+
+OBSERVATIONS: The implementation never trims (`3 <= len(u) <= 20` on the raw string). Criterion 3 passes only for untrimmed input. A padded 21-char name like ' '+'a'*20 would be wrongly rejected, which is the same defect as criterion 1.

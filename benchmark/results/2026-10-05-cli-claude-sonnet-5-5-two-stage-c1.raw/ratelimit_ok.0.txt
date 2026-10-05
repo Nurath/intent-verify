@@ -1,0 +1,11 @@
+{"ledger": 1,
+ "nonce": "ece6397cd011c259e934e7df9494d8d4",
+ "mode": "FULL",
+ "criteria": [
+  {"id": 1, "text": "Login attempts from a single IP are allowed up to 5 within a one-minute window", "verdict": "PASS", "cmd": "python t.py (time.time mocked; calls allow_login('A') 5 times at t=1000)", "out": "1 A first5: [True, True, True, True, True]"},
+  {"id": 2, "text": "A 6th login attempt from the same IP within the same minute is rejected (rate-limited)", "verdict": "PASS", "cmd": "python t.py (6th and 7th allow_login('A') at t=1000)", "out": "2 A 6th: False 7th: False"},
+  {"id": 3, "text": "Once the one-minute window has passed, the same IP can attempt to log in again", "verdict": "PASS", "cmd": "python t.py (advance mocked clock to +59s, then +61s, call allow_login('A'))", "out": "3 at +59s A: False\n3 at +61s A: True\n3 A next 4: [True, True, True, True] then: False"},
+  {"id": 4, "text": "An IP that has hit its limit does not cause login attempts from a different IP to be rejected", "verdict": "PASS", "cmd": "python t.py (allow_login('B') after A is limited)", "out": "4 B after A limited: True"},
+  {"id": 5, "text": "Attempts from different IPs are counted separately, so each IP gets its own allowance of 5 per minute", "verdict": "PASS", "cmd": "python t.py (B makes 5 allowed attempts in total after A used its 5, then a 6th)", "out": "5 B 2..5: [True, True, True, True] B 6th: False"}
+ ],
+ "final": "MATCHES INTENT"}

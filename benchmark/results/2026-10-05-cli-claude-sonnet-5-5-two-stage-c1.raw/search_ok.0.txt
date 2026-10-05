@@ -1,0 +1,10 @@
+{"ledger": 1,
+ "nonce": "69479ecdddaf50477820e8b267cbe362",
+ "mode": "FULL",
+ "criteria": [
+  {"id": 1, "text": "Every item that contains the query as a substring is included in the result", "verdict": "PASS", "cmd": "cd benchmark/impl/correct && python -c \"from search_ok import search; items=['Apple','pineapple','BANANA','cherry','apPLE pie','','Grape']; print(search(items,'apple'))\"", "out": "apple ['Apple', 'pineapple', 'apPLE pie']"},
+  {"id": 2, "text": "Items that do not contain the query are excluded from the result", "verdict": "PASS", "cmd": "same items; search(items,'an') and search(items,'zzz')", "out": "an ['BANANA']\nzzz []"},
+  {"id": 3, "text": "Matching ignores letter case: an item matches when it contains the query regardless of differences in upper/lower case between the item and the query", "verdict": "PASS", "cmd": "same items; search(items,'APPLE') and search(items,'ApPlE')", "out": "APPLE ['Apple', 'pineapple', 'apPLE pie']\nApPlE ['Apple', 'pineapple', 'apPLE pie']"}
+ ],
+ "final": "MATCHES INTENT"}
+OBSERVATIONS: python3 was not installed, so the commands ran with `python`, which is the fallback the instructions allow. The output lines come from one combined run of five queries against the same item list. Each command string above shows the call for that criterion, not the exact invocation.

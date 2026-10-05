@@ -21,8 +21,9 @@ asked, as opposed to what the diff says it does. A hook records what the user
 asks. On request, a skill freezes that request, has acceptance criteria written
 by a subagent that cannot read the project, has a second subagent on a
 different model run the code against each criterion, and validates the
-resulting ledger mechanically. The verdict is `MATCHES INTENT`, `DRIFTED` or
-`INCONCLUSIVE`.
+resulting ledger mechanically: the copy a `SubagentStop` hook captured, bound
+to its run by a nonce, not one the implementing session relayed. The verdict is
+`MATCHES INTENT`, `DRIFTED` or `INCONCLUSIVE`.
 
 ## Where things live
 
@@ -50,12 +51,12 @@ The version is `version` in `.claude-plugin/plugin.json`; the top heading of
 `CHANGELOG.md` must match it (a test enforces that). An installed copy changes
 only when someone runs the two update commands in the runbook and restarts.
 
-## Test baseline (0.3.2)
+## Test baseline (0.4.0)
 
-- `python3 -m unittest discover -s tests`: 193 tests. On Windows 18 skip (POSIX
+- `python3 -m unittest discover -s tests`: 206 tests. On Windows 18 skip (POSIX
   shell tests and one layout-specific test); on Linux and macOS the PowerShell
   classes skip instead.
-- `node hooks/capture-intent.js --selftest`: 26 of 26.
+- `node hooks/capture-intent.js --selftest`: 31 of 31.
 - `python3 benchmark/run_bench.py --mode mock --no-write`: exit 0.
 - CI: four checks (`ubuntu-latest`, `macos-latest`, `windows (powershell)`,
   `windows (pwsh)`), all required to be green before a merge.
@@ -92,15 +93,13 @@ flow scored 16 of 16 on the controlled set
    If it recurs, the candidate fix is a question after any FAIL whose evidence
    shows the code doing what the words say by another route. That question
    would come from the session that wrote the code, so it needs care.
-2. **Change C: both gating checks passed; build C1 or not is the decision.**
-   S2: a plugin `SubagentStop` hook fired for the plugin's agent, foreground and
-   background, and received its reply byte for byte; the matcher must be the
-   plugin-qualified name (`intent-verify:intent-verifier`), the bare name never
-   fires. M4: verifiers, Haiku 4.5 (T3) included, wrote a JSON ledger at least
-   as reliably as the text one, though long or backslash-heavy output was barely
-   exercised (`benchmark/results/2026-10-05-m4-json-ledger.md`). The design also
-   lists S3, which matters only for C2, and M3, which sizes the threat C1
-   removes.
+2. **Change C1 shipped in 0.4.0; watch the fallback.** The verifier's reply is
+   captured by the `SubagentStop` hook (matcher `intent-verify:intent-verifier`;
+   the bare name never fires) and validated with `--run`. When the hook files
+   nothing (`--run` exits 4), the session relays the reply and must say so. How
+   often that happens in real sessions is unknown. Long or backslash-heavy
+   evidence in a JSON ledger was barely exercised (M4). C2, validating inside
+   the hook and blocking to retry, is not built and needs S3 first.
 3. **Cross-model ablation** not run. On the controlled set the drift is planted
    and both arms would likely sit at the ceiling. A fair test needs drift a
    model produced itself, which is the field-recall work.

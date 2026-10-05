@@ -38,11 +38,23 @@ class TestSkillText(unittest.TestCase):
 
     def test_reader_commands_say_where_the_ledger_is(self):
         commands = [l for l in self.SKILL.splitlines() if "capture-intent.js" in l]
-        self.assertEqual(len(commands), 2, "one --list and one --freeze")
+        self.assertEqual([("--list" in l, "--freeze" in l, "--begin-run" in l) for l in commands],
+                         [(True, False, False), (False, True, False), (False, False, True)])
         for line in commands:
             self.assertIn('--data "${CLAUDE_PLUGIN_DATA}"', line)
             self.assertIn('--project "${CLAUDE_PROJECT_DIR}"', line)
-        self.assertIn('--session "${CLAUDE_SESSION_ID}"', commands[0])
+        for line in (commands[0], commands[2]):
+            self.assertIn('--session "${CLAUDE_SESSION_ID}"', line)
+
+    def test_the_verdict_comes_from_the_reply_the_hook_captured(self):
+        """0.4.0: the session that wrote the code no longer relays the evidence."""
+        step6 = self.SKILL[self.SKILL.index("**Validate the ledger before trusting it.**"):self.SKILL.index("**Report the ledger**")]
+        commands = [l.strip() for l in step6.splitlines() if "validate_ledger.py" in l]
+        self.assertEqual(len(commands), 2)
+        self.assertIn('--run "<run dir>" --manifest "<scratch>/manifest.json"', commands[0])
+        self.assertIn('--nonce <nonce> --manifest "<scratch>/manifest.json"', commands[1])
+        self.assertIn("relayed by you and not\n   captured", step6)
+        self.assertIn("RUN NONCE:", self.SKILL[self.SKILL.index("**Dispatch the verifier (stage 2).**"):])
 
     def test_the_procedure_writes_nothing_inside_the_project(self):
         self.assertNotIn(".intent/frozen", self.SKILL)
@@ -87,10 +99,21 @@ class TestPluginFiles(unittest.TestCase):
     def test_the_verifier_agent_cannot_edit(self):
         self.assertEqual(self.tools("verifier.md"), {"Read", "Grep", "Glob", "Bash"})
 
-    def test_hooks_register_both_capture_events_in_exec_form(self):
+    def test_the_verifier_writes_a_ledger_bound_to_its_run(self):
+        body = read("agents", "verifier.md")
+        self.assertIn("RUN NONCE", body)
+        self.assertIn('"nonce": "<the RUN NONCE, copied exactly>"', body)
+        self.assertNotIn("INTENT-VERIFY LEDGER v1", body)
+
+    def test_hooks_register_every_capture_event_in_exec_form(self):
         hooks = json.loads(read("hooks", "hooks.json"))["hooks"]
-        self.assertEqual(sorted(hooks), ["PostToolUse", "UserPromptSubmit"])
+        self.assertEqual(sorted(hooks), ["PostToolUse", "SubagentStop", "UserPromptSubmit"])
         self.assertEqual(hooks["PostToolUse"][0]["matcher"], "AskUserQuestion")
+        # Plugin agents are matched by their qualified name; the bare name never fires.
+        self.assertEqual(hooks["SubagentStop"][0]["matcher"], "intent-verify:intent-verifier")
+        qualified = json.loads(read(".claude-plugin", "plugin.json"))["name"] + ":" + frontmatter("agents", "verifier.md")["name"].strip()
+        self.assertEqual(hooks["SubagentStop"][0]["matcher"], qualified)
+        self.assertIn("const VERIFIER_AGENT = '%s';" % qualified, read("hooks", "capture-intent.js"))
         for entries in hooks.values():
             for hook in entries[0]["hooks"]:
                 self.assertEqual((hook["command"], hook["args"]), ("node", ["${CLAUDE_PLUGIN_ROOT}/hooks/capture-intent.js"]))

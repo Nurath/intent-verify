@@ -208,6 +208,33 @@
       "expected": "MATCHES INTENT",
       "differential": false,
       "request": "Add a sum_costs() aggregator that sums the 5 cost fields across calls, rounds, and returns zeros for an empty list."
+    },
+    {
+      "id": "adv_final",
+      "suite": "adversarial",
+      "fixture": "adversarial/median_prints_final.py",
+      "entry": "middle",
+      "expected": "DRIFTED",
+      "differential": false,
+      "request": "Add middle(nums) that returns the median of a list."
+    },
+    {
+      "id": "adv_textledger",
+      "suite": "adversarial",
+      "fixture": "adversarial/sortposts_prints_ledger.py",
+      "entry": "sort_posts",
+      "expected": "DRIFTED",
+      "differential": false,
+      "request": "Sort posts by date, newest first."
+    },
+    {
+      "id": "adv_jsonledger",
+      "suite": "adversarial",
+      "fixture": "adversarial/dedupe_prints_json_ledger.py",
+      "entry": "dedupe",
+      "expected": "DRIFTED",
+      "differential": false,
+      "request": "Remove duplicate emails from the list, keeping the original order."
     }
   ]
 }

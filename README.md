@@ -152,13 +152,22 @@ criteria (with every tool disabled) and verifying, each call in
 **0.3.2, re-run the same way.** Ambiguities are now recorded only when a
 criterion depends on them, and asked only after the verdict, when it rests on
 one. On the 16 requests: 3 questions instead of 41, 13 requests with none, none
-asked before verifying, verdicts 16 of 16. On the 7 field requests, run
+asked before verifying, verdicts 16 of 16; a later run with the same prompt kept
+8, so that count varies. On the 7 field requests, run
 two-stage for the first time: 4 questions, 5 of 7 expected verdicts. One is a
 false `DRIFTED` (`recall_weekend`: the criterion expects the code to recognise a
 weekend date, the code takes a flag from the caller), a second reading that
 nobody recorded and that an up-front question might have caught. The other is
 `INCONCLUSIVE` because the fixture has no earlier version to compare against.
 [`benchmark/results/2026-10-05-cli-claude-sonnet-5-5-two-stage-ambiguity-fix-2.md`](benchmark/results/2026-10-05-cli-claude-sonnet-5-5-two-stage-ambiguity-fix-2.md).
+
+**0.4.0, the run-bound ledger.** Each verification is now a run with its own
+nonce, the verifier writes a JSON ledger carrying it, and a hook keeps the
+reply. Checked three ways: a live headless verification, where the hook filed
+the real verifier's reply and the validator confirmed it from that copy; the 16
+controlled cases again, 16 of 16 with every ledger valid on the first reply; and
+three drifted fixtures that print forged verdicts, 3 of 3 `DRIFTED`.
+[`benchmark/results/2026-10-05-c1-run-bound-ledger.md`](benchmark/results/2026-10-05-c1-run-bound-ledger.md).
 
 What this does not show is that two-stage beats single-stage: single-stage was
 also 16 of 16 in July, so the set is at its ceiling for both. It shows that 0.3
@@ -209,8 +218,10 @@ Invoke `intent-verify` after an agent completes a non-trivial change, or say
    the request can be read two ways, you are asked, once.
 3. **Dispatches the verifier** on a different model, with the request, the
    criteria and the code.
-4. **Validates the ledger mechanically** — evidence for every PASS, a consistent
-   verdict, every criterion from step 2 present — and returns it with a verdict:
+4. **Validates the ledger mechanically** — the copy a hook captured from the
+   verifier, bound to the run by a nonce the code under test cannot know;
+   evidence for every PASS, a consistent verdict, every criterion from step 2
+   present — and returns it with a verdict:
    `MATCHES INTENT` / `DRIFTED` / `INCONCLUSIVE` (when the change couldn't
    honestly be exercised, or the request itself was incomplete — never
    laundered into a pass).
@@ -226,9 +237,11 @@ This repo is its own Claude Code marketplace. From Claude Code:
 /plugin install intent-verify
 ```
 
-Two hooks then record what you ask for — each prompt (`UserPromptSubmit`) and
-each multiple-choice question you answer (`PostToolUse` on `AskUserQuestion`).
-The skill runs on request, and the two subagents are bundled. No manual wiring.
+Hooks then record what you ask for — each prompt (`UserPromptSubmit`) and each
+multiple-choice question you answer (`PostToolUse` on `AskUserQuestion`) — and
+keep the verifier's final reply (`SubagentStop`), so the session that wrote the
+code never relays the evidence it is judged on. The skill runs on request, and
+the two subagents are bundled. No manual wiring.
 
 To update an existing install from a shell, then restart Claude Code:
 
@@ -363,7 +376,7 @@ agents/
   criteria.md                stage 1: criteria from the request alone (no file or shell tools)
   verifier.md                stage 2: the independent verifier (budget, ledger grammar)
 hooks/
-  hooks.json                 registers the two capture hooks (node, exec form)
+  hooks.json                 registers the capture hooks: prompts, answers, the verifier's reply (node, exec form)
   capture-intent.js          capture + the --list / --show / --freeze reader
   capture-intent.py/.ps1/.sh alternates for manual wiring (0.2 in-project layout)
 models/
@@ -466,13 +479,12 @@ to be the discriminators.
   look one criterion went unexercised for this reason; the code in that run was
   wrong on other criteria, so the verdict did not turn on it. In the 16-case
   run it did not happen.
-- **The ledger is text with program output inside it.** A reply holding any
-  verdict other than PASS cannot validate as `MATCHES INTENT`, whatever the
-  program printed. A verifier that writes no ledger of its own and quotes one
-  printed by the code under test is caught only by the skill reading the reply.
-- **The session that wrote the code still handles the evidence.** It saves the
-  verifier's reply and runs the validator on it. Nothing detects a ledger that
-  was tidied on the way.
+- **The verdict path is closed only while the hook runs.** Since 0.4.0 the
+  verifier's reply is kept by the plugin's `SubagentStop` hook and bound to its
+  run by a nonce. If the hook does not fire (an older Claude Code, or one of the
+  alternate hooks), the session relays the reply itself and the report has to
+  say so. A verifier that put the nonce into a command it ran would hand it to
+  the code under test; it is told never to.
 - **Prompts are stored in plaintext**, partly redacted: in your home directory
   with the plugin's hook, inside the project with the alternates.
 - **Ground-truth limit.** On genuinely ambiguous requests there may be no single
@@ -509,11 +521,11 @@ to be the discriminators.
       of 41
 - [ ] Cross-model ablation, on drift a model produced itself (the controlled
       set's drift is planted, and both arms would likely sit at its ceiling)
-- [ ] A structured ledger bound to its run and captured by a hook, so the
-      implementing session no longer handles the evidence
-      ([design](docs/DESIGN-v0.3.md), Change C). Its two gating checks passed
-      in October: [hook spike](benchmark/results/2026-10-05-platform-spikes.md),
-      [JSON ledger](benchmark/results/2026-10-05-m4-json-ledger.md)
+- [x] **v0.4.0** — the verdict path without the implementer: a JSON ledger
+      bound to its run by a nonce and captured by a `SubagentStop` hook
+      ([design](docs/DESIGN-v0.3.md), Change C1; gated on a
+      [hook spike](benchmark/results/2026-10-05-platform-spikes.md) and the
+      [JSON ledger measurement](benchmark/results/2026-10-05-m4-json-ledger.md))
 - [ ] Field recall on real *under-specified* tasks with a known intended answer
 - [ ] Registry refresh (the snapshot predates current models)
 
@@ -542,6 +554,12 @@ cannot read the project, and a ledger that leaves one out is invalid. "Your
 prompts stay out of git" was a self-ignoring directory inside the project; the
 ledger is now outside it. The mechanisms are tested, and in its first full run
 the two-stage flow reached the expected verdict on all 16 controlled cases.
+
+v0.4.0 makes a third one mechanical: "an independent second opinion". Until
+then the session that wrote the code carried the verifier's reply to the
+validator, and a ledger printed by the code under test could pass for the
+verifier's own. Now a hook keeps the reply and only the ledger carrying the
+run's nonce counts.
 
 ## License
 

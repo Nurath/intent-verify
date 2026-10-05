@@ -44,6 +44,7 @@ import datetime as _dt
 import json
 import os
 import re
+import secrets
 import shutil
 import subprocess
 import sys
@@ -254,11 +255,12 @@ def build_criteria_prompt(case):
     return _agent_body("criteria.md") + "\n\n---\nREQUEST:\n" + case["request"] + "\n"
 
 
-def build_verifier_prompt(case, manifest=None):
+def build_verifier_prompt(case, manifest=None, nonce=None):
     fixture = os.path.join(HERE, case["fixture"])
     prompt = (
         _agent_body("verifier.md")
-        + "\n\n---\nMODE: FULL\n\nORIGINAL REQUEST (frozen, ground truth):\n\"%s\"\n\n" % case["request"]
+        + "\n\n---\nMODE: FULL\n" + ("RUN NONCE: %s\n" % nonce if nonce else "")
+        + "\nORIGINAL REQUEST (frozen, ground truth):\n\"%s\"\n\n" % case["request"]
         + "CODE TO VERIFY: %s\n" % fixture
         + "Its content:\n```python\n%s```\n\n" % _read(fixture)
     )
@@ -325,9 +327,23 @@ def run_cli(prompt, model, timeout, no_tools=False):
     return d.get("result") or ""
 
 
-def run_cli_verifier(case, model, timeout, defects=None, previous=None, manifest=None):
-    prompt = build_verifier_prompt(case, manifest) + _retry_note(defects, previous, "INTENT-VERIFY LEDGER v1")
+def run_cli_verifier(case, model, timeout, defects=None, previous=None, manifest=None, nonce=None):
+    what = "ledger JSON object carrying the run nonce" if nonce else validate_ledger.HEADER
+    prompt = build_verifier_prompt(case, manifest, nonce) + _retry_note(defects, previous, what)
     return run_cli(prompt, model, timeout)
+
+
+def as_json(text, nonce):
+    """A text ledger rewritten as the JSON ledger the verifier writes since
+    0.4.0, for simulated verifiers. Text that holds no ledger is returned as is."""
+    ledger, _ = validate_ledger.parse(text)
+    if ledger is None:
+        return text
+    crits = [{k: v for k, v in (("id", c["n"]), ("text", c["text"]), ("verdict", c["verdict"]),
+                                ("cmd", c["cmd"]), ("out", c["out"]), ("reason", c["reason"])) if v is not None}
+             for c in ledger["criteria"]]
+    return json.dumps({"ledger": 1, "nonce": nonce, "mode": ledger["mode"], "criteria": crits,
+                       "final": ledger["final"]}, ensure_ascii=False)
 
 
 def derive_manifest(case, model, timeout):
@@ -347,7 +363,7 @@ def derive_manifest(case, model, timeout):
 def main(argv=None):
     ap = argparse.ArgumentParser(description="intent-verify benchmark harness")
     ap.add_argument("--mode", choices=["mock", "cli"], default="mock")
-    ap.add_argument("--suite", default="controlled", choices=["controlled", "field", "field-recall", "all"])
+    ap.add_argument("--suite", default="controlled", choices=["controlled", "field", "field-recall", "adversarial", "all"])
     ap.add_argument("--profiles", nargs="+", default=list(PROFILES), choices=list(PROFILES))
     ap.add_argument("--verifier", help="[cli] model to run the verifier on, e.g. claude-opus-4-8")
     ap.add_argument("--two-stage", action="store_true",
@@ -444,14 +460,17 @@ def main(argv=None):
             if a.two_stage and manifest is None:
                 got, meta = "INCONCLUSIVE", {"retries": 0, "defects": [failure], "attempts": []}
             else:
-                replies = []
+                # A run of its own, as the skill makes: the verifier copies the
+                # nonce into its JSON ledger, and only that ledger counts.
+                replies, nonce = [], secrets.token_hex(16)
 
-                def produce(case, attempt, defects, _c=c, _replies=replies, _manifest=manifest):
+                def produce(case, attempt, defects, _c=c, _replies=replies, _manifest=manifest, _nonce=nonce):
                     text = run_cli_verifier(_c, a.verifier, a.timeout, defects,
-                                            _replies[-1] if _replies else None, _manifest)
+                                            _replies[-1] if _replies else None, _manifest, _nonce)
                     _replies.append(text)
                     return text
-                got, meta = orchestrate(produce, c, manifest)
+                got, meta = orchestrate(produce, c, manifest,
+                                        lambda text, m, _n=nonce: validate_ledger.validate_json(text, m, _n))
             meta["stage1"], meta["manifest"] = stage1, manifest
             meta["calls"] = USAGE[first_call:]
             rows.append({"id": c["id"], "expected": c["expected"], "got": got, "meta": meta})

@@ -61,6 +61,7 @@ Any other outcome means the validator itself failed, not what it was given.
 """
 import argparse
 import json
+import os
 import re
 import sys
 import textwrap
@@ -239,6 +240,73 @@ def verdict_of(ledger):
     return None
 
 
+# ------------------------------------------------------- run-bound JSON ledger
+def _json_ledgers(text):
+    """Every JSON object in a reply that has a "ledger" key. One that sits
+    inside a JSON string (captured output) has escaped quotes and never parses
+    on its own, so it is not found."""
+    decoder = json.JSONDecoder()
+    found = []
+    for m in re.finditer(r"\{", text):
+        try:
+            obj, _end = decoder.raw_decode(text, m.start())
+        except ValueError:
+            continue
+        if isinstance(obj, dict) and "ledger" in obj:
+            found.append(obj)
+    return found
+
+
+def validate_json(text, manifest, nonce):
+    """The verifier's JSON ledger for one run: the object whose "nonce" is that
+    run's. A ledger printed by the code under test cannot carry the nonce, so
+    quoting one, whole or in part, proves nothing. The object is rewritten as a
+    text ledger and checked by validate(), so both encodings face the same
+    rules. Returns (ledger, defects), as validate() does."""
+    ledgers = _json_ledgers(text)
+    obj = next((o for o in ledgers if o.get("nonce") == nonce), None)
+    if obj is None:
+        other = f"; {len(ledgers)} JSON ledger(s) without it" if ledgers else ""
+        return None, [f"no JSON ledger in the reply carries this run's nonce{other}"]
+    defects = []
+    crits = obj.get("criteria")
+    if not isinstance(crits, list):
+        return None, ['"criteria" must be a list']
+
+    def one(value):
+        return " ".join(str(value).split())
+
+    lines = [HEADER, f"mode: {one(obj.get('mode', ''))}", ""]
+    for c in crits:
+        if not isinstance(c, dict):
+            defects.append('every entry in "criteria" must be an object')
+            continue
+        wrong = [k for k in ("text", "verdict", "cmd", "out", "reason") if k in c and not isinstance(c[k], str)]
+        if wrong:
+            defects.append(f"criterion {c.get('id')}: {', '.join(wrong)} must be strings")
+        lines += [f"CRITERION {c.get('id')}: {one(c.get('text', ''))}", f"VERDICT: {one(c.get('verdict', ''))}"]
+        if c.get("cmd"):
+            lines.append(f"EVIDENCE-CMD: {one(c['cmd'])}")
+        if c.get("out"):
+            # Indented, so no line of captured output can pass for structure.
+            lines += ["EVIDENCE-OUT:"] + ["  " + line for line in str(c["out"]).splitlines()]
+        if c.get("reason"):
+            lines.append(f"REASON: {one(c['reason'])}")
+        lines.append("")
+    lines.append(f"FINAL: {one(obj.get('final', ''))}")
+    ledger, more = validate("\n".join(lines) + "\n", manifest)
+    return ledger, defects + more
+
+
+def captured_reply(run_dir):
+    """(nonce, newest reply file or None) of a run made by capture-intent.js
+    --begin-run. The SubagentStop hook files each verifier reply there."""
+    with open(os.path.join(run_dir, "run.json"), encoding="utf-8") as f:
+        nonce = json.load(f)["nonce"]
+    replies = sorted(n for n in os.listdir(run_dir) if n.startswith("reply-") and n.endswith(".txt"))
+    return nonce, (os.path.join(run_dir, replies[-1]) if replies else None)
+
+
 # ------------------------------------------------------------------ manifests
 def _find_json_object(text, key):
     """The first JSON object in a model's reply that has `key`; prose and code
@@ -391,17 +459,21 @@ def main(argv):
             pass
     ap = argparse.ArgumentParser(
         prog="validate_ledger.py", description="Validate an intent-verify ledger or criterion manifest.",
-        epilog="Exit codes: 0 valid, 1 invalid (defects listed), 2 usage error or unreadable file.")
+        epilog="Exit codes: 0 valid, 1 invalid (defects listed), 2 usage error or unreadable file, "
+               "4 --run holds no captured reply.")
     ap.add_argument("ledger", nargs="?", help="a verifier's reply, or - for stdin")
+    ap.add_argument("--run", metavar="DIR", help="validate the reply the SubagentStop hook captured for this run "
+                                                 "(a directory made by capture-intent.js --begin-run)")
+    ap.add_argument("--nonce", metavar="HEX", help="with a ledger file: the run's nonce, for a reply the session saved itself")
     ap.add_argument("--manifest", metavar="FILE", help="criteria the ledger must cover")
     ap.add_argument("--check-manifest", metavar="REPLY", help="validate a criteria deriver's reply instead of a ledger")
     ap.add_argument("--request", metavar="FILE", help="with --check-manifest: the frozen request each quote must occur in")
     ap.add_argument("--manifest-from", metavar="FILE", help="build a manifest from criteria you already have, one per line")
     ap.add_argument("--out", metavar="FILE", help="with --check-manifest or --manifest-from: write the manifest here")
     a = ap.parse_args(argv[1:])
-    if sum(x is not None for x in (a.ledger, a.check_manifest, a.manifest_from)) != 1:
+    if sum(x is not None for x in (a.ledger, a.run, a.check_manifest, a.manifest_from)) != 1:
         ap.print_usage(sys.stderr)
-        print("validate_ledger.py: give a ledger, or --check-manifest, or --manifest-from", file=sys.stderr)
+        print("validate_ledger.py: give a ledger, or --run, or --check-manifest, or --manifest-from", file=sys.stderr)
         return 2
 
     try:
@@ -421,17 +493,36 @@ def main(argv):
             if defects:
                 print(f"validate_ledger.py: {a.manifest} is not a valid manifest: {defects[0]}", file=sys.stderr)
                 return 2
-        text = _read(a.ledger)
+        source = None
+        if a.run is not None:
+            nonce, reply = captured_reply(a.run)
+            if reply is None:
+                print(f"NO REPLY CAPTURED: the SubagentStop hook filed nothing under {a.run}. Either the hook "
+                      "did not run, or the verifier's ledger did not carry this run's nonce.")
+                return 4
+            text, source = _read(reply), f"captured by the hook: {os.path.basename(reply)}"
+        else:
+            text, nonce = _read(a.ledger), a.nonce
+            if nonce is not None:
+                source = "relayed by the session, not captured by the hook"
     except OSError as e:
         # Exit 1 means "invalid". A file that is not there is a different problem.
         print(f"validate_ledger.py: cannot read or write {e.filename}: {e.strerror}", file=sys.stderr)
         return 2
+    except (KeyError, ValueError) as e:
+        print(f"validate_ledger.py: {a.run} is not a run directory (no usable run.json): {e}", file=sys.stderr)
+        return 2
 
-    ledger, defects = validate(text, manifest)
+    if nonce is not None:
+        ledger, defects = validate_json(text, manifest, nonce)
+    elif HEADER not in text and _json_ledgers(text):
+        ledger, defects = None, ["this is a JSON ledger: check it with --run, or with --nonce if you saved the reply yourself"]
+    else:
+        ledger, defects = validate(text, manifest)
     if defects:
         return _report(defects)
     covered = f" (all {len(manifest['criteria'])} manifest criteria covered)" if manifest else ""
-    print(f"VALID: {len(ledger['criteria'])} criteria{covered}, final = {ledger['final']}")
+    print(f"VALID: {len(ledger['criteria'])} criteria{covered}, final = {ledger['final']}" + (f" ({source})" if source else ""))
     return 0
 
 

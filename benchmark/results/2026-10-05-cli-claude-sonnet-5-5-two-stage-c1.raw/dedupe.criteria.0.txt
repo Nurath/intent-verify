@@ -1,0 +1,10 @@
+{"manifest": 1,
+ "criteria": [
+  {"id": 1, "text": "The resulting list contains no email address more than once", "quote": "Remove duplicate emails from the list"},
+  {"id": 2, "text": "The remaining emails appear in the same relative order as in the original list", "quote": "keeping the original order"},
+  {"id": 3, "text": "Every distinct email in the original list still appears in the result (none are dropped other than repeats)", "quote": null}
+ ],
+ "ambiguities": [
+  {"question": "Are emails that differ only in letter case (e.g. A@x.com and a@x.com) duplicates of each other?", "assumed": "No; emails are duplicates only when they are exactly equal strings", "criteria": [1, 3]},
+  {"question": "Which occurrence of a repeated email is kept: the first or the last?", "assumed": "The first occurrence is kept, at its original position", "criteria": [2]}
+ ]}

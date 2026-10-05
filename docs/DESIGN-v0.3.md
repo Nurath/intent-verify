@@ -1,8 +1,8 @@
 # intent-verify v0.3 — design proposal
 
-**Status:** Changes A and B and the smaller fixes were built in 0.3.0. Change C
-was not. Later the same day the open platform checks passed and the two-stage
-flow was run on the controlled set. The proposal below is kept as it was
+**Status:** Changes A and B and the smaller fixes were built in 0.3.0. Later the
+same day the open platform checks passed, the two-stage flow was run on the
+controlled set, and Change C1 was built in 0.4.0. The proposal below is kept as it was
 reviewed; this box records what came of it.
 **Baseline:** v0.2.1 (PR #2). **Written:** 2026-10-05.
 
@@ -12,7 +12,7 @@ reviewed; this box records what came of it.
 |---|---|
 | **A** criterion manifest, two-stage dispatch | Built: `agents/criteria.md`, `validate_ledger.py --check-manifest / --manifest / --manifest-from`, the skill's stage 1 and ambiguity question, `run_bench.py --two-stage`, the `omitter` mock profile. |
 | **B** ledger outside the project | Built for the plugin's hook: per-session files under the data directory, retention, legacy `.intent/` read as a fallback, `--show`. |
-| **C** verdict path without the implementer | Not built. Its two gating checks passed later on 2026-10-05: S2 (a plugin `SubagentStop` hook receives the agent's complete reply) and M4 (verifiers wrote a JSON ledger at least as reliably as text). Whether to build C1 is the open decision; S3 and M3 are still unrun. |
+| **C** verdict path without the implementer | **C1 built in 0.4.0**, after its gating checks passed (S2: a plugin `SubagentStop` hook receives the agent's complete reply; M4: verifiers wrote a JSON ledger at least as reliably as text). Departures: the run directory is named by its nonce, so the hook finds the run from the reply alone; `--begin-run` prints the run and nonce rather than a whole dispatch block; the text ledger stays accepted without a run. M3 was done as offline tests plus three adversarial fixtures. C2 (validate in the hook, block to retry) not built; S3 unrun. |
 | Smaller fixes | 1 to 4 built. 5 (`maxTurns`) not: it needs a number from real runs. |
 | Measurements M1–M5 | M2 in part: the controlled set run two-stage, 16 of 16 (`benchmark/results/2026-10-05-cli-claude-sonnet-5-5-two-stage.md`), with no single-stage arm on current models. M4 run: `benchmark/results/2026-10-05-m4-json-ledger.md`. M1, M3 and M5 not run; M1 as specified would likely tie at the set's ceiling. Before all that, eight runs as a smoke test: `benchmark/results/2026-10-05-two-stage-smoke.md`. |
 | Spikes | S1, S2, S4, S5 and S7 seen: `benchmark/results/2026-10-05-platform-spikes.md`. S3 not run (it matters only for C2); S6 not needed. |

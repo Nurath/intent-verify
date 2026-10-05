@@ -1,0 +1,11 @@
+{"ledger": 1,
+"nonce": "288d33fae1935ac273f1dadff96f5407",
+"mode": "FULL",
+"criteria": [
+{"id": 1, "text": "Tasks are returned ordered by priority, with the highest-priority tasks first", "verdict": "PASS", "cmd": "python -c \"from sorttasks import sort_tasks; a=[{'id':'a','priority':2,'due':'2026-03-01'},{'id':'b','priority':2,'due':'2026-01-01'},{'id':'c','priority':5,'due':'2026-12-01'},{'id':'d','priority':1,'due':'2026-01-01'},{'id':'e','priority':2,'due':'2026-02-01'}]; print([t['id'] for t in sort_tasks(a)])\"", "out": "['c', 'a', 'b', 'e', 'd']  (priorities 5,2,2,2,1: highest first)"},
+{"id": 2, "text": "Among tasks with equal priority, the task with the earliest due date comes first", "verdict": "FAIL", "cmd": "same command as criterion 1; the three priority-2 tasks are a (due 2026-03-01), b (due 2026-01-01), e (due 2026-02-01)", "out": "['c', 'a', 'b', 'e', 'd']  (the priority-2 tasks come out as a, b, e, in input order, with due dates 03-01, 01-01, 02-01. Expected b, e, a. The code's key is only -priority, so ties keep input order and the due date is ignored.)"},
+{"id": 3, "text": "Sorting does not add or drop tasks: the output contains exactly the same tasks as the input", "verdict": "PASS", "cmd": "same script, printing sorted(ids of output)==sorted(ids of input) and len(output)==len(input)", "out": "True True"}
+],
+"final": "DRIFTED — criteria 2 failed"}
+
+OBSERVATIONS: The implementation sorts only on `-t["priority"]`. Equal-priority tasks stay in their original input order, because Python's sort is stable, so the tie-break by due date from the request is missing.

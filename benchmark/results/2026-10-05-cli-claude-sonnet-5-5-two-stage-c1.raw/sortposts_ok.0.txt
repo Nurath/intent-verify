@@ -1,0 +1,10 @@
+{"ledger": 1,
+ "nonce": "14ebb9f89260d0a5986e465ecd5361cd",
+ "mode": "FULL",
+ "criteria": [
+  {"id": 1, "text": "Posts are returned ordered by their date, with the most recent date first and the oldest last", "verdict": "PASS", "cmd": "cd benchmark/impl/correct && python -c \"from sortposts_ok import sort_posts; p=[{'id':1,'date':'2024-01-05'},{'id':2,'date':'2025-03-01'},{'id':3,'date':'2023-12-31'},{'id':4,'date':'2025-03-01'},{'id':5,'date':'2024-11-20'}]; r=sort_posts(p); print([x['date'] for x in r])\"", "out": "['2025-03-01', '2025-03-01', '2024-11-20', '2024-01-05', '2023-12-31']"},
+  {"id": 2, "text": "Sorting does not add or drop posts: the set of posts returned is the same as before sorting", "verdict": "PASS", "cmd": "same script; compared sorted ids and lengths of result vs. a deep copy of the input, checked the input was unchanged, and called sort_posts([])", "out": "ids equal: True, len equal: True, input unchanged: True; sort_posts([]) -> []"}
+ ],
+ "final": "MATCHES INTENT"}
+
+OBSERVATIONS: I only tested ISO-formatted string dates, which sort correctly as strings. Dates in other formats, such as "5/1/2024", would sort lexically, but the request didn't specify a format.
