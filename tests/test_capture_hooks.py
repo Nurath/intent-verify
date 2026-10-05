@@ -449,6 +449,38 @@ class TestNodeHook(HookContract, unittest.TestCase):
         with open(files[0], encoding="utf-8", newline="") as f:
             self.assertEqual(f.read(), reply)
 
+    def test_a_report_handed_back_through_a_tool_call_is_captured(self):
+        """The desktop app ends a subagent with a SubagentHandback tool call and
+        no final text. 0.4.0 read only last_assistant_message and filed nothing."""
+        run = json.loads(self._cli("--begin-run").stdout)
+        report = 'checked\n{"ledger": 1, "nonce": "%s", "criteria": []}\n' % run["nonce"]
+        transcript = os.path.join(self.dir, "session", "subagents", "agent-a1.jsonl")
+        os.makedirs(os.path.dirname(transcript))
+        said = lambda content: {"type": "assistant", "message": {"role": "assistant", "content": content}}  # noqa: E731
+        with open(transcript, "w", encoding="utf-8") as f:
+            for entry in (said([{"type": "text", "text": "Running it."}]),
+                          said([{"type": "tool_use", "name": "SubagentHandback", "input": {"message": report}}]),
+                          {"type": "user", "message": {"role": "user", "content": [{"type": "tool_result", "content": "ok"}]}}):
+                f.write(json.dumps(entry) + "\n")
+        named = {"agent_transcript_path": transcript, "last_assistant_message": ""}
+        beside_the_session = {"transcript_path": os.path.join(self.dir, "session.jsonl")}
+        for where in (named, beside_the_session):
+            h = run_hook(self.CMD, json.dumps({"hook_event_name": "SubagentStop", "agent_id": "a1",
+                                               "agent_type": "intent-verify:intent-verifier", **where}), self.dir)
+            self.assertEqual((h.returncode, h.stdout), (0, ""))
+        files = glob.glob(os.path.join(run["run"], "reply-*.txt"))
+        self.assertEqual(len(files), 2)
+        for path in files:
+            with open(path, encoding="utf-8", newline="") as f:
+                self.assertEqual(f.read(), report)
+
+    def test_a_stop_with_no_reply_anywhere_leaves_a_note(self):
+        """So 'the hook ran and found nothing' can be told from 'it never ran'."""
+        h = self._stop("intent-verify:intent-verifier", "")
+        self.assertEqual((h.returncode, h.stdout), (0, ""))
+        notes = glob.glob(os.path.join(data_dir(self.dir), "projects", "*", "runs", "_unmatched", "empty-*.json"))
+        self.assertEqual(len(notes), 1)
+
     def test_no_other_subagents_reply_is_kept(self):
         run = json.loads(self._cli("--begin-run").stdout)
         for agent in ("intent-verifier", "general-purpose", "other-plugin:intent-verifier"):

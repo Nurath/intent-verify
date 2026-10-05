@@ -601,13 +601,17 @@ class TestForgedLedgers(unittest.TestCase):
 class TestRunCommandLine(unittest.TestCase):
     TOOL = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools", "validate_ledger.py")
 
-    def _run(self, *args, replies=(), run_json=True, ledger=None):
+    def _run(self, *args, replies=(), run_json=True, ledger=None, unmatched=()):
         with tempfile.TemporaryDirectory() as d:
             run = os.path.join(d, NONCE)
             os.mkdir(run)
             if run_json:
                 with open(os.path.join(run, "run.json"), "w", encoding="utf-8") as f:
                     json.dump({"nonce": NONCE}, f)
+            for name in unmatched:  # written after run.json, as the hook would
+                os.makedirs(os.path.join(d, "_unmatched"), exist_ok=True)
+                with open(os.path.join(d, "_unmatched", name), "w", encoding="utf-8") as f:
+                    f.write("{}")
             for i, text in enumerate(replies):
                 with open(os.path.join(run, "reply-%d-agent.txt" % i), "w", encoding="utf-8") as f:
                     f.write(text)
@@ -629,6 +633,14 @@ class TestRunCommandLine(unittest.TestCase):
         r = self._run("--run", "{run}")
         self.assertEqual(r.returncode, 4, r.stdout + r.stderr)
         self.assertIn("NO REPLY CAPTURED", r.stdout)
+        self.assertIn("no sign that the hook ran", r.stdout)
+
+    def test_it_says_when_the_hook_ran_and_found_nothing_for_the_run(self):
+        """0.4.0 filed nothing in the desktop app, and nothing showed whether
+        the hook had run at all."""
+        r = self._run("--run", "{run}", unmatched=["empty-x1-agent.json"])
+        self.assertEqual(r.returncode, 4, r.stdout + r.stderr)
+        self.assertIn("The hook ran since this run began (empty-x1-agent.json in _unmatched)", r.stdout)
 
     def test_a_reply_the_session_saved_says_it_was_relayed(self):
         r = self._run("{d}/ledger.txt", "--nonce", NONCE, ledger=jledger())

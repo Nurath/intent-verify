@@ -33,3 +33,14 @@ results. The restarted session's hook was already writing to the plugin data
 directory. S2 was run headless with a probe plugin (`claude -p --plugin-dir`,
 user settings left out so no installed plugin interfered). Each was seen once,
 on one Windows machine.
+
+## What S2 missed
+
+S2 holds for headless sessions and says nothing about the desktop app, and
+0.4.0 was built on it as if it did. In the desktop app a subagent hands its
+report back through a `SubagentHandback` tool call and writes no final text, so
+`last_assistant_message` does not carry the report. The first desktop check of
+0.4.0 found the hook had filed nothing. Whether `SubagentStop` fires there for a
+plugin's agent is still unknown: 0.4.0 left no trace either way. 0.4.1 reads the
+subagent's transcript and leaves a note when it runs and finds no reply. The
+record is `2026-10-05-c1-run-bound-ledger.md`, section 4.

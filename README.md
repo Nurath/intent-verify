@@ -168,6 +168,9 @@ the real verifier's reply and the validator confirmed it from that copy; the 16
 controlled cases again, 16 of 16 with every ledger valid on the first reply; and
 three drifted fixtures that print forged verdicts, 3 of 3 `DRIFTED`.
 [`benchmark/results/2026-10-05-c1-run-bound-ledger.md`](benchmark/results/2026-10-05-c1-run-bound-ledger.md).
+The first check in the desktop app then failed: the hook filed nothing there,
+and the skill fell back to the relayed reply and said so. 0.4.1 fixes how the
+reply is read; see the limitations below for what is still unseen.
 
 What this does not show is that two-stage beats single-stage: single-stage was
 also 16 of 16 in July, so the set is at its ceiling for both. It shows that 0.3
@@ -479,12 +482,16 @@ to be the discriminators.
   look one criterion went unexercised for this reason; the code in that run was
   wrong on other criteria, so the verdict did not turn on it. In the 16-case
   run it did not happen.
-- **The verdict path is closed only while the hook runs.** Since 0.4.0 the
-  verifier's reply is kept by the plugin's `SubagentStop` hook and bound to its
-  run by a nonce. If the hook does not fire (an older Claude Code, or one of the
-  alternate hooks), the session relays the reply itself and the report has to
-  say so. A verifier that put the nonce into a command it ran would hand it to
-  the code under test; it is told never to.
+- **The verdict path is closed only while the hook runs, and that is proven in
+  headless sessions only.** Since 0.4.0 the verifier's reply is kept by the
+  plugin's `SubagentStop` hook and bound to its run by a nonce. In the desktop
+  app 0.4.0 captured nothing: a subagent there hands its report back through a
+  tool call, which the hook did not read. 0.4.1 reads it from the subagent's
+  transcript and handles the transcript of that failed check, but the hook has
+  not yet been seen firing in the desktop app. Whenever it files nothing, the
+  session relays the reply itself and the report has to say so. A verifier that
+  put the nonce into a command it ran would hand it to the code under test; it
+  is told never to.
 - **Prompts are stored in plaintext**, partly redacted: in your home directory
   with the plugin's hook, inside the project with the alternates.
 - **Ground-truth limit.** On genuinely ambiguous requests there may be no single
@@ -526,6 +533,9 @@ to be the discriminators.
       ([design](docs/DESIGN-v0.3.md), Change C1; gated on a
       [hook spike](benchmark/results/2026-10-05-platform-spikes.md) and the
       [JSON ledger measurement](benchmark/results/2026-10-05-m4-json-ledger.md))
+- [x] **v0.4.1** — the hook reads a report handed back through a tool call, as
+      the desktop app does it; 0.4.0 captured nothing there
+- [ ] See the hook capture a verifier's reply in the desktop app
 - [ ] Field recall on real *under-specified* tasks with a known intended answer
 - [ ] Registry refresh (the snapshot predates current models)
 

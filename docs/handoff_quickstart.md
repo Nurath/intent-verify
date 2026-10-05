@@ -51,12 +51,12 @@ The version is `version` in `.claude-plugin/plugin.json`; the top heading of
 `CHANGELOG.md` must match it (a test enforces that). An installed copy changes
 only when someone runs the two update commands in the runbook and restarts.
 
-## Test baseline (0.4.0)
+## Test baseline (0.4.1)
 
-- `python3 -m unittest discover -s tests`: 206 tests. On Windows 18 skip (POSIX
+- `python3 -m unittest discover -s tests`: 209 tests. On Windows 18 skip (POSIX
   shell tests and one layout-specific test); on Linux and macOS the PowerShell
   classes skip instead.
-- `node hooks/capture-intent.js --selftest`: 31 of 31.
+- `node hooks/capture-intent.js --selftest`: 34 of 34.
 - `python3 benchmark/run_bench.py --mode mock --no-write`: exit 0.
 - CI: four checks (`ubuntu-latest`, `macos-latest`, `windows (powershell)`,
   `windows (pwsh)`), all required to be green before a merge.
@@ -93,13 +93,17 @@ flow scored 16 of 16 on the controlled set
    If it recurs, the candidate fix is a question after any FAIL whose evidence
    shows the code doing what the words say by another route. That question
    would come from the session that wrote the code, so it needs care.
-2. **Change C1 shipped in 0.4.0; watch the fallback.** The verifier's reply is
-   captured by the `SubagentStop` hook (matcher `intent-verify:intent-verifier`;
-   the bare name never fires) and validated with `--run`. When the hook files
-   nothing (`--run` exits 4), the session relays the reply and must say so. How
-   often that happens in real sessions is unknown. Long or backslash-heavy
-   evidence in a JSON ledger was barely exercised (M4). C2, validating inside
-   the hook and blocking to retry, is not built and needs S3 first.
+2. **Change C1: works headless, unproven in the desktop app. First thing to
+   check.** 0.4.0 captured nothing in the desktop app, because a subagent
+   there hands its report back through a `SubagentHandback` tool call and the
+   hook read only `last_assistant_message`. 0.4.1 reads the subagent's
+   transcript and handles the real transcript of that failure, but nobody has
+   yet seen `SubagentStop` fire for a plugin's agent in the desktop app. Check:
+   run one verification in a desktop session on 0.4.1 and read step 6. "Captured
+   by the hook" means it works. Exit 4 now says whether the hook left a trace;
+   "no sign that the hook ran" means the desktop app always relays, and the
+   README must say so. Also open: long or backslash-heavy evidence in a JSON
+   ledger (M4), and C2, which needs S3 first.
 3. **Cross-model ablation** not run. On the controlled set the drift is planted
    and both arms would likely sit at the ceiling. A fair test needs drift a
    model produced itself, which is the field-recall work.
