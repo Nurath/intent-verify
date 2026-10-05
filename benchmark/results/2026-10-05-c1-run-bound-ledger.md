@@ -84,11 +84,28 @@ else the last text. Given the real transcript of this failed check and a
 and `--run` validated it as captured. It did the same when the payload named
 only the session's transcript and the agent id.
 
+## 5. The desktop app on 0.4.1: captured
+
+The same check, repeated in a desktop session started on 0.4.1: a new run, the
+installed verifier dispatched on the `median` fixture.
+
+- The hook fired and filed the verifier's report in the run directory. Nothing
+  went to `_unmatched/`. So `SubagentStop` does fire for a plugin's agent in the
+  desktop app; what 0.4.0 lacked was the place to read the report from.
+- The filed copy is byte-identical to the report the verifier handed back
+  (4,441 characters).
+- `validate_ledger.py --run`: `VALID: 5 criteria (all 5 manifest criteria
+  covered), final = DRIFTED — criteria 2, 3, 4 failed (captured by the hook:
+  reply-….txt)`.
+
+The run is kept as `2026-10-05-c1-desktop.raw/` (local paths replaced, session
+id replaced) and re-validates as it is.
+
 ## What is still open
 
-- Whether `SubagentStop` fires for a plugin's agent in the desktop app at all.
-  0.4.0 left no trace either way. 0.4.1 leaves a note when the hook runs and
-  finds no reply, so the next desktop verification settles it.
+- Each harness has been seen once, on one Windows machine: headless (section 1)
+  and the desktop app (section 5). The interactive terminal has not been
+  checked separately.
 - When the hook files nothing, the session relays the reply and must say so. How
   often that happens in real use is unknown.
 - Long, backslash-heavy evidence inside a JSON ledger was barely exercised.

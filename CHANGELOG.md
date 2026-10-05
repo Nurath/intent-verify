@@ -24,6 +24,11 @@
   trace either way. The first verification on 0.4.1 settles it: a captured
   reply, a note, or no sign that the hook ran.
 
+### Seen after the release
+- The same evening, in a desktop session on 0.4.1: the hook filed the
+  verifier's report under its run, byte for byte, and `--run` validated it as
+  captured. The run is kept in `benchmark/results/2026-10-05-c1-desktop.raw/`.
+
 ## 0.4.0 — 2026-10-05
 
 ### Changed
