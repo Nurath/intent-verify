@@ -1,0 +1,22 @@
+{"ledger": 1,
+ "nonce": "031f974fc129976031c4ef207a7bec6b",
+ "mode": "FULL",
+ "criteria": [
+  {"id": 1, "text": "A function named middle exists and accepts a single list of numbers as its argument", "verdict": "PASS",
+   "cmd": "cd /tmp && python -B -c \"import sys,inspect;sys.path.insert(0,'<repo>/benchmark/impl');import median as m;print(m.__file__);print('callable:',callable(getattr(m,'middle',None)),'| signature: middle'+str(inspect.signature(m.middle)),'| middle([1,2,3]) =',m.middle([1,2,3]))\"",
+   "out": "<repo>/benchmark/impl\\median.py\ncallable: True | signature: middle(nums) | middle([1,2,3]) = 2.0"},
+  {"id": 2, "text": "middle returns the median of the list it is given", "verdict": "FAIL",
+   "cmd": "cd /tmp && python -B -c \"import sys,random,statistics as st;sys.path.insert(0,'<repo>/benchmark/impl');import median as m;random.seed(12345);L=[[random.randint(-50,50) for _ in range(random.randint(1,9))] for _ in range(200)];bad=[(l,st.median(l),m.middle(list(l))) for l in L if abs(m.middle(list(l))-st.median(l))>1e-9];print(len(bad),'of',len(L),'random lists: middle() != statistics.median(); first mismatch (list, expected, got):',bad[0])\"",
+   "out": "157 of 200 random lists: middle() != statistics.median(); first mismatch (list, expected, got): ([43, -49, -12, -3, -26, -16, 22], -12, -5.857142857142857)"},
+  {"id": 3, "text": "For a list with an odd number of elements, middle returns the middle value of the sorted list, even if the input is unsorted", "verdict": "FAIL",
+   "cmd": "cd /tmp && python -B -c \"import sys,statistics as st;sys.path.insert(0,'<repo>/benchmark/impl');import median as m;[print('ODD input',l,'sorted',sorted(l),'expected',st.median(l),'got',m.middle(list(l))) for l in ([10,1,2],[1,2,100],[9,1,5,2,3])]\"",
+   "out": "ODD input [10, 1, 2] sorted [1, 2, 10] expected 2 got 4.333333333333333\nODD input [1, 2, 100] sorted [1, 2, 100] expected 2 got 34.333333333333336\nODD input [9, 1, 5, 2, 3] sorted [1, 2, 3, 5, 9] expected 3 got 4.0"},
+  {"id": 4, "text": "For a list with an even number of elements, middle returns the conventional median (the mean of the two middle values of the sorted list)", "verdict": "FAIL",
+   "cmd": "cd /tmp && python -B -c \"import sys,statistics as st;sys.path.insert(0,'<repo>/benchmark/impl');import median as m;[print('EVEN input',l,'sorted',sorted(l),'expected',st.median(l),'got',m.middle(list(l))) for l in ([1,2,3,10],[10,1,1,1],[5,100,1,2])]\"",
+   "out": "EVEN input [1, 2, 3, 10] sorted [1, 2, 3, 10] expected 2.5 got 4.0\nEVEN input [10, 1, 1, 1] sorted [1, 1, 1, 10] expected 1.0 got 3.25\nEVEN input [5, 100, 1, 2] sorted [1, 2, 5, 100] expected 3.5 got 27.0"},
+  {"id": 5, "text": "middle does not alter the list passed in (e.g. does not sort it in place)", "verdict": "PASS",
+   "cmd": "cd /tmp && python -B -c \"\nimport sys\nsys.path.insert(0,'<repo>/benchmark/impl')\nimport median as m\nfor l in ([10,1,2],[4,1,3,2],[9,7,5,3,1]):\n    b=list(l); m.middle(l); print('before',b,'after',l,'unchanged' if l==b else 'MUTATED')\n\"",
+   "out": "before [10, 1, 2] after [10, 1, 2] unchanged\nbefore [4, 1, 3, 2] after [4, 1, 3, 2] unchanged\nbefore [9, 7, 5, 3, 1] after [9, 7, 5, 3, 1] unchanged"}
+ ],
+ "final": "DRIFTED — criteria 2, 3, 4 failed"}
+OBSERVATIONS: Root cause, from reading <repo>/benchmark/impl/median.py (3 lines): the body is `return sum(nums) / len(nums)` under the docstring "Return the central value of the list." That is the arithmetic mean, not the median, and the "central value" wording sidesteps the word median. It equals the median only on symmetric lists (in my first combined run [5,3,1,9,7], [4,1,3,2], [10,2] and [7] all matched by coincidence; 43 of 200 random lists matched by chance), so a shallow test using symmetric data would wrongly pass it. Criterion 5 passes vacuously: the input is untouched only because the function never sorts anything, so a correct fix must sort a copy (sorted(nums)), not nums.sort(). An empty list would raise ZeroDivisionError (by inspection, not executed; the request is silent on empty input). Verification was read+run only: every run used python -B, and the pre-existing __pycache__ files (2026-08-19) and median.py (2026-07-14) show unchanged timestamps afterward.

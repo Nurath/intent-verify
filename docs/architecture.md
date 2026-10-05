@@ -213,7 +213,7 @@ still invalid after one re-request is `INCONCLUSIVE`.
 | `${CLAUDE_PLUGIN_ROOT}`, `${CLAUDE_PROJECT_DIR}`, `${CLAUDE_SESSION_ID}`, `${CLAUDE_PLUGIN_DATA}` filled into skill text | the skill's commands | yes (2.1.289, desktop app) |
 | An agent whose `tools` allowlist names only inert tools launches | the criteria agent's isolation | yes (2.1.289); `TodoWrite` no longer exists, `TaskStop` keeps it launching |
 | `PostToolUse` fires for `AskUserQuestion` with the answer | `decision` entries | yes (2.1.289, desktop app) |
-| `SubagentStop` fires for a plugin's agent, foreground and background, with `last_assistant_message` equal to its final message; the matcher is the plugin-qualified name | capturing the verifier's reply | headless: yes (2.1.289, probe and a live verification). Desktop app: not seen; a subagent there ends with a `SubagentHandback` tool call and no final text, so the hook reads the subagent's transcript (`agent_transcript_path`, or `<session>/subagents/agent-<id>.jsonl`) |
+| `SubagentStop` fires for a plugin's agent, foreground and background, with `last_assistant_message` equal to its final message; the matcher is the plugin-qualified name | capturing the verifier's reply | headless: yes (2.1.289, probe and a live verification). Desktop app: yes from 0.4.1 (one verification); a subagent there ends with a `SubagentHandback` tool call and no final text, so the hook reads the subagent's transcript (`agent_transcript_path`, or `<session>/subagents/agent-<id>.jsonl`) |
 | `omitClaudeMd` in agent frontmatter | keeps project instructions out of the criteria agent | documented (needs 2.1.271+) |
 
 The record of what was and was not checked is

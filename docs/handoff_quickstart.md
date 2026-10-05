@@ -93,17 +93,16 @@ flow scored 16 of 16 on the controlled set
    If it recurs, the candidate fix is a question after any FAIL whose evidence
    shows the code doing what the words say by another route. That question
    would come from the session that wrote the code, so it needs care.
-2. **Change C1: works headless, unproven in the desktop app. First thing to
-   check.** 0.4.0 captured nothing in the desktop app, because a subagent
-   there hands its report back through a `SubagentHandback` tool call and the
-   hook read only `last_assistant_message`. 0.4.1 reads the subagent's
-   transcript and handles the real transcript of that failure, but nobody has
-   yet seen `SubagentStop` fire for a plugin's agent in the desktop app. Check:
-   run one verification in a desktop session on 0.4.1 and read step 6. "Captured
-   by the hook" means it works. Exit 4 now says whether the hook left a trace;
-   "no sign that the hook ran" means the desktop app always relays, and the
-   README must say so. Also open: long or backslash-heavy evidence in a JSON
-   ledger (M4), and C2, which needs S3 first.
+2. **Change C1 works headless and, from 0.4.1, in the desktop app; each seen
+   once.** 0.4.0 captured nothing in the desktop app, because a subagent there
+   hands its report back through a `SubagentHandback` tool call and the hook
+   read only `last_assistant_message`. 0.4.1 reads the subagent's transcript,
+   and the desktop check then passed: the hook's copy matched the report byte
+   for byte (`benchmark/results/2026-10-05-c1-run-bound-ledger.md`). A harness
+   is a separate thing to test: check hook behaviour in the one users run, not
+   only headless. Not checked: the interactive terminal. Still open: long or
+   backslash-heavy evidence in a JSON ledger (M4), and C2, which needs S3
+   first.
 3. **Cross-model ablation** not run. On the controlled set the drift is planted
    and both arms would likely sit at the ceiling. A fair test needs drift a
    model produced itself, which is the field-recall work.

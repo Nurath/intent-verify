@@ -41,6 +41,10 @@ S2 holds for headless sessions and says nothing about the desktop app, and
 report back through a `SubagentHandback` tool call and writes no final text, so
 `last_assistant_message` does not carry the report. The first desktop check of
 0.4.0 found the hook had filed nothing. Whether `SubagentStop` fires there for a
-plugin's agent is still unknown: 0.4.0 left no trace either way. 0.4.1 reads the
-subagent's transcript and leaves a note when it runs and finds no reply. The
-record is `2026-10-05-c1-run-bound-ledger.md`, section 4.
+plugin's agent was unknown at that point: 0.4.0 left no trace either way. 0.4.1
+reads the subagent's transcript and leaves a note when it runs and finds no
+reply. With 0.4.1 loaded the same desktop check passed: the hook fired and its
+copy matched the verifier's report byte for byte. So `SubagentStop` does fire
+for a plugin's agent in the desktop app, and the report is in the subagent's
+transcript, not in `last_assistant_message`. The record is
+`2026-10-05-c1-run-bound-ledger.md`, sections 4 and 5.
