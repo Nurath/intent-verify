@@ -121,7 +121,9 @@ never in the project and never in `<data>`: `request.md`, `criteria-reply.txt`,
 `truncated`, `redactions` and `reason` appear only when they apply. Prompts the
 harness submits itself are not a `kind`: the reader recognises them by their
 opening tag (`<task-notification>`, `<agent-message>`, `<scheduled-task>`,
-`<ci-monitor-event>`) and labels them when listing.
+`<ci-monitor-event>`) and labels them when listing. An agent's report — a
+`<task-notification>`, or an `<agent-message>` framed "[Subagent hand-back]" —
+is labelled `agent-report` and left out unless `--all` is given.
 
 ### 4.2 Criterion manifest
 

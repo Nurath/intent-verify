@@ -302,9 +302,16 @@ function readProject(roots, project) {
   return entries.sort((a, b) => (String(a.ts) < String(b.ts) ? -1 : String(a.ts) > String(b.ts) ? 1 : 0));
 }
 
+// A background agent's report is never the user's request. It arrives as a
+// <task-notification>, or as an <agent-message> framed "[Subagent hand-back]";
+// both are 'agent-report'. An <agent-message> without that frame comes from
+// another session and can be a request, so it keeps its own label.
 function sourceOf(entry) {
-  const m = HARNESS_SOURCE.exec(typeof entry.prompt === 'string' ? entry.prompt : '');
-  return m ? m[1] : null;
+  const text = typeof entry.prompt === 'string' ? entry.prompt : '';
+  const m = HARNESS_SOURCE.exec(text);
+  if (!m) return null;
+  const handBack = m[1] === 'agent-message' && text.slice(0, 400).includes('[Subagent hand-back]');
+  return m[1] === 'task-notification' || handBack ? 'agent-report' : m[1];
 }
 
 // One compact line per entry, so long prompts can be scanned without loading
@@ -326,10 +333,10 @@ function list(roots, project, session, limit, all) {
       scope = `NO entries for session ${session} -- showing other sessions (${everything.length} total); confirm with the user before using one`;
     }
   }
-  // A background agent reporting back is submitted as a prompt too. It is never
-  // the user's request, so it is left out unless asked for.
-  const reports = rows.filter((e) => sourceOf(e) === 'task-notification').length;
-  if (!all) rows = rows.filter((e) => sourceOf(e) !== 'task-notification');
+  // An agent reporting back is submitted as a prompt too. It is never the
+  // user's request, so it is left out unless asked for.
+  const reports = rows.filter((e) => sourceOf(e) === 'agent-report').length;
+  if (!all) rows = rows.filter((e) => sourceOf(e) !== 'agent-report');
   const lines = [`# intent ledger: ${scope}; newest last` +
     (reports && !all ? `; ${reports} background-agent reports hidden (--all shows them)` : '')];
   if (!everything.length) {
@@ -468,11 +475,14 @@ function selftest() {
 
   // Reader: session scoping, hidden agent reports, a ledger left in the project.
   cap('<task-notification>\n<task-id>abc</task-id> agent finished', { session_id: 's1' });
+  cap('<agent-message from="a1b2">\n[Subagent hand-back] The text below is the final report\n  hand-back body', { session_id: 's1' });
+  cap('<agent-message from="other-session">\nplease also add tests', { session_id: 's1' });
   let listing = list(roots, project, 's1', 20, false);
   ok('list-scopes-to-session', listing.includes(first.id) && listing.includes('TRUNCATED') &&
      listing.includes('capture-incomplete') && listing.includes('decision') && !listing.includes('404 handler'));
-  ok('list-hides-agent-reports', !listing.includes('agent finished') && listing.includes('1 background-agent reports hidden') &&
-     list(roots, project, 's1', 20, true).includes('agent finished'));
+  ok('list-hides-agent-reports', !listing.includes('agent finished') && !listing.includes('hand-back body') &&
+     listing.includes('2 background-agent reports hidden') && list(roots, project, 's1', 20, true).includes('hand-back body'));
+  ok('list-keeps-a-message-from-another-session', listing.includes('please also add tests') && listing.includes('  agent-message  '));
   ok('list-flags-unknown-session', list(roots, project, 'nope', 3, false).includes('NO entries for session nope'));
   ok('list-flags-missing-session-id', list(roots, project, '', 3, false).includes('session id unavailable'));
   ok('list-says-where-it-looked', list(roots, path.join(tmp, 'elsewhere'), 's1', 3, false).includes('# looked in: '));

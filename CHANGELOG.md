@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.3.1 — 2026-10-05
+
+### Fixed
+- **Subagent hand-backs crowded the listing.** A subagent's report reaches the
+  session as an `<agent-message>` framed "[Subagent hand-back]", and 0.3.0
+  treated every `<agent-message>` as a possible request, labelling it and
+  keeping it. In the session that built 0.3.0, ten of fifteen captured entries
+  were hand-backs, enough to push the real requests out of the default ten-row
+  listing. They are now hidden with the other background-agent reports
+  (`--all` shows them, labelled `agent-report`). A message from another
+  session, which has no such frame, is still listed.
+
 ## 0.3.0 — 2026-10-05
 
 The two changes 0.2.1 could not make without changing a contract, the smaller

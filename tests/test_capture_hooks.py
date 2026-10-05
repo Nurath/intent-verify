@@ -326,21 +326,30 @@ class TestNodeHook(HookContract, unittest.TestCase):
         self.assertIn("session id unavailable", self._cli("--list", "--session", "").stdout)
 
     def test_list_hides_background_agent_reports_and_labels_other_harness_prompts(self):
-        """The harness submits prompts of its own. A background agent's report is
-        never the user's request; a message from another session, a scheduled
-        task or a CI event can be the thing that started the work."""
+        """The harness submits prompts of its own. An agent's report is never the
+        user's request, in either form it arrives in. A message from another
+        session, a scheduled task or a CI event can be what started the work.
+
+        In the session that built 0.3.0, ten of fifteen captured entries were
+        subagent hand-backs; listed, they pushed the real request out of view."""
         prompts = ["sort newest first",
                    "<task-notification>\n<task-id>x1</task-id> agent finished",
+                   "<agent-message from=\"a1b2\">\n[Subagent hand-back] The text below is the final report\n  hand-back body",
                    "<agent-message from=\"other\">please also add tests",
                    "<ci-monitor-event>1 CI check failed"]
         for p in prompts:
             run_hook(self.CMD, json.dumps({"prompt": p, "session_id": "A"}), self.dir)
         out = self._cli("--list", "--session", "A").stdout
         self.assertNotIn("agent finished", out)
-        self.assertIn("1 background-agent reports hidden", out)
+        self.assertNotIn("hand-back body", out)
+        self.assertIn("2 background-agent reports hidden", out)
+        self.assertIn("please also add tests", out)
         self.assertIn("  agent-message  ", out)
         self.assertIn("  ci-monitor-event  ", out)
-        self.assertIn("agent finished", self._cli("--list", "--session", "A", "--all").stdout)
+        everything = self._cli("--list", "--session", "A", "--all").stdout
+        self.assertIn("agent finished", everything)
+        self.assertIn("hand-back body", everything)
+        self.assertIn("  agent-report  ", everything)
 
     def test_list_says_where_it_looked_when_it_finds_nothing(self):
         out = self._cli("--list").stdout
