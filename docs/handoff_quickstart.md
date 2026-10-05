@@ -50,12 +50,12 @@ The version is `version` in `.claude-plugin/plugin.json`; the top heading of
 `CHANGELOG.md` must match it (a test enforces that). An installed copy changes
 only when someone runs the two update commands in the runbook and restarts.
 
-## Test baseline (0.3.0)
+## Test baseline (0.3.1)
 
 - `python3 -m unittest discover -s tests`: 181 tests. On Windows 18 skip (POSIX
   shell tests and one layout-specific test); on Linux and macOS the PowerShell
   classes skip instead.
-- `node hooks/capture-intent.js --selftest`: 25 of 25.
+- `node hooks/capture-intent.js --selftest`: 26 of 26.
 - `python3 benchmark/run_bench.py --mode mock --no-write`: exit 0.
 - CI: four checks (`ubuntu-latest`, `macos-latest`, `windows (powershell)`,
   `windows (pwsh)`), all required to be green before a merge.
@@ -81,7 +81,7 @@ only when someone runs the two update commands in the runbook and restarts.
 ## Open items (2026-10-05)
 
 1. **Three platform checks**, one minute each, in the first session after
-   0.3.0 is installed: `benchmark/results/2026-10-05-platform-spikes.md`.
+   0.3 is installed: `benchmark/results/2026-10-05-platform-spikes.md`.
 2. **Measure the two-stage flow** on the controlled set: criteria recall,
    verdicts, cost, and how often correct code comes back INCONCLUSIVE. Needs
    the CLI logged in. So does the cross-model ablation (about 96 verifier runs),
