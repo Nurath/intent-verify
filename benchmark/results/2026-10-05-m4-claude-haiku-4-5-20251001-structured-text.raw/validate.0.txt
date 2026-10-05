@@ -1,0 +1,39 @@
+```
+INTENT-VERIFY LEDGER v1
+mode: STRUCTURED
+
+CRITERION 1: A username whose trimmed length is between 3 and 20 characters is reported valid
+VERDICT: PASS
+EVIDENCE-CMD: python -c "from validate import valid_username; print(valid_username('validuser'))"
+EVIDENCE-OUT: True
+
+CRITERION 2: Boundary lengths are inclusive: a trimmed username of exactly 3 characters and one of exactly 20 characters are both valid
+VERDICT: PASS
+EVIDENCE-CMD: python -c "from validate import valid_username; print(f'3-char: {valid_username(\"abc\")}, 20-char: {valid_username(\"12345678901234567890\")}')"
+EVIDENCE-OUT: 3-char: True, 20-char: True
+
+CRITERION 3: A username whose trimmed length is 2 or fewer characters is reported invalid
+VERDICT: PASS
+EVIDENCE-CMD: python -c "from validate import valid_username; print(f'2-char: {valid_username(\"ab\")}, 1-char: {valid_username(\"a\")}, 0-char: {valid_username(\"\")}')"
+EVIDENCE-OUT: 2-char: False, 1-char: False, 0-char: False
+
+CRITERION 4: A username whose trimmed length is 21 or more characters is reported invalid
+VERDICT: PASS
+EVIDENCE-CMD: python -c "from validate import valid_username; print(f'21-char: {valid_username(\"123456789012345678901\")}')"
+EVIDENCE-OUT: 21-char: False
+
+CRITERION 5: Length is measured after trimming leading and trailing whitespace, so surrounding whitespace does not count toward the length (e.g. ' abc ' is valid, and ' ab ' is invalid even though its raw length is 6)
+VERDICT: FAIL
+EVIDENCE-CMD: python -c "from validate import valid_username; print(f\" abc (should be valid): {valid_username(' abc ')}, ' ab ' (should be invalid): {valid_username(' ab ')}, '  a  ' (should be invalid): {valid_username('  a  ')}\")"
+EVIDENCE-OUT:  abc (should be valid): True,  ab  (should be invalid): True, '  a  ' (should be invalid): True
+
+FINAL: DRIFTED — criterion 5 failed
+```
+
+**OBSERVATIONS:**
+
+The implementation fails criterion 5 because it does not trim whitespace before checking length. The function checks `len(u)` directly on the input string, but the requirement explicitly states to trim first. Examples:
+- `' ab '` (raw length 5) returns True, but after trimming it is 'ab' (length 2), which should be invalid
+- `'  a  '` (raw length 5) returns True, but after trimming it is 'a' (length 1), which should be invalid
+
+The fix would require calling `u.strip()` before measuring length: `return 3 <= len(u.strip()) <= 20`

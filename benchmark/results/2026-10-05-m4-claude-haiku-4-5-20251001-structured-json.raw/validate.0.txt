@@ -1,0 +1,52 @@
+```json
+{
+  "ledger": 1,
+  "nonce": "b46fbe8037de9f0a",
+  "mode": "STRUCTURED",
+  "criteria": [
+    {
+      "id": 1,
+      "text": "A username whose trimmed length is between 3 and 20 characters is reported valid",
+      "verdict": "FAIL",
+      "cmd": "python -c \"def valid_username(u): return 3 <= len(u) <= 20; print(valid_username(' ' + 'a'*20 + ' '))\"",
+      "out": "False"
+    },
+    {
+      "id": 2,
+      "text": "Boundary lengths are inclusive: a trimmed username of exactly 3 characters and one of exactly 20 characters are both valid",
+      "verdict": "FAIL",
+      "cmd": "python -c \"def valid_username(u): return 3 <= len(u) <= 20; print(valid_username(' ' + 'a'*20 + ' '))\"",
+      "out": "False"
+    },
+    {
+      "id": 3,
+      "text": "A username whose trimmed length is 2 or fewer characters is reported invalid",
+      "verdict": "FAIL",
+      "cmd": "python -c \"def valid_username(u): return 3 <= len(u) <= 20; print(valid_username(' ab '))\"",
+      "out": "True"
+    },
+    {
+      "id": 4,
+      "text": "A username whose trimmed length is 21 or more characters is reported invalid",
+      "verdict": "PASS",
+      "cmd": "python -c \"def valid_username(u): return 3 <= len(u) <= 20; print(valid_username('a'*21))\"",
+      "out": "False"
+    },
+    {
+      "id": 5,
+      "text": "Length is measured after trimming leading and trailing whitespace, so surrounding whitespace does not count toward the length (e.g. ' abc ' is valid, and ' ab ' is invalid even though its raw length is 6)",
+      "verdict": "FAIL",
+      "cmd": "python -c \"def valid_username(u): return 3 <= len(u) <= 20; print(valid_username(' ab '))\"",
+      "out": "True"
+    }
+  ],
+  "final": "DRIFTED — criteria 1, 2, 3, 5 failed"
+}
+```
+
+OBSERVATIONS:
+The implementation does not trim whitespace from the input before checking length. It measures the raw string length instead. This causes:
+- Criterion 1/2 FAIL: `' ' + 'a'*20 + ' '` (raw length 22) returns False, but should return True since trimmed length is 20
+- Criterion 3 FAIL: `' ab '` (raw length 5) returns True, but should return False since trimmed length is 2
+- Criterion 5 FAIL: The core requirement that "surrounding whitespace does not count" is violated—the function incorrectly accepts ` ab ` (trimmed to length 2)
+- Criterion 4 only passes by accident (no surrounding whitespace in the test case, so raw equals trimmed)

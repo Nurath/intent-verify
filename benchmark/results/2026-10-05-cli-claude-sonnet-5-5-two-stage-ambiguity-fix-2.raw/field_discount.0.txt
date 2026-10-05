@@ -1,0 +1,38 @@
+INTENT-VERIFY LEDGER v1
+mode: FULL
+
+CRITERION 1: A discount_pct parameter is accepted by the cost calculation
+VERDICT: PASS
+EVIDENCE-CMD: python %TEMP%/v.py (loads task2-discount-cost.py and calls compute_call_cost(..., discount_pct=10))
+EVIDENCE-OUT: d10 {'llm_usd': 3.15, 'tts_usd': 10.0, 'stt_usd': 0.0154, 'telephony_usd': 0.054, 'total_usd': 13.2194}
+
+CRITERION 2: With discount_pct set, the LLM cost line is reduced by that percentage
+VERDICT: PASS
+EVIDENCE-CMD: python %TEMP%/v.py (compares llm_usd at discount_pct=10 against the baseline; also tries 100)
+EVIDENCE-OUT: base llm_usd 3.5; d10 llm_usd 3.15; ratio 0.9
+  d100 {'llm_usd': 0.0, 'tts_usd': 10.0, 'stt_usd': 0.0154, 'telephony_usd': 0.054, 'total_usd': 10.0694}
+
+CRITERION 3: Cost lines other than the LLM cost are unchanged by discount_pct
+VERDICT: PASS
+EVIDENCE-CMD: python %TEMP%/v.py (compares each line at discount_pct=10 against the baseline)
+EVIDENCE-OUT: {'llm_usd': False, 'tts_usd': True, 'stt_usd': True, 'telephony_usd': True, 'total_usd': False}
+  (tts, stt and telephony are equal; only llm and total differ, as expected)
+
+CRITERION 4: The total equals the sum of the lines, using the discounted LLM line
+VERDICT: PASS
+EVIDENCE-CMD: python %TEMP%/v.py (sums the four rounded lines from the discount_pct=10 result and compares to total_usd)
+EVIDENCE-OUT: sum 13.2194 13.2194
+  (the discounted total 13.2194 is the baseline 13.5694 minus 0.35, so the discounted LLM line is used)
+
+CRITERION 5: With discount_pct omitted or zero, the LLM line and total are the same as before the change
+VERDICT: PASS
+EVIDENCE-CMD: python %TEMP%/v.py (compares the call with discount_pct=0 to the call with it omitted)
+EVIDENCE-OUT: base {'llm_usd': 3.5, 'tts_usd': 10.0, 'stt_usd': 0.0154, 'telephony_usd': 0.054, 'total_usd': 13.5694}
+  zero True
+  (the baseline llm_usd matches the undiscounted formula by hand: 1M*2.50/1M + 0.1M*10/1M = 3.5. The original pre-change file was not available to run.)
+
+FINAL: MATCHES INTENT
+
+OBSERVATIONS:
+- There is no validation of discount_pct. A value above 100 gives a negative LLM cost, and a negative value raises the cost.
+- Importing the file directly with importlib needed the module registered in sys.modules because of a Python 3.14 dataclass quirk. This is a harness issue, not a defect in the code.

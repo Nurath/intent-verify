@@ -1,0 +1,8 @@
+{"manifest": 1,
+ "criteria": [
+  {"id": 1, "text": "A call duration that is an exact whole number of minutes (e.g. 120 seconds) is billed as exactly that many minutes (2).", "quote": "Telephony bills per whole minute"},
+  {"id": 2, "text": "A call duration with a partial minute is rounded up to the next whole minute rather than down or to nearest (e.g. 61 seconds bills as 2 minutes).", "quote": "rounding partial minutes up (61 seconds bills as 2 minutes)"},
+  {"id": 3, "text": "A call lasting just under a minute boundary (e.g. 119 seconds) bills as the higher whole minute count (2 minutes), and a call of 1 second bills as 1 minute.", "quote": "rounding partial minutes up"},
+  {"id": 4, "text": "The billed quantity is always a whole number of minutes, never a fractional value.", "quote": "bills per whole minute"}
+ ],
+ "ambiguities": []}

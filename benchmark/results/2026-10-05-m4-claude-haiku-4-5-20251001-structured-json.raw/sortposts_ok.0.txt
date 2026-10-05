@@ -1,0 +1,24 @@
+```json
+{
+  "ledger": 1,
+  "nonce": "320366643355ee87",
+  "mode": "STRUCTURED",
+  "criteria": [
+    {
+      "id": 1,
+      "text": "Posts are returned/displayed ordered by their date, with the most recent date first and the oldest last",
+      "verdict": "PASS",
+      "cmd": "python verify_sort.py",
+      "out": "DATES_ORDER: ['2026-01-25', '2026-01-20', '2026-01-15', '2026-01-10']\nIS_NEWEST_FIRST: True"
+    },
+    {
+      "id": 2,
+      "text": "Sorting does not drop or duplicate any posts: the same set of posts appears before and after sorting",
+      "verdict": "PASS",
+      "cmd": "python verify_sort.py",
+      "out": "INPUT_IDS: [1, 2, 3, 4]\nOUTPUT_IDS: [1, 2, 3, 4]\nSAME_SET: True"
+    }
+  ],
+  "final": "MATCHES INTENT"
+}
+```

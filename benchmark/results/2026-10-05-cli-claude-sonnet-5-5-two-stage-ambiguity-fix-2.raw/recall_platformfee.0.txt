@@ -1,0 +1,36 @@
+```
+INTENT-VERIFY LEDGER v1
+mode: FULL
+
+CRITERION 1: A configurable parameter named platform_fee_pct exists and expresses the fee as a percentage
+VERDICT: PASS
+EVIDENCE-CMD: python -c "<load task2-platform-fee.py via importlib; print(inspect.signature(m.compute_call_cost))>"
+EVIDENCE-OUT: (*, llm_prompt_tokens: 'int', llm_completion_tokens: 'int', tts_chars: 'int', stt_audio_s: 'float', duration_s: 'float', model: 'str' = 'gpt-4o', cached_prompt_tokens: 'int' = 0, rates: 'CostRates | None' = None, platform_fee_pct: 'float' = 0) -> 'dict'
+  Passing platform_fee_pct=10 produced a 10% fee (see criterion 2), so the value is read as a percentage.
+
+CRITERION 2: The fee amount equals platform_fee_pct percent of the total (e.g. 10 on a total of 100 with platform_fee_pct of 10)
+VERDICT: PASS
+EVIDENCE-CMD: python -c "<load module; compute_call_cost(llm_prompt_tokens=1000000, llm_completion_tokens=0, tts_chars=0, stt_audio_s=0, duration_s=0, platform_fee_pct=10)>"
+EVIDENCE-OUT: {'llm_usd': 2.5, 'tts_usd': 0.0, 'stt_usd': 0.0, 'telephony_usd': 0.0, 'platform_fee_usd': 0.25, 'total_usd': 2.75}
+  The subtotal is 2.5 and the fee is 0.25, which is 10% of 2.5. A mixed-line call gave a subtotal of 0.4437 and a fee of 0.0444, also 10%.
+  The fee is computed on the pre-fee total (subtotal), which is the natural reading of "percentage of the total".
+
+CRITERION 3: The fee appears as its own new line item in the output, separate from the existing line items
+VERDICT: PASS
+EVIDENCE-CMD: python -c "<load module; compute_call_cost(..., platform_fee_pct=10) with mixed usage>"
+EVIDENCE-OUT: {'llm_usd': 0.3, 'tts_usd': 0.1, 'stt_usd': 0.0077, 'telephony_usd': 0.036, 'platform_fee_usd': 0.0444, 'total_usd': 0.4881}
+
+CRITERION 4: The existing line items are still present and unchanged
+VERDICT: PASS
+EVIDENCE-CMD: python -c "<load module; compute_call_cost(...) with and without platform_fee_pct=10 on the same inputs>"
+EVIDENCE-OUT: Without the fee: {'llm_usd': 0.3, 'tts_usd': 0.1, 'stt_usd': 0.0077, 'telephony_usd': 0.036, 'platform_fee_usd': 0.0, 'total_usd': 0.4437}
+  With the fee: {'llm_usd': 0.3, 'tts_usd': 0.1, 'stt_usd': 0.0077, 'telephony_usd': 0.036, 'platform_fee_usd': 0.0444, 'total_usd': 0.4881}
+  llm_usd, tts_usd, stt_usd and telephony_usd have the same values in both runs. total_usd now includes the fee, which is expected.
+
+FINAL: MATCHES INTENT
+```
+
+OBSERVATIONS:
+- `rates_from_settings()` has no platform fee setting, and `CostRates` has no field for one. The fee can only be passed per call, so "configurable" is met only as a function argument.
+- The default of 0 means a call without the argument still returns a `platform_fee_usd` key with value 0.0. That is an addition to the old output shape, not a change to the existing keys.
+- My first loader attempts failed because my harness didn't register the module in `sys.modules`. That was my harness, not a defect in the code.

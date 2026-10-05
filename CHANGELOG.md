@@ -1,5 +1,46 @@
 # Changelog
 
+## 0.3.2 — 2026-10-05
+
+### Changed
+- **Ambiguities no longer stop a verification.** 0.3.1 put every ambiguity the
+  criteria agent raised to the user before the check ran. On the 16 one-line
+  requests of the controlled set that was 41 questions, 2 to 4 on every
+  request, and the verdicts needed none of them: most were about things the
+  request leaves open, which no criterion tests. Now:
+  - The criteria agent records an ambiguity only when a criterion's check
+    depends on it, as `{question, assumed, criteria}`: the reading the criteria
+    were written for and the criteria that rest on it. It records nothing the
+    request leaves open and nothing with an ordinary reading.
+  - `validate_ledger.py --check-manifest` drops an ambiguity that names no
+    criterion and counts it (`DROPPED:`); one that names a criterion that does
+    not exist, or no assumed reading, is a defect.
+  - The skill verifies against the assumed readings and asks nothing first. A
+    question comes after the verdict, only when a criterion that depends on an
+    ambiguity failed or could not be run and the evidence would differ under
+    the other reading. One clarification, which re-derives the criteria and
+    replaces the first verdict.
+- Re-measured on the same 16 requests: 3 questions instead of 41, 13 requests
+  with none, none asked before verifying, verdicts 16 of 16 as before. On the 7
+  field requests, never run two-stage before: 4 questions, 5 of 7 expected
+  verdicts. `recall_weekend` came back DRIFTED: its criterion expects the code
+  to recognise a weekend date, the code takes a flag from the caller, and that
+  difference is a real second reading nobody recorded. A question asked up
+  front under 0.3.1 might have caught it. `recall_gpt4omini` was INCONCLUSIVE:
+  the fixture has no earlier version to compare rates against.
+
+### Benchmark
+- `run_bench.py --mode cli` runs every call in `claude -p --safe-mode` (the
+  runner's CLAUDE.md, plugins, hooks and MCP servers stay out) and records each
+  call's tokens, cost, turns and duration in `usage.json`. `--label` keeps an
+  earlier results file; the two-stage report counts kept and dropped
+  ambiguities.
+- `benchmark/m4_json_ledger.py`: measurement M4 of the v0.3 design (JSON ledger
+  against text, criteria held fixed). Haiku 4.5 and Sonnet 5.5 wrote valid JSON
+  ledgers on 16 of 16 first replies, against 15 of 16 for text.
+- Results: the two-stage flow on the controlled set (16 of 16), M4, and
+  platform checks S1, S2, S4 and S5 seen on a live installation.
+
 ## 0.3.1 — 2026-10-05
 
 ### Fixed

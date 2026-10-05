@@ -1,0 +1,7 @@
+{"manifest": 1,
+ "criteria": [
+  {"id": 1, "text": "Every returned item contains the query as a substring", "quote": "items to those containing the query"},
+  {"id": 2, "text": "Every item that contains the query as a substring is returned (none that match are dropped)", "quote": "Filter items to those containing the query"},
+  {"id": 3, "text": "Matching ignores letter case: an item matches whether its case differs from the query's case in either direction (e.g. query 'abc' matches 'ABC' and query 'ABC' matches 'abc')", "quote": "case-insensitively"}
+ ],
+ "ambiguities": []}

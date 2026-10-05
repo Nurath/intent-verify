@@ -56,6 +56,17 @@ class TestSkillText(unittest.TestCase):
         self.assertEqual(len(validations), 1)
         self.assertIn('--manifest "<scratch>/manifest.json"', validations[0])
 
+    def test_ambiguities_are_not_asked_before_verifying(self):
+        """0.3.1 put every ambiguity to the user before the check ran: 2 to 4
+        questions on each one-line request, none of which changed a verdict.
+        A question now comes after the evidence, and only when it matters."""
+        step2 = self.SKILL[self.SKILL.index("**Fix the criteria (stage 1).**"):self.SKILL.index("**Select the verifier model**")]
+        self.assertIn("Do not stop to ask", step2)
+        self.assertNotIn("before going further", step2)
+        report = self.SKILL[self.SKILL.index("**Report the ledger**"):]
+        self.assertIn("FAILED or was NOT-EXERCISED", report)
+        self.assertIn("One clarification only", report)
+
 
 class TestPluginFiles(unittest.TestCase):
     READS_OR_RUNS = {"Read", "Grep", "Glob", "Bash", "PowerShell", "Edit", "Write", "NotebookEdit", "WebFetch",

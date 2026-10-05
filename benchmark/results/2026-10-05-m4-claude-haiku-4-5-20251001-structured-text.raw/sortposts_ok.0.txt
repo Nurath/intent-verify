@@ -1,0 +1,22 @@
+```
+INTENT-VERIFY LEDGER v1
+mode: STRUCTURED
+
+CRITERION 1: Posts are returned/displayed ordered by their date, with the most recent date first and the oldest last
+VERDICT: PASS
+EVIDENCE-CMD: python "<tmp>"
+EVIDENCE-OUT: Input dates: ['2026-01-15', '2026-03-20', '2026-01-01', '2026-02-10']
+  Output dates: ['2026-03-20', '2026-02-10', '2026-01-15', '2026-01-01']
+  Is sorted newest first: True
+
+CRITERION 2: Sorting does not drop or duplicate any posts: the same set of posts appears before and after sorting
+VERDICT: PASS
+EVIDENCE-CMD: python "<tmp>"
+EVIDENCE-OUT: Input count: 4
+  Output count: 4
+  Same count: True
+  Same posts (order-independent): True
+  All posts preserved: True
+
+FINAL: MATCHES INTENT
+```

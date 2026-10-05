@@ -1,0 +1,28 @@
+```
+INTENT-VERIFY LEDGER v1
+mode: FULL
+
+CRITERION 1: Each email address appears at most once in the resulting list
+VERDICT: PASS
+EVIDENCE-CMD: python -c "from dedupe_ok import dedupe; inp=['b@x.com','a@x.com','b@x.com','c@x.com','a@x.com','d@x.com','c@x.com']; out=dedupe(inp); print(out); print('unique',len(out)==len(set(out)))"
+EVIDENCE-OUT: ['b@x.com', 'a@x.com', 'c@x.com', 'd@x.com']
+  unique True
+
+CRITERION 2: The remaining emails appear in the same relative order as in the original list
+VERDICT: PASS
+EVIDENCE-CMD: python -c "(same input) compare dedupe(inp) against a first-seen-order reference built with a loop"
+EVIDENCE-OUT: order True (result ['b@x.com', 'a@x.com', 'c@x.com', 'd@x.com'] matches first-seen order of the input)
+
+CRITERION 3: Every distinct email present in the original list is still present in the result (only repeats are removed)
+VERDICT: PASS
+EVIDENCE-CMD: python -c "(same input) print('set eq', set(out)==set(inp)); print(dedupe([]), inp)"
+EVIDENCE-OUT: set eq True
+  [] ['b@x.com', 'a@x.com', 'b@x.com', 'c@x.com', 'a@x.com', 'd@x.com', 'c@x.com']
+
+FINAL: MATCHES INTENT
+```
+
+OBSERVATIONS:
+- `python3` is not installed here, so I ran the code with `python` (3.14.3).
+- Matching is exact and case-sensitive, so `A@x.com` and `a@x.com` count as different emails. The request doesn't say how to treat case, so this is not a failure.
+- The function returns a new list and leaves the input unchanged. The last command printed the original input after the call, and it was intact.

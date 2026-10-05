@@ -1,0 +1,12 @@
+{"manifest": 1,
+ "criteria": [
+   {"id": 1, "text": "Up to 5 login attempts from a single IP within one minute are processed normally (not rejected by the rate limit)", "quote": "5 attempts per minute"},
+   {"id": 2, "text": "A 6th login attempt from the same IP within the same minute is rejected by the rate limit", "quote": "Rate-limit login to 5 attempts per minute"},
+   {"id": 3, "text": "Login attempts from one IP that has reached its limit do not cause attempts from a different IP to be rejected", "quote": "different IPs are tracked independently"},
+   {"id": 4, "text": "Each IP's attempt count is tracked separately, so attempts from one IP do not count toward another IP's limit of 5", "quote": "different IPs are tracked independently"},
+   {"id": 5, "text": "An IP that was rate-limited can attempt login again once the one-minute window has passed", "quote": "per minute"}
+ ],
+ "ambiguities": [
+   {"question": "Does the limit count all login attempts (successful and failed) or only failed ones?", "assumed": "All login attempts count, regardless of outcome", "criteria": [1, 2]},
+   {"question": "Is the one-minute period a fixed window or a sliding window?", "assumed": "Either is acceptable; the check is that attempts are limited to 5 within any one-minute span and allowed again after a minute has passed", "criteria": [2, 5]}
+ ]}

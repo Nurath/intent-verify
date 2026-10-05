@@ -1,0 +1,10 @@
+{"ledger": 1,
+ "nonce": "16ec7d296ef3544e",
+ "mode": "FULL",
+ "criteria": [
+  {"id": 1, "text": "Tasks are ordered by priority, with higher-priority tasks appearing before lower-priority ones", "verdict": "PASS", "cmd": "python (sort_tasks imported from sorttasks_ok.py) on 6 tasks with priorities 1,3,3,2,3,1 given in mixed order", "out": "[(3, 3, '2026-02-01'), (5, 3, '2026-02-01'), (2, 3, '2026-03-01'), (4, 2, '2026-01-01'), (6, 1, '2026-01-02'), (1, 1, '2026-01-05')]\np order: [3, 3, 3, 2, 1, 1]"},
+  {"id": 2, "text": "Among tasks with equal priority, the task with the earlier due date appears first", "verdict": "PASS", "cmd": "same run; the priority-3 tasks had due dates 2026-03-01, 2026-02-01, 2026-02-01 and the priority-1 tasks had 2026-01-05 and 2026-01-02", "out": "priority 3 came back as 2026-02-01, 2026-02-01, 2026-03-01; priority 1 came back as 2026-01-02, 2026-01-05 (see the tuple list above)"},
+  {"id": 3, "text": "Sorting does not drop or duplicate any tasks; the same set of tasks is returned", "verdict": "PASS", "cmd": "same run; compared the sorted ids and lengths of input and output, and called sort_tasks([])", "out": "same set: True 6 6\nempty: []"}
+ ],
+ "final": "MATCHES INTENT"}
+OBSERVATIONS: python3 is not installed here, so I used `python`. All checks used ISO date strings and integer priorities. Other due-date types (datetime objects) and missing keys were not tested.

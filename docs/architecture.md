@@ -49,11 +49,11 @@ sequenceDiagram
     O->>C: request text, nothing else
     C-->>O: manifest (criteria, quotes, ambiguities)
     O->>X: --check-manifest (every quote must occur in the request)
-    O->>U: ambiguities, once
     O->>V: request + manifest + code
     V-->>O: ledger (verdict and evidence per criterion)
     O->>X: ledger --manifest
-    O-->>U: ledger, verdict, where the criteria came from
+    O-->>U: ledger, verdict, where the criteria came from, assumed readings
+    O-->>U: one question, only if a failed criterion rests on an assumed reading
 ```
 
 Variations the skill allows:
@@ -130,13 +130,17 @@ is labelled `agent-report` and left out unless `--all` is given.
 ```json
 {"manifest": 1,
  "criteria": [{"id": 1, "text": "one line", "quote": "words from the request, or null"}],
- "ambiguities": ["a question"]}
+ "ambiguities": [{"question": "two readings of what?", "assumed": "the reading the criteria use",
+                  "criteria": [1]}]}
 ```
 
 Valid when: `criteria` is a non-empty list; ids run 1..N in order; each `text`
 is one non-empty line; each `quote` is null or occurs in the request (spacing
-and case ignored). The validator also lists parts of the request no quote
-touches, as notes.
+and case ignored); each ambiguity names existing criteria and the reading they
+assume. An ambiguity that names no criterion, including a bare string from a
+0.3.1 deriver, is dropped and counted (`unlinked_ambiguities`): no answer to it
+could change the verdict. The validator also lists parts of the request no
+quote touches, as notes.
 
 ### 4.3 Verifier ledger
 

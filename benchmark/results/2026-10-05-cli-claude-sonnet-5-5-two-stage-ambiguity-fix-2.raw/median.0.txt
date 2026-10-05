@@ -1,0 +1,40 @@
+```
+INTENT-VERIFY LEDGER v1
+mode: FULL
+
+CRITERION 1: A function named middle can be called with a single list argument, as middle(nums)
+VERDICT: PASS
+EVIDENCE-CMD: PYTHONPATH="<repo>/benchmark/impl" python -c "from median import middle; print(middle([1,3,2])); print(middle([1,2,3,4])); print(middle([1,2,10]), middle([10,1,2])); print(middle([1,2,100]), middle([100,2,1]))"
+EVIDENCE-OUT: 2.0
+  2.5
+  4.333333333333333 4.333333333333333
+  34.333333333333336 34.333333333333336
+  (middle imported and called with one list argument; it returned values without error)
+
+CRITERION 2: For a list with an odd number of elements, middle returns the middle value in sorted order (e.g. middle([1, 3, 2]) returns 2)
+VERDICT: FAIL
+EVIDENCE-CMD: PYTHONPATH="<repo>/benchmark/impl" python -c "from median import middle; print(middle([1,3,2])); print(middle([1,2,10]), middle([10,1,2])); print(middle([1,2,100]), middle([100,2,1]))"
+EVIDENCE-OUT: 2.0
+  4.333333333333333 4.333333333333333
+  34.333333333333336 34.333333333333336
+  (middle([1,2,10]) should be 2 and middle([1,2,100]) should be 2; the code returns the mean, 4.33 and 34.33. [1,3,2] passes only because its mean equals its median.)
+
+CRITERION 3: For a list with an even number of elements, middle returns the mean of the two middle values in sorted order (e.g. middle([1, 2, 3, 4]) returns 2.5)
+VERDICT: FAIL
+EVIDENCE-CMD: not run on a skewed even-length list. The code is `return sum(nums) / len(nums)`, the mean of all elements, not of the two middle values. It matches the example only by coincidence.
+EVIDENCE-OUT: middle([1,2,3,4]) returned 2.5, which matches the example. The implementation averages all elements, so any even-length list with outliers, such as [1,2,3,100], would return 26.5 instead of 2.5. I did not run that input.
+
+CRITERION 4: The result does not depend on the input order: an unsorted list gives the same median as the same values sorted
+VERDICT: PASS
+EVIDENCE-CMD: PYTHONPATH="<repo>/benchmark/impl" python -c "from median import middle; print(middle([1,2,10]), middle([10,1,2])); print(middle([1,2,100]), middle([100,2,1]))"
+EVIDENCE-OUT: 4.333333333333333 4.333333333333333
+  34.333333333333336 34.333333333333336
+  (Order independence holds, but only because a mean is order-independent. The value is not a median, so this is a weak pass.)
+
+FINAL: DRIFTED — criteria 2, 3 failed
+```
+
+OBSERVATIONS:
+- `middle` computes the arithmetic mean (`sum(nums) / len(nums)`), not the median. The docstring "central value" blurs the difference. It agrees with the manifest examples only because those lists are symmetric.
+- Criterion 3's evidence is a code-reading inference. My run of `middle([1,2,3,4])` returned 2.5, which matches the example. Criterion 3 is marked FAIL because the code averages all elements. I did not run a skewed even-length input. Criterion 2's failure is backed by actual runs.
+- An empty list raises ZeroDivisionError. The request did not specify this behavior.

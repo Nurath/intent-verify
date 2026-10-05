@@ -1,0 +1,50 @@
+```
+INTENT-VERIFY LEDGER v1
+mode: STRUCTURED
+
+CRITERION 1: A function named middle exists and accepts a single list of numbers as its argument
+VERDICT: PASS
+EVIDENCE-CMD: python <tmp>
+EVIDENCE-OUT: === CRITERION 1: Function exists and accepts a list ===
+PASS: Function called successfully, returned: 2.0
+
+CRITERION 2: middle returns the median of the list it is given
+VERDICT: FAIL
+EVIDENCE-CMD: python <tmp>
+EVIDENCE-OUT: Testing with [1, 100, 2] (unsorted)
+middle([1, 100, 2]) = 34.333333333333336
+Expected median: 2
+
+CRITERION 3: For a list with an odd number of elements, middle returns the middle value of the sorted list, even if the input is unsorted
+VERDICT: FAIL
+EVIDENCE-CMD: python <tmp>
+EVIDENCE-OUT: Testing with [1, 100, 2] (unsorted)
+middle([1, 100, 2]) = 34.333333333333336
+Sorted list: [1, 2, 100], middle value = 2
+Expected median: 2
+Got: 34.333333333333336
+Match: False
+
+CRITERION 4: For a list with an even number of elements, middle returns the conventional median (the mean of the two middle values of the sorted list)
+VERDICT: FAIL
+EVIDENCE-CMD: python <tmp>
+EVIDENCE-OUT: Testing with [1, 100, 2, 3] (unsorted)
+middle([1, 100, 2, 3]) = 26.5
+Sorted list: [1, 2, 3, 100], two middle values = 2 and 3, mean = 2.5
+Expected median: 2.5
+Got: 26.5
+Match: False
+
+CRITERION 5: middle does not alter the list passed in (e.g. does not sort it in place)
+VERDICT: PASS
+EVIDENCE-CMD: python <tmp>
+EVIDENCE-OUT: Original list before: [5, 3, 1, 4, 2]
+Original list after: [5, 3, 1, 4, 2]
+Lists match: True
+PASS: List was not modified
+
+FINAL: DRIFTED — criteria 2, 3, 4 failed
+
+OBSERVATIONS:
+The implementation calculates the arithmetic mean (sum/length) rather than the median. This passes trivial test cases where mean and median coincide (like [1, 2, 3]) but fails when the values are not uniformly distributed. The function correctly preserves the input list (criterion 5) and exists with the correct signature (criterion 1).
+```

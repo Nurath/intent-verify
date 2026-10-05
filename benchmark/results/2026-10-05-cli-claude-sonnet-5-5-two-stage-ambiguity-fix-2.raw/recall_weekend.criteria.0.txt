@@ -1,0 +1,10 @@
+{"manifest": 1,
+ "criteria": [
+  {"id": 1, "text": "A weekend_surcharge exists that applies to the telephony cost", "quote": "Add a weekend_surcharge"},
+  {"id": 2, "text": "On a weekend date, the telephony cost is multiplied by 1.5", "quote": "multiplies telephony cost only by 1.5 on weekends"},
+  {"id": 3, "text": "On a weekday date, the telephony cost is unchanged (multiplier 1.0)", "quote": "on weekends"},
+  {"id": 4, "text": "Cost components other than telephony are not multiplied by the surcharge on any day", "quote": "telephony cost only"}
+ ],
+ "ambiguities": [
+  {"question": "Does 'weekends' mean Saturday and Sunday?", "assumed": "Weekends are Saturday and Sunday", "criteria": [2, 3]}
+ ]}

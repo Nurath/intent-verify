@@ -1,0 +1,32 @@
+```
+INTENT-VERIFY LEDGER v1
+mode: FULL
+
+CRITERION 1: Every item that contains the query as a substring is included in the result
+VERDICT: FAIL
+EVIDENCE-CMD: python -c "from search import search; print(search(['ABC','xAbCx','abc','zzz','Abc'],'abc'))"
+EVIDENCE-OUT: ['abc']
+  (items 'ABC', 'xAbCx' and 'Abc' contain the query ignoring case but were excluded. Under the request's case-insensitive reading, these should be included.)
+
+CRITERION 2: Items that do not contain the query are excluded from the result
+VERDICT: PASS
+EVIDENCE-CMD: python -c "from search import search; print(search(['foo','bar'],'zz'))"
+EVIDENCE-OUT: []
+
+CRITERION 3: Matching ignores letter case: an item matches the query regardless of whether their letter cases differ (e.g. query 'abc' matches 'ABC' and 'xAbCx')
+VERDICT: FAIL
+EVIDENCE-CMD: python -c "from search import search; print(search(['ABC','xAbCx','abc','zzz','Abc'],'abc'))"
+EVIDENCE-OUT: ['abc']
+
+CRITERION 4: Items that pass the filter are returned unchanged, with their original casing
+VERDICT: PASS
+EVIDENCE-CMD: python -c "from search import search; print(search(['foo','bar'],'oo'))"
+EVIDENCE-OUT: ['foo']
+  (Only exact-case matches were exercised, since the implementation excludes every case-differing item. Returned items were the original objects, unmodified.)
+
+FINAL: DRIFTED — criteria 1, 3 failed
+```
+
+OBSERVATIONS:
+- `search.py` uses `q in x`, which is a case-sensitive comparison. The request asked for case-insensitive matching.
+- A fix would compare `q.lower() in x.lower()`, or use `casefold()`, while still returning the original `x`.

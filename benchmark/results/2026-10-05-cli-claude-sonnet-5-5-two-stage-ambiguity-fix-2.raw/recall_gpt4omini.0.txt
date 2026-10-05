@@ -1,0 +1,38 @@
+```
+INTENT-VERIFY LEDGER v1
+mode: FULL
+
+CRITERION 1: The model gpt-4o-mini is recognized and priced, i.e. looking up its rates succeeds rather than failing or falling back as unknown
+VERDICT: PASS
+EVIDENCE-CMD: python (load task1-gpt4o-mini.py via importlib, registered in sys.modules); print(m._llm_rates_for_model(n, m.CostRates())) for "gpt-4o-mini", "openai/gpt-4o-mini", "gpt-4o-mini-2024-07-18"; also compute_call_cost(model="gpt-4o-mini")
+EVIDENCE-OUT: gpt-4o-mini (0.15, 0.075, 0.6)
+  openai/gpt-4o-mini (0.15, 0.075, 0.6)
+  gpt-4o-mini-2024-07-18 (0.15, 0.075, 0.6)
+  {'llm_usd': 0.75, 'tts_usd': 0.0, 'stt_usd': 0.0, 'telephony_usd': 0.0, 'total_usd': 0.75}
+
+CRITERION 2: gpt-4o-mini has its own rates, distinct from the rates used for gpt-4o
+VERDICT: PASS
+EVIDENCE-CMD: same script; compared _llm_rates_for_model("gpt-4o-mini") with _llm_rates_for_model("gpt-4o"), and compute_call_cost for 1M prompt + 1M completion tokens on each
+EVIDENCE-OUT: gpt-4o-mini (0.15, 0.075, 0.6)
+  gpt-4o (2.5, 1.25, 10.0)
+  mini total_usd 0.75 vs gpt-4o total_usd 12.5
+
+CRITERION 3: Plain gpt-4o still resolves to exactly the same rates it had before the change
+VERDICT: NOT-EXERCISED
+REASON: No pre-change baseline exists. The file is committed only in the initial commit, with no earlier version to diff against. Today gpt-4o resolves to (2.5, 1.25, 10.0) for "gpt-4o", "openai/gpt-4o" and "gpt-4o-2024-08-06". That matches the file's own stated defaults, but I can't confirm it matches the pre-change values.
+
+CRITERION 4: Looking up gpt-4o-mini does not resolve to the gpt-4o rates (e.g. via prefix matching of the name gpt-4o)
+VERDICT: PASS
+EVIDENCE-CMD: same script; looked up "gpt-4o-mini", "openai/gpt-4o-mini" and "gpt-4o-mini-2024-07-18"; also looked up "gpt-4o-2024-08-06" and "totally-unknown" to check the fallback path
+EVIDENCE-OUT: gpt-4o-mini (0.15, 0.075, 0.6)
+  openai/gpt-4o-mini (0.15, 0.075, 0.6)
+  gpt-4o-mini-2024-07-18 (0.15, 0.075, 0.6)
+  gpt-4o-2024-08-06 (2.5, 1.25, 10.0)
+  totally-unknown (2.5, 1.25, 10.0)
+
+FINAL: INCONCLUSIVE — criterion 3 not exercised
+```
+
+OBSERVATIONS:
+- `rates_from_settings()` has no `cost_gpt4o_mini_*` settings, so the mini rates can't be tuned through config. They always use the dataclass defaults. The request didn't ask for this.
+- The `gpt-4o-mini` branch comes after the other prefix checks and before the gpt-4o fallback. There is no bare `gpt-4o` prefix branch, so mini can't be shadowed by it.

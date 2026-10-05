@@ -1,0 +1,37 @@
+```
+INTENT-VERIFY LEDGER v1
+mode: FULL
+
+CRITERION 1: Up to 5 login attempts from a single IP within one minute are processed normally (not rejected by the rate limit)
+VERDICT: PASS
+EVIDENCE-CMD: python $TEMP/t.py  (calls allow_login('A') 5 times in a row)
+EVIDENCE-OUT: c1 [True, True, True, True, True]
+
+CRITERION 2: A 6th login attempt from the same IP within the same minute is rejected by the rate limit
+VERDICT: PASS
+EVIDENCE-CMD: python $TEMP/t.py  (6th and 7th calls to allow_login('A') after the first 5)
+EVIDENCE-OUT: c2 False False
+
+CRITERION 3: Once the minute window has passed, an IP that was blocked can attempt login again
+VERDICT: PASS
+EVIDENCE-CMD: python $TEMP/t.py  (patched time.time to return real time + 61s after 'A' was blocked, then called allow_login('A') 6 times)
+EVIDENCE-OUT: c3 True [True, True, True, True] False
+  After the window passed, 'A' got a fresh allowance of 5 and the 6th was blocked again. As a control, a patched time of +59s for the blocked IP 'C' still returned False ("c3b-before-window-reset False").
+
+CRITERION 4: Attempts from one IP do not count toward the limit of a different IP: an IP that has exhausted its 5 attempts does not cause another IP's attempts to be rejected
+VERDICT: PASS
+EVIDENCE-CMD: python $TEMP/t.py  (allow_login('B') called right after 'A' was blocked)
+EVIDENCE-OUT: c4 True
+
+CRITERION 5: Each different IP gets its own full allowance of 5 attempts per minute
+VERDICT: PASS
+EVIDENCE-CMD: python $TEMP/t.py  (6 calls for 'C', then 5 calls for 'D')
+EVIDENCE-OUT: c5 [True, True, True, True, True, False] [True, True, True, True, True]
+
+FINAL: MATCHES INTENT
+```
+
+OBSERVATIONS:
+- Blocked attempts are not recorded, so the limit is a true sliding window and does not extend the block.
+- I did not test thread-safety.
+- The `defaultdict` is never pruned of IPs that stop attempting, so memory grows over time. The request did not ask about this.

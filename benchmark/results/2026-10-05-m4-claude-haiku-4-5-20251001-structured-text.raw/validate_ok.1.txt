@@ -1,0 +1,39 @@
+```
+INTENT-VERIFY LEDGER v1
+mode: STRUCTURED
+
+CRITERION 1: A username whose trimmed length is between 3 and 20 characters is valid
+VERDICT: NOT-EXERCISED
+REASON: beyond the 5-criterion STRUCTURED budget
+
+CRITERION 2: A username with a trimmed length of exactly 3 characters is valid (lower bound inclusive)
+VERDICT: PASS
+EVIDENCE-CMD: python test_validate.py (tests valid_username('abc'))
+EVIDENCE-OUT: 3 chars: True
+
+CRITERION 3: A username with a trimmed length of exactly 20 characters is valid (upper bound inclusive)
+VERDICT: PASS
+EVIDENCE-CMD: python test_validate.py (tests valid_username('a'*20))
+EVIDENCE-OUT: 20 chars: True
+
+CRITERION 4: A username with a trimmed length of 2 or fewer characters is not valid
+VERDICT: PASS
+EVIDENCE-CMD: python test_validate.py (tests valid_username('ab') and valid_username('a'))
+EVIDENCE-OUT: 2 chars: False
+  1 char: False
+
+CRITERION 5: A username with a trimmed length of 21 or more characters is not valid
+VERDICT: PASS
+EVIDENCE-CMD: python test_validate.py (tests valid_username('a'*21) and valid_username('a'*30))
+EVIDENCE-OUT: 21 chars: False
+  30 chars: False
+
+CRITERION 6: Leading and trailing whitespace is removed before the length is measured, so surrounding whitespace does not count toward the length (e.g. ' ab ' is invalid, ' abc ' is valid)
+VERDICT: PASS
+EVIDENCE-CMD: python test_validate.py (tests valid_username(' ab '), valid_username(' abc '), valid_username('  testuser  '))
+EVIDENCE-OUT: trim ab: False
+  trim abc: True
+  trim user: True
+
+FINAL: MATCHES INTENT
+```

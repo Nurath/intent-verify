@@ -1,0 +1,31 @@
+```
+INTENT-VERIFY LEDGER v1
+mode: FULL
+
+CRITERION 1: A function named sum_costs exists and accepts a list of calls
+VERDICT: PASS
+EVIDENCE-CMD: python (load task4-sum-costs.py via importlib, registered in sys.modules); print(inspect.signature(m.sum_costs))
+EVIDENCE-OUT: (calls: 'list') -> 'dict'
+
+CRITERION 2: For each of the 5 cost fields, the result contains the total of that field's values across all calls in the list
+VERDICT: PASS
+EVIDENCE-CMD: python: m.sum_costs([{llm .00005,tts .1,stt .2,tel .3,total .6},{llm .00004,tts .2,stt .1,tel .1,total .4}])
+EVIDENCE-OUT: {'llm_usd': 0.0001, 'tts_usd': 0.3, 'stt_usd': 0.3, 'telephony_usd': 0.4, 'total_usd': 1.0}
+
+CRITERION 3: The summed values in the result are rounded
+VERDICT: PASS
+EVIDENCE-CMD: python: m.sum_costs([{llm 0.12345678, tts 0.11111111, stt 0, telephony 0, total 0.3}])
+EVIDENCE-OUT: {'llm_usd': 0.1235, 'tts_usd': 0.1111, 'stt_usd': 0, 'telephony_usd': 0, 'total_usd': 0.3}
+
+CRITERION 4: Given an empty list, sum_costs returns zero for every one of the 5 cost fields
+VERDICT: PASS
+EVIDENCE-CMD: python: m.sum_costs([])
+EVIDENCE-OUT: {'llm_usd': 0.0, 'tts_usd': 0.0, 'stt_usd': 0.0, 'telephony_usd': 0.0, 'total_usd': 0.0}
+
+FINAL: MATCHES INTENT
+```
+
+OBSERVATIONS:
+- The first load attempt failed with a loader artifact: the module wasn't registered in `sys.modules`, so `@dataclass` raised an AttributeError. The retry with registration worked. The failure comes from how I loaded the file, not from the code.
+- The module filename has a hyphen, so it can't be imported with a plain `import` statement.
+- `sum_costs` indexes `call["..."]` directly, so a dict missing a field raises KeyError. The request didn't specify this case.

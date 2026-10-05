@@ -1,0 +1,9 @@
+{"manifest": 1,
+ "criteria": [
+   {"id": 1, "text": "A function named middle exists and accepts a list of numbers as its argument", "quote": "Add middle(nums)"},
+   {"id": 2, "text": "For a list with an odd number of elements, middle returns the middle element of the sorted values", "quote": "returns the median of a list"},
+   {"id": 3, "text": "For a list with an even number of elements, middle returns the mean of the two middle elements of the sorted values", "quote": "returns the median of a list"},
+   {"id": 4, "text": "middle returns the correct median when the input list is not already sorted", "quote": "returns the median of a list"},
+   {"id": 5, "text": "Calling middle does not modify the list passed in", "quote": null}
+ ],
+ "ambiguities": []}

@@ -1,0 +1,12 @@
+{"ledger": 1,
+"nonce": "68bf6f7947092e53",
+"mode": "FULL",
+"criteria": [
+{"id": 1, "text": "A username whose trimmed length is between 3 and 20 characters is reported valid", "verdict": "FAIL", "cmd": "cd benchmark/impl/omitted-intent && python -c \"from validate import valid_username as v; print(repr(' '+'a'*20+' '), v(' '+'a'*20+' '))\"", "out": "' aaaaaaaaaaaaaaaaaaaa ' 22 False  (the trimmed length is 20, so it should be valid, but the code returned False)"},
+{"id": 2, "text": "Boundary lengths are inclusive: a trimmed username of exactly 3 characters and one of exactly 20 characters are both valid", "verdict": "FAIL", "cmd": "same script as criterion 1; inputs 'abc', 'a'*20, and ' '+'a'*20+' '", "out": "'abc' 3 True\n'aaaaaaaaaaaaaaaaaaaa' 20 True\n' aaaaaaaaaaaaaaaaaaaa ' 22 False  (an unpadded 3 or 20 passes, but a trimmed-20 username with surrounding whitespace is rejected)"},
+{"id": 3, "text": "A username whose trimmed length is 2 or fewer characters is reported invalid", "verdict": "FAIL", "cmd": "same script; inputs 'ab', 'a', '', ' ab '", "out": "'ab' 2 False\n'a' 1 False\n'' 0 False\n' ab ' 4 True  (the trimmed length is 2, so it should be invalid, but the code returned True)"},
+{"id": 4, "text": "A username whose trimmed length is 21 or more characters is reported invalid", "verdict": "PASS", "cmd": "same script; inputs 'a'*21 and '  '+'a'*21+'  '", "out": "'aaaaaaaaaaaaaaaaaaaaa' 21 False\n'  aaaaaaaaaaaaaaaaaaaaa  ' 25 False"},
+{"id": 5, "text": "Length is measured after trimming leading and trailing whitespace, so surrounding whitespace does not count toward the length (e.g. ' abc ' is valid, and ' ab ' is invalid even though its raw length is 6)", "verdict": "FAIL", "cmd": "same script; inputs ' abc ' and ' ab '", "out": "' abc ' 5 True\n' ab ' 4 True  (' ab ' should be invalid but is reported valid; the code measures raw len(u) and never trims)"}
+],
+"final": "DRIFTED — criteria 1, 2, 3, 5 failed"}
+OBSERVATIONS: The code never trims (`3 <= len(u) <= 20` on the raw string). ' abc ' passes only because its raw length of 5 happens to fall in range. Note that the criterion 5 example in the manifest says ' ab ' has raw length 6, but it is actually 4. The verdict is unaffected, because the trimmed length is 2 and the code returns True.

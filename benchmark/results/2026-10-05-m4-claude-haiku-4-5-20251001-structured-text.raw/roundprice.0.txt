@@ -1,0 +1,41 @@
+```
+INTENT-VERIFY LEDGER v1
+mode: STRUCTURED
+
+CRITERION 1: The result of rounding a price has exactly 2 decimal places of precision (e.g. 1.234 becomes 1.23).
+VERDICT: PASS
+EVIDENCE-CMD: python -c "import sys; sys.path.insert(0, r'<repo>\benchmark\impl\omitted-intent'); from roundprice import round_price; print(f'round_price(1.234) = {round_price(1.234)}')"
+EVIDENCE-OUT: round_price(1.234) = 1.23
+
+CRITERION 2: A price whose third decimal digit is exactly 5 with nothing after it rounds up (e.g. 1.005 becomes 1.01, 2.675 becomes 2.68, 0.125 becomes 0.13).
+VERDICT: FAIL
+EVIDENCE-CMD: python test_roundprice_detailed.py (executed with round_price from <repo>\benchmark\impl\omitted-intent\roundprice.py)
+EVIDENCE-OUT:   round_price(1.005) = 1.0 (expect 1.01) [Match: False]
+  round_price(2.675) = 2.67 (expect 2.68) [Match: False]
+  round_price(0.125) = 0.12 (expect 0.13) [Match: False]
+
+CRITERION 3: A price whose discarded part is below half a cent rounds down (e.g. 1.004 becomes 1.00), and one above half a cent rounds up (e.g. 1.006 becomes 1.01).
+VERDICT: PASS
+EVIDENCE-CMD: python test_roundprice_detailed.py (criterion 3 section)
+EVIDENCE-OUT:   round_price(1.004) = 1.0 (expect 1.0) [Match: True]
+  round_price(1.006) = 1.01 (expect 1.01) [Match: True]
+
+CRITERION 4: A price already at 2 or fewer decimal places is returned with the same value (e.g. 3.5 stays 3.50, 4.10 stays 4.10).
+VERDICT: PASS
+EVIDENCE-CMD: python test_roundprice.py (criterion 4 section)
+EVIDENCE-OUT: round_price(3.5) = 3.5 (expect 3.50 or 3.5)
+round_price(4.10) = 4.1 (expect 4.10 or 4.1)
+round_price(5.00) = 5.0 (expect 5.00 or 5.0)
+
+FINAL: DRIFTED — criterion 2 failed
+```
+
+**OBSERVATIONS:**
+
+The implementation uses Python's built-in `round(x, 2)` function, which employs banker's rounding (round half to even) rather than the requested "round half up" behavior. This causes criterion 2 to fail on all three test cases where the third decimal digit is exactly 5:
+
+- 1.005 rounds to 1.00 instead of 1.01
+- 2.675 rounds to 2.67 instead of 2.68  
+- 0.125 rounds to 0.12 instead of 0.13
+
+The original request explicitly requires "rounding half up," which this implementation does not provide. To fix this, the function would need to use a rounding library like Python's `Decimal` module with `ROUND_HALF_UP` or implement custom rounding logic.

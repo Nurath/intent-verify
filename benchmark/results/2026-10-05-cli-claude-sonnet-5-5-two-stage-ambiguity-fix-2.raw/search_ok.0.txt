@@ -1,0 +1,33 @@
+```
+INTENT-VERIFY LEDGER v1
+mode: FULL
+
+CRITERION 1: Every item that contains the query as a substring is included in the result
+VERDICT: PASS
+EVIDENCE-CMD: python -c "from search_ok import search; items=['ABC','AbC','abc','xabcx','ab','Hello World','','ABd']; print(search(items,'abc'))"
+EVIDENCE-OUT: ['ABC', 'AbC', 'abc', 'xabcx']
+
+CRITERION 2: No item that does not contain the query is included in the result
+VERDICT: PASS
+EVIDENCE-CMD: python -c "from search_ok import search; print(search(['Hello World','HELLO','help'],'hello'))"
+EVIDENCE-OUT: ['Hello World', 'HELLO']
+  (Items 'ab', '', 'ABd' and 'help' were excluded. The same query 'abc' on the first item list returned only ['ABC', 'AbC', 'abc', 'xabcx'].)
+
+CRITERION 3: Matching ignores letter case: an item matches whether its case differs from the query's case or not (e.g. query 'abc' matches 'ABC', 'AbC' and 'abc')
+VERDICT: PASS
+EVIDENCE-CMD: python -c "from search_ok import search; items=['ABC','AbC','abc','xabcx','ab','Hello World','','ABd']; print(search(items,'abc'))"
+EVIDENCE-OUT: ['ABC', 'AbC', 'abc', 'xabcx']
+  (An uppercase query 'ABC' on the same items returned the same four items. A lowercase query 'hello' matched 'HELLO' and 'Hello World'.)
+
+CRITERION 4: Items that pass the filter are returned unchanged, with their original text and case preserved
+VERDICT: PASS
+EVIDENCE-CMD: python -c "from search_ok import search; items=['ABC','AbC','abc','xabcx','ab','Hello World','','ABd']; r=search(items,'abc'); print(r==['ABC','AbC','abc','xabcx'], [a is b for a,b in zip(r,items[:4])])"
+EVIDENCE-OUT: True [True, True, True, True]
+
+FINAL: MATCHES INTENT
+```
+
+OBSERVATIONS:
+- An empty query returns every item, which is the normal result for a substring test. The request doesn't say otherwise.
+- I did not test non-string items. They would raise AttributeError, and the request doesn't ask for them.
+- The first run raised a UnicodeEncodeError on the Windows cp1252 console when printing 'İstanbul'. That is a console encoding problem, not a bug in `search`. The `search` calls themselves ran fine.

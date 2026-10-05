@@ -1,0 +1,44 @@
+```
+INTENT-VERIFY LEDGER v1
+mode: STRUCTURED
+
+CRITERION 1: Every returned item contains the query as a substring.
+VERDICT: PASS
+EVIDENCE-CMD: python << 'SCRIPT' ... search(['hello', 'world', 'tell'], 'ell') ...
+EVIDENCE-OUT: search(['hello', 'world', 'tell'], 'ell') = ['hello', 'tell']
+  'hello' contains 'ell': True
+  'tell' contains 'ell': True
+
+CRITERION 2: Every item that contains the query as a substring is returned; none are dropped.
+VERDICT: PASS
+EVIDENCE-CMD: python << 'SCRIPT' ... search(['hello', 'ell', 'world', 'yellow'], 'ell') ...
+EVIDENCE-OUT: search(['hello', 'ell', 'world', 'yellow'], 'ell') = ['hello', 'ell', 'yellow']
+Expected: ['hello', 'ell', 'yellow']
+Match: True
+
+CRITERION 3: Matching ignores letter case: an item matches when it contains the query in any combination of upper and lower case (e.g. query 'abc' matches 'xABCx', and query 'ABC' matches 'xabcx').
+VERDICT: PASS
+EVIDENCE-CMD: python << 'SCRIPT' ... search(['xABCx', 'abc', 'XyZ', 'ABCDEF'], 'abc') ...
+EVIDENCE-OUT: search(['xABCx', 'abc', 'XyZ', 'ABCDEF'], 'abc') = ['xABCx', 'abc', 'ABCDEF']
+  'xABCx' contains 'abc' (case-insensitive): True
+  'abc' contains 'abc' (case-insensitive): True
+  'ABCDEF' contains 'abc' (case-insensitive): True
+
+CRITERION 4: Items that do not contain the query (ignoring case) are excluded from the result.
+VERDICT: PASS
+EVIDENCE-CMD: python << 'SCRIPT' ... search(['hello', 'world', 'foo', 'bar'], 'xyz') ...
+EVIDENCE-OUT: search(['hello', 'world', 'foo', 'bar'], 'xyz') = []
+Is empty: True
+
+CRITERION 5: Returned items keep their original text (case is not altered by the matching).
+VERDICT: PASS
+EVIDENCE-CMD: python << 'SCRIPT' ... search(['HELLO', 'Hello', 'hello', 'HeLLo'], 'hello') ...
+EVIDENCE-OUT: search(['HELLO', 'Hello', 'hello', 'HeLLo'], 'hello') = ['HELLO', 'Hello', 'hello', 'HeLLo']
+Are items unchanged: True
+  Original: 'HELLO' -> Returned: 'HELLO' -> Same: True
+  Original: 'Hello' -> Returned: 'Hello' -> Same: True
+  Original: 'hello' -> Returned: 'hello' -> Same: True
+  Original: 'HeLLo' -> Returned: 'HeLLo' -> Same: True
+
+FINAL: MATCHES INTENT
+```

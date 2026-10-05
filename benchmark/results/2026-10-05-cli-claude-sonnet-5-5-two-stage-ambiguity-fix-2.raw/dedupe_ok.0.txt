@@ -1,0 +1,25 @@
+```
+INTENT-VERIFY LEDGER v1
+mode: FULL
+
+CRITERION 1: No email address appears more than once in the resulting list
+VERDICT: PASS
+EVIDENCE-CMD: cd benchmark/impl/correct && python "$TEMP/t.py" (dedupe(["b@x.com","a@x.com","b@x.com","c@x.com","a@x.com","d@x.com","c@x.com"]); python3 was not installed, so python ran it)
+EVIDENCE-OUT: ['b@x.com', 'a@x.com', 'c@x.com', 'd@x.com']
+  nodup True
+
+CRITERION 2: The emails that remain appear in the same relative order as in the original list
+VERDICT: PASS
+EVIDENCE-CMD: same run; compared out == sorted(set(inp), key=inp.index)
+EVIDENCE-OUT: order True
+
+CRITERION 3: Every distinct email in the original list still appears in the result (only repeats are removed)
+VERDICT: PASS
+EVIDENCE-CMD: same run; compared set(out) == set(inp)
+EVIDENCE-OUT: complete True
+  (an empty input list also returned [])
+
+FINAL: MATCHES INTENT
+```
+
+OBSERVATIONS: The comparison is exact, so "A@x.com" and "a@x.com" count as different emails. The request didn't say whether case should matter, so I did not test it.

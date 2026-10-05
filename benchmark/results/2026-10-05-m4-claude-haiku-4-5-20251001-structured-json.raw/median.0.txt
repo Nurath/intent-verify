@@ -1,0 +1,25 @@
+```json
+{"ledger": 1,
+ "nonce": "3d7d9a9981b2bda3",
+ "mode": "STRUCTURED",
+ "criteria": [
+  {"id": 1, "text": "A function named middle exists and accepts a single list of numbers as its argument", "verdict": "PASS",
+   "cmd": "python -c \"import sys; sys.path.insert(0, 'benchmark/impl'); from median import middle; middle([1, 2, 3])\"",
+   "out": "Function executed successfully, returned 2.0"},
+  {"id": 2, "text": "middle returns the median of the list it is given", "verdict": "FAIL",
+   "cmd": "python << 'EOF'\nimport sys\nsys.path.insert(0, 'benchmark/impl')\nfrom median import middle\ntest_list = [1, 2, 10]\nresult = middle(test_list)\nprint(f\"Result: {result}, Expected: 2\")\nEOF",
+   "out": "Result: 4.333333333333333, Expected: 2"},
+  {"id": 3, "text": "For a list with an odd number of elements, middle returns the middle value of the sorted list, even if the input is unsorted", "verdict": "FAIL",
+   "cmd": "python << 'EOF'\nimport sys\nsys.path.insert(0, 'benchmark/impl')\nfrom median import middle\ntest_list = [1, 2, 10]\nsorted_list = sorted(test_list)\ntrue_median = sorted_list[1]\nresult = middle(test_list)\nprint(f\"List: {test_list}, Sorted: {sorted_list}, Result: {result}, Expected: {true_median}\")\nEOF",
+   "out": "List: [1, 2, 10], Sorted: [1, 2, 10], Result: 4.333333333333333, Expected: 2"},
+  {"id": 4, "text": "For a list with an even number of elements, middle returns the conventional median (the mean of the two middle values of the sorted list)", "verdict": "FAIL",
+   "cmd": "python << 'EOF'\nimport sys\nsys.path.insert(0, 'benchmark/impl')\nfrom median import middle\ntest_list = [1, 2, 3, 100]\nsorted_list = sorted(test_list)\ntrue_median = (sorted_list[1] + sorted_list[2]) / 2\nresult = middle(test_list)\nprint(f\"List: {test_list}, True median: {true_median}, Result: {result}\")\nEOF",
+   "out": "List: [1, 2, 3, 100], True median: 2.5, Result: 26.5"},
+  {"id": 5, "text": "middle does not alter the list passed in (e.g. does not sort it in place)", "verdict": "PASS",
+   "cmd": "python << 'EOF'\nimport sys\nsys.path.insert(0, 'benchmark/impl')\nfrom median import middle\ntest_list = [3, 1, 2]\noriginal = test_list.copy()\nresult = middle(test_list)\nprint(f\"Original: {original}, After: {test_list}, Modified: {test_list != original}\")\nEOF",
+   "out": "Original: [3, 1, 2], After: [3, 1, 2], Modified: False"}
+ ],
+ "final": "DRIFTED — criteria 2, 3, 4 failed"}
+```
+
+OBSERVATIONS: The implementation returns the arithmetic mean (average) of the list, not the median. The code computes `sum(nums) / len(nums)`, which is fundamentally incorrect for a median function. Criteria 1 and 5 pass, but criteria 2, 3, and 4 all fail because the function does not compute the median value at all.

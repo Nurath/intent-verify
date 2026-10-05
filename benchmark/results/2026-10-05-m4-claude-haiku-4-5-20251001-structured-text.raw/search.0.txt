@@ -1,0 +1,25 @@
+```
+INTENT-VERIFY LEDGER v1
+mode: STRUCTURED
+
+CRITERION 1: Only items that contain the query are returned; items that do not contain it are excluded
+VERDICT: PASS
+EVIDENCE-CMD: search(['hello', 'world', 'help'], 'hel')
+EVIDENCE-OUT: ['hello', 'help']
+
+CRITERION 2: Matching ignores letter case: an item matches whether its text and the query differ in upper/lower case (e.g. query 'abc' matches 'ABC' and 'xAbCx')
+VERDICT: FAIL
+EVIDENCE-CMD: search(['ABC'], 'abc')
+EVIDENCE-OUT: []
+
+CRITERION 3: A match is a substring match: an item matches when the query appears anywhere within it, not only when it equals the query
+VERDICT: PASS
+EVIDENCE-CMD: search(['xAbCx', 'hello', 'world'], 'bC')
+EVIDENCE-OUT: ['xAbCx']
+
+FINAL: DRIFTED — criterion 2 failed
+```
+
+**OBSERVATIONS:**
+
+The implementation uses Python's `in` operator (`q in x`), which performs case-sensitive substring matching. This satisfies criteria 1 and 3 but violates criterion 2. The original request explicitly required "case-insensitively" matching, but the code does not normalize case before comparison. To meet all criteria, the code would need to use `.lower()` on both the query and items (e.g., `q.lower() in x.lower()`).

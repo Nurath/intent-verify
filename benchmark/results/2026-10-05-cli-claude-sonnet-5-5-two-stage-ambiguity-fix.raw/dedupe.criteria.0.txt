@@ -1,0 +1,10 @@
+{"manifest": 1,
+ "criteria": [
+   {"id": 1, "text": "The resulting list contains no duplicate emails: each distinct email appears exactly once", "quote": "Remove duplicate emails from the list"},
+   {"id": 2, "text": "The remaining emails appear in the same relative order as in the original list", "quote": "keeping the original order"},
+   {"id": 3, "text": "Every distinct email present in the original list is still present in the result (no unique email is dropped)", "quote": null}
+ ],
+ "ambiguities": [
+   {"question": "Which occurrence of a duplicated email is kept, the first or a later one? This decides the order of the result.", "assumed": "The first occurrence is kept, and its position defines the email's place in the order", "criteria": [2]},
+   {"question": "Are emails compared case-sensitively, so that 'A@x.com' and 'a@x.com' count as different?", "assumed": "Emails are duplicates only when the strings are exactly equal", "criteria": [1, 3]}
+ ]}

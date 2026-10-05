@@ -1,0 +1,26 @@
+```
+INTENT-VERIFY LEDGER v1
+mode: FULL
+
+CRITERION 1: The resulting list contains no duplicate emails: each distinct email appears exactly once
+VERDICT: PASS
+EVIDENCE-CMD: python -c 'from dedupe import dedupe; src=["c@x.com","a@x.com","b@x.com","a@x.com","c@x.com","d@x.com","b@x.com"]; r=dedupe(src); print(r); print("nodup",len(r)==len(set(r)))'
+EVIDENCE-OUT: ['d@x.com', 'b@x.com', 'c@x.com', 'a@x.com']
+  nodup True
+
+CRITERION 2: The remaining emails appear in the same relative order as in the original list
+VERDICT: FAIL
+EVIDENCE-CMD: python -c 'from dedupe import dedupe; src=["c@x.com","a@x.com","b@x.com","a@x.com","c@x.com","d@x.com","b@x.com"]; r=dedupe(src); exp=list(dict.fromkeys(src)); print(r); print("expected",exp); print("order",r==exp)'
+EVIDENCE-OUT: ['d@x.com', 'b@x.com', 'c@x.com', 'a@x.com']
+  expected ['c@x.com', 'a@x.com', 'b@x.com', 'd@x.com']
+  order False
+
+CRITERION 3: Every distinct email present in the original list is still present in the result (no unique email is dropped)
+VERDICT: PASS
+EVIDENCE-CMD: python -c 'from dedupe import dedupe; src=["c@x.com","a@x.com","b@x.com","a@x.com","c@x.com","d@x.com","b@x.com"]; r=dedupe(src); print("complete",set(r)==set(src))'
+EVIDENCE-OUT: complete True
+
+FINAL: DRIFTED — criteria 2 failed
+```
+
+OBSERVATIONS: The implementation uses `list(set(emails))`, which discards order. Order is hash-dependent, and for strings it can change between interpreter runs. Within one run the three calls gave the same output.

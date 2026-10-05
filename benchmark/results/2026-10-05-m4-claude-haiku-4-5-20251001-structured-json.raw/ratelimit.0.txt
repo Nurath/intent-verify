@@ -1,0 +1,47 @@
+```json
+{
+  "ledger": 1,
+  "nonce": "49e5a21eb9f2c290",
+  "mode": "STRUCTURED",
+  "criteria": [
+    {
+      "id": 1,
+      "text": "Login attempts from a single IP are limited to 5 within a one-minute window; the 6th attempt within that minute is rejected (rate-limited)",
+      "verdict": "PASS",
+      "cmd": "python test_ratelimit.py (criterion 1 section)",
+      "out": "Attempt 1: True\nAttempt 2: True\nAttempt 3: True\nAttempt 4: True\nAttempt 5: True\nAttempt 6: False\nResults: [True, True, True, True, True, False]\nExpected: [True, True, True, True, True, False]"
+    },
+    {
+      "id": 2,
+      "text": "The first 5 login attempts from an IP within a minute are not blocked by the rate limit",
+      "verdict": "PASS",
+      "cmd": "python test_ratelimit.py (criterion 2 section)",
+      "out": "Attempt 1: True\nAttempt 2: True\nAttempt 3: True\nAttempt 4: True\nAttempt 5: True\nAll 5 allowed: True"
+    },
+    {
+      "id": 3,
+      "text": "Once an IP has hit the limit, it is blocked only for the rate-limited period; it can attempt login again after the minute window has passed",
+      "verdict": "PASS",
+      "cmd": "python test_ratelimit.py (criterion 3 section)",
+      "out": "6th attempt (within window): False\nWaiting 61 seconds...\n7th attempt (after 61s): True\nExpected: False then True"
+    },
+    {
+      "id": 4,
+      "text": "Rate-limit counts for different IPs are independent: an IP that has exhausted its 5 attempts does not cause attempts from another IP to be rejected",
+      "verdict": "FAIL",
+      "cmd": "python test_ratelimit.py (criterion 4 section)",
+      "out": "IP1 (192.168.1.100) first 5 attempts: [True, True, True, True, True]\nIP1 6th attempt: False\nIP2 (192.168.1.101) first 5 attempts: [False, False, False, False, False]\nIP2 all 5 allowed despite IP1 being rate-limited: False"
+    },
+    {
+      "id": 5,
+      "text": "An IP's attempts count toward its own limit only, so a second IP making its own 5 attempts within the minute is allowed all 5",
+      "verdict": "FAIL",
+      "cmd": "python test_ratelimit.py (criterion 5 section)",
+      "out": "IP B (10.0.0.201) first 5 attempts: [False, False, False, False, False]\nAll 5 succeed: False"
+    }
+  ],
+  "final": "DRIFTED — criteria 4, 5 failed"
+}
+```
+
+OBSERVATIONS: The implementation has a critical architectural flaw: the `_attempts` list stores only timestamps without any IP tracking. All IPs share a single global counter, violating the core requirement that "different IPs are tracked independently." Criteria 1–3 pass because they test single-IP scenarios within the time window. Criteria 4–5 fail because when any IP exhausts its 5 attempts, all subsequent attempts (from any IP) are blocked until the time window expires. The fix would require `_attempts` to be structured as a dictionary keyed by IP (e.g., `{ip: [timestamps]}`), not a flat list.

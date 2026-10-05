@@ -1,0 +1,28 @@
+```
+INTENT-VERIFY LEDGER v1
+mode: STRUCTURED
+
+CRITERION 1: The resulting list contains no email address more than once
+VERDICT: PASS
+EVIDENCE-CMD: cd "<repo>" && python with dedupe(['alice@example.com', 'bob@example.com', 'alice@example.com', 'charlie@example.com']) 
+EVIDENCE-OUT: Input: ['alice@example.com', 'bob@example.com', 'alice@example.com', 'charlie@example.com']
+Output: ['alice@example.com', 'charlie@example.com', 'bob@example.com']
+Has duplicates: False
+
+CRITERION 2: The remaining emails appear in the same relative order as in the original list
+VERDICT: FAIL
+EVIDENCE-CMD: cd "<repo>" && python with dedupe(['zoe@example.com', 'alice@example.com', 'zoe@example.com', 'bob@example.com'])
+EVIDENCE-OUT: Input: ['zoe@example.com', 'alice@example.com', 'zoe@example.com', 'bob@example.com']
+Output: ['alice@example.com', 'zoe@example.com', 'bob@example.com']
+Input order should be: ['zoe@example.com', 'alice@example.com', 'bob@example.com']
+Order match: False
+
+CRITERION 3: Every distinct email in the original list is still present in the result (only repeats are removed)
+VERDICT: PASS
+EVIDENCE-CMD: cd "<repo>" && python with dedupe(['alice@example.com', 'bob@example.com', 'alice@example.com', 'charlie@example.com'])
+EVIDENCE-OUT: Input distinct emails: {'alice@example.com', 'charlie@example.com', 'bob@example.com'}
+Output emails: {'alice@example.com', 'charlie@example.com', 'bob@example.com'}
+All distinct emails present: True
+
+FINAL: DRIFTED — criterion 2 failed
+```

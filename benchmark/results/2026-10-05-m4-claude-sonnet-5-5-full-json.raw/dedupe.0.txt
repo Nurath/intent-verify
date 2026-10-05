@@ -1,0 +1,10 @@
+{"ledger": 1,
+ "nonce": "78de990dfbbad47e",
+ "mode": "FULL",
+ "criteria": [
+  {"id": 1, "text": "The resulting list contains no email address more than once", "verdict": "PASS", "cmd": "python $TEMP/v.py  (calls dedupe on [zed, bob, alice, bob, zed, carol, mike, alice]@x.com; checks len(r)==len(set(r)))", "out": "['zed@x.com', 'bob@x.com', 'carol@x.com', 'mike@x.com', 'alice@x.com']\nnodup True"},
+  {"id": 2, "text": "The remaining emails appear in the same relative order as in the original list", "verdict": "FAIL", "cmd": "python $TEMP/v.py  (compares dedupe(inp) with list(dict.fromkeys(inp)))", "out": "result: ['zed@x.com', 'bob@x.com', 'carol@x.com', 'mike@x.com', 'alice@x.com']\nexpected ['zed@x.com', 'bob@x.com', 'alice@x.com', 'carol@x.com', 'mike@x.com']\norder False"},
+  {"id": 3, "text": "Every distinct email in the original list is still present in the result (only repeats are removed)", "verdict": "PASS", "cmd": "python $TEMP/v.py  (checks set(r)==set(inp))", "out": "allpresent True"}
+ ],
+ "final": "DRIFTED — criteria 2 failed"}
+OBSERVATIONS: dedupe uses list(set(emails)), which discards order. The sample output happened to be the same on 3 runs in one process, but set order is not the input order and can vary with hash seeding. Using list(dict.fromkeys(emails)) would preserve order. The `python3` command was not found, so I ran the check with `python`.

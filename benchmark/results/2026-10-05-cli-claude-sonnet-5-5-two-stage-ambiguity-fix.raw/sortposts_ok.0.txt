@@ -1,0 +1,17 @@
+INTENT-VERIFY LEDGER v1
+mode: FULL
+
+CRITERION 1: Posts are returned ordered by their date, with the most recent date first and the oldest last
+VERDICT: PASS
+EVIDENCE-CMD: cd benchmark/impl/correct && python -c "from sortposts_ok import sort_posts; posts=[{'id':1,'date':'2024-01-05'},{'id':2,'date':'2025-03-01'},{'id':3,'date':'2023-12-31'},{'id':4,'date':'2025-03-01'},{'id':5,'date':'2024-11-09'}]; r=sort_posts(posts); print([(p['id'],p['date']) for p in r])"
+EVIDENCE-OUT: [(2, '2025-03-01'), (4, '2025-03-01'), (5, '2024-11-09'), (1, '2024-01-05'), (3, '2023-12-31')]
+
+CRITERION 2: Sorting does not drop, add, or duplicate any posts; the same set of posts comes back, only reordered
+VERDICT: PASS
+EVIDENCE-CMD: cd benchmark/impl/correct && python -c "from sortposts_ok import sort_posts; posts=[{'id':1,'date':'2024-01-05'},{'id':2,'date':'2025-03-01'},{'id':3,'date':'2023-12-31'},{'id':4,'date':'2025-03-01'},{'id':5,'date':'2024-11-09'}]; r=sort_posts(posts); print(len(r)==len(posts), sorted(p['id'] for p in r)==sorted(p['id'] for p in posts)); print(sort_posts([]))"
+EVIDENCE-OUT: True True
+  []
+
+FINAL: MATCHES INTENT
+
+OBSERVATIONS: Only ISO-format string dates were tested. Dates in non-ISO string formats (e.g. "03/01/2025") would sort lexicographically, not chronologically. The request did not specify a date format.

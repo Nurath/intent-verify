@@ -1,0 +1,13 @@
+{"ledger": 1,
+ "nonce": "f7d9ab871523e524",
+ "mode": "FULL",
+ "criteria": [
+  {"id": 1, "text": "Posts are returned/displayed ordered by their date, with the most recent date first and the oldest last.", "verdict": "FAIL",
+   "cmd": "cd benchmark/impl && python -c 'from sortposts import sort_posts; posts=[{\"id\":1,\"date\":\"2024-01-05\"},{\"id\":2,\"date\":\"2025-03-01\"},{\"id\":3,\"date\":\"2023-12-31\"},{\"id\":4,\"date\":\"2025-03-01\"}]; r=sort_posts(posts); print([p[\"date\"] for p in r])'",
+   "out": "['2023-12-31', '2024-01-05', '2025-03-01', '2025-03-01']"},
+  {"id": 2, "text": "Sorting does not add or drop any posts; the same set of posts appears, only reordered.", "verdict": "PASS",
+   "cmd": "cd benchmark/impl && python -c 'from sortposts import sort_posts; posts=[{\"id\":1,\"date\":\"2024-01-05\"},{\"id\":2,\"date\":\"2025-03-01\"},{\"id\":3,\"date\":\"2023-12-31\"},{\"id\":4,\"date\":\"2025-03-01\"}]; r=sort_posts(posts); print(sorted(p[\"id\"] for p in r)==[1,2,3,4], len(r))'",
+   "out": "True 4"}
+ ],
+ "final": "DRIFTED — criteria 1 failed"}
+OBSERVATIONS: sort_posts sorts ascending (oldest first) because it has no reverse=True, which is the opposite of the "newest first" the request asked for. The docstring "Sort posts by date." leaves out the direction.

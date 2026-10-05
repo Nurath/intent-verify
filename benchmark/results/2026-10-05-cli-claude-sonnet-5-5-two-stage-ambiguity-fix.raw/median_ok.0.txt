@@ -1,0 +1,34 @@
+INTENT-VERIFY LEDGER v1
+mode: FULL
+
+CRITERION 1: A function named middle exists and accepts a list of numbers as its argument
+VERDICT: PASS
+EVIDENCE-CMD: cd benchmark/impl/correct && python -c "import median_ok as m, inspect; print('callable', callable(m.middle), inspect.signature(m.middle)); print('odd', m.middle([3,1,2]))"
+EVIDENCE-OUT: callable True (nums)
+odd 2
+
+CRITERION 2: For a list with an odd number of elements, middle returns the middle element of the sorted values
+VERDICT: PASS
+EVIDENCE-CMD: python -c "import median_ok as m; print('odd', m.middle([3,1,2]), m.middle([5,1,9,7,3]))"
+EVIDENCE-OUT: odd 2 5
+
+CRITERION 3: For a list with an even number of elements, middle returns the mean of the two middle elements of the sorted values
+VERDICT: PASS
+EVIDENCE-CMD: python -c "import median_ok as m; print('even', m.middle([4,1,3,2]), m.middle([10,2]))"
+EVIDENCE-OUT: even 2.5 6.0
+
+CRITERION 4: middle returns the correct median when the input list is not already sorted
+VERDICT: PASS
+EVIDENCE-CMD: python -c "import median_ok as m; print('unsorted', m.middle([9,1,5,3,7]), m.middle([8,2,6,4]))"
+EVIDENCE-OUT: unsorted 5 5.0
+
+CRITERION 5: Calling middle does not modify the list passed in
+VERDICT: PASS
+EVIDENCE-CMD: python -c "import median_ok as m; l=[3,1,2,5,4,9]; c=l[:]; m.middle(l); print('mutation', l, l==c)"
+EVIDENCE-OUT: mutation [3, 1, 2, 5, 4, 9] True
+
+FINAL: MATCHES INTENT
+
+OBSERVATIONS:
+- Importing the module created a `__pycache__` directory next to the source. I removed it afterwards with `rm -rf __pycache__`, so the project tree should be unchanged.
+- An empty list raises IndexError. The request did not specify this case.

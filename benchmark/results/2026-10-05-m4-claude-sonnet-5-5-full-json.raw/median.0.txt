@@ -1,0 +1,12 @@
+{"ledger": 1,
+ "nonce": "d02d55b6fb361386",
+ "mode": "FULL",
+ "criteria": [
+  {"id": 1, "text": "A function named middle exists and accepts a single list of numbers as its argument", "verdict": "PASS", "cmd": "cd benchmark/impl && python -c \"import median; print(median.middle([3,1,2]))\"", "out": "2.0"},
+  {"id": 2, "text": "middle returns the median of the list it is given", "verdict": "FAIL", "cmd": "python -c \"import median; print(median.middle([5,1,100]))\"", "out": "35.333333333333336 (the mean; the median is 5)"},
+  {"id": 3, "text": "For a list with an odd number of elements, middle returns the middle value of the sorted list, even if the input is unsorted", "verdict": "FAIL", "cmd": "python -c \"import median; print(median.middle([5,1,100]))\"", "out": "35.333333333333336 (expected 5, the middle of sorted [1,5,100])"},
+  {"id": 4, "text": "For a list with an even number of elements, middle returns the conventional median (the mean of the two middle values of the sorted list)", "verdict": "FAIL", "cmd": "python -c \"import median; print(median.middle([1,2,3,100]))\"", "out": "26.5 (expected 2.5, the mean of 2 and 3)"},
+  {"id": 5, "text": "middle does not alter the list passed in (e.g. does not sort it in place)", "verdict": "PASS", "cmd": "python -c \"import median; l=[3,1,2]; median.middle(l); print(l)\"", "out": "[3, 1, 2]"}
+ ],
+ "final": "DRIFTED — criteria 2, 3, 4 failed"}
+OBSERVATIONS: The implementation returns the arithmetic mean (sum/len), not the median. Its docstring says "central value", which is vague. It matches the median only when the mean happens to equal it, for example [3,1,2] and [4,1,3,2]. Criterion 5 passes only because the function never sorts anything. python3 was not installed, so I ran the checks with `python`.

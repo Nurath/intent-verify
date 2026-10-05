@@ -1,0 +1,45 @@
+```
+INTENT-VERIFY LEDGER v1
+mode: STRUCTURED
+
+CRITERION 1: Login attempts from a single IP are limited to 5 within a one-minute window; the 6th attempt within that minute is rejected (rate-limited)
+VERDICT: PASS
+EVIDENCE-CMD: python test script calling allow_login("192.168.1.1") six times consecutively
+EVIDENCE-OUT: Attempt 1: True
+Attempt 2: True
+Attempt 3: True
+Attempt 4: True
+Attempt 5: True
+Attempt 6: False
+REASON: Code correctly rejects the 6th consecutive attempt from same IP within the window
+
+CRITERION 2: The first 5 login attempts from an IP within a minute are not blocked by the rate limit
+VERDICT: PASS
+EVIDENCE-CMD: python test script calling allow_login("192.168.1.5") five times consecutively
+EVIDENCE-OUT: Attempt 1: True
+Attempt 2: True
+Attempt 3: True
+Attempt 4: True
+Attempt 5: True
+REASON: Code allows all first 5 attempts from a single IP
+
+CRITERION 3: Once an IP has hit the limit, it is blocked only for the rate-limited period; it can attempt login again after the minute window has passed
+VERDICT: NOT-EXERCISED
+REASON: Criterion requires 60+ second wait (WINDOW=60) which exceeds budget for STRUCTURED mode (~15 commands total). Timing verification deferred.
+
+CRITERION 4: Rate-limit counts for different IPs are independent: an IP that has exhausted its 5 attempts does not cause attempts from another IP to be rejected
+VERDICT: FAIL
+EVIDENCE-CMD: python test script: IP 192.168.1.100 makes 5 attempts, then IP 192.168.1.200 makes 5 attempts
+EVIDENCE-OUT: IP1 (192.168.1.100): [True, True, True, True, True]
+IP2 (192.168.1.200): [False, False, False, False, False]
+REASON: Code fails to track attempts per IP. It uses a single global _attempts list containing only timestamps (no IP info). After IP1 exhausts 5 attempts, the global counter is at limit, so IP2 is immediately blocked. The implementation does not store IP identifiers alongside timestamps.
+
+CRITERION 5: An IP's attempts count toward its own limit only, so a second IP making its own 5 attempts within the minute is allowed all 5
+VERDICT: FAIL
+EVIDENCE-CMD: python test script: IP 192.168.1.200 makes 5 attempts after IP 192.168.1.100 already made 5 attempts
+EVIDENCE-OUT: IP2 (192.168.1.200) attempts: [False, False, False, False, False]
+Expected: [True, True, True, True, True]
+REASON: Same root cause as Criterion 4. The code's global attempt counter reaches limit after the first IP's attempts, blocking all subsequent attempts regardless of source IP.
+
+FINAL: DRIFTED — criteria 4, 5 failed
+```

@@ -1,0 +1,10 @@
+{"manifest": 1,
+ "criteria": [
+   {"id": 1, "text": "Every item that contains the query as a substring is included in the result", "quote": "Filter items to those containing the query"},
+   {"id": 2, "text": "Items that do not contain the query are excluded from the result", "quote": "Filter items to those containing the query"},
+   {"id": 3, "text": "Matching ignores letter case: an item matches the query regardless of whether their letter cases differ (e.g. query 'abc' matches 'ABC' and 'xAbCx')", "quote": "case-insensitively"},
+   {"id": 4, "text": "Items that pass the filter are returned unchanged, with their original casing", "quote": null}
+ ],
+ "ambiguities": [
+   {"question": "Does 'containing the query' mean substring match anywhere in the item, or a whole-word/prefix match?", "assumed": "Substring match anywhere within the item", "criteria": [1, 2]}
+ ]}

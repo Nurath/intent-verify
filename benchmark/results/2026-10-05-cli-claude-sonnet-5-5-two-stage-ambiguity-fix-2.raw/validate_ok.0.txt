@@ -1,0 +1,39 @@
+INTENT-VERIFY LEDGER v1
+mode: FULL
+
+CRITERION 1: A username whose trimmed length is between 3 and 20 characters inclusive is valid
+VERDICT: PASS
+EVIDENCE-CMD: python -c "from validate_ok import valid_username as v; [print(repr(s), v(s)) for s in ['abc','a'*3,'a'*20,'  '+'a'*20+'  ']]" (run from benchmark/impl/correct)
+EVIDENCE-OUT:
+  'abc' True
+  'aaa' True
+  'aaaaaaaaaaaaaaaaaaaa' True
+  '  aaaaaaaaaaaaaaaaaaaa  ' True
+
+CRITERION 2: A username whose trimmed length is fewer than 3 characters is not valid
+VERDICT: PASS
+EVIDENCE-CMD: python -c "from validate_ok import valid_username as v; [print(repr(s), v(s)) for s in ['ab','','   ','\tab\n']]" (run from benchmark/impl/correct)
+EVIDENCE-OUT:
+  'ab' False
+  '' False
+  '   ' False
+  '\tab\n' False
+
+CRITERION 3: A username whose trimmed length is more than 20 characters is not valid
+VERDICT: PASS
+EVIDENCE-CMD: python -c "from validate_ok import valid_username as v; [print(repr(s), v(s)) for s in ['a'*21,'  '+'a'*21+'  ']]" (run from benchmark/impl/correct)
+EVIDENCE-OUT:
+  'aaaaaaaaaaaaaaaaaaaaa' False
+  '  aaaaaaaaaaaaaaaaaaaaa  ' False
+
+CRITERION 4: Leading and trailing whitespace is removed before the length is measured, so surrounding whitespace does not count toward the length (e.g. ' ab ' is invalid and ' abc ' is valid)
+VERDICT: PASS
+EVIDENCE-CMD: python -c "from validate_ok import valid_username as v; [print(repr(s), v(s)) for s in [' ab ',' abc ','  '+'a'*20+'  ']]" (run from benchmark/impl/correct)
+EVIDENCE-OUT:
+  ' ab ' False
+  ' abc ' True
+  '  aaaaaaaaaaaaaaaaaaaa  ' True
+
+FINAL: MATCHES INTENT
+
+OBSERVATIONS: Interior whitespace is counted ('a b' is valid), which matches the request, since only surrounding whitespace is trimmed. Non-string input was not tested, because the request does not cover it.

@@ -1,0 +1,26 @@
+```json
+{
+  "ledger": 1,
+  "nonce": "7dfa79330dccb242",
+  "mode": "STRUCTURED",
+  "criteria": [
+    {
+      "id": 1,
+      "text": "Posts are returned/displayed ordered by their date, with the most recent date first and the oldest last.",
+      "verdict": "FAIL",
+      "cmd": "python -c \"from sortposts import sort_posts; posts = [{'id': 1, 'date': '2025-01-15'}, {'id': 2, 'date': '2025-01-20'}, {'id': 3, 'date': '2025-01-10'}, {'id': 4, 'date': '2025-01-18'}]; result = sort_posts(posts); [print(p['date']) for p in result]\"",
+      "out": "2025-01-10\n2025-01-15\n2025-01-18\n2025-01-20"
+    },
+    {
+      "id": 2,
+      "text": "Sorting does not add or drop any posts; the same set of posts appears, only reordered.",
+      "verdict": "PASS",
+      "cmd": "python -c \"from sortposts import sort_posts; posts = [{'id': 1, 'date': '2025-01-15'}, {'id': 2, 'date': '2025-01-20'}, {'id': 3, 'date': '2025-01-10'}, {'id': 4, 'date': '2025-01-18'}]; result = sort_posts(posts); print('Count match:', len(posts) == len(result)); print('IDs match:', {p['id'] for p in posts} == {p['id'] for p in result})\"",
+      "out": "Count match: True\nIDs match: True"
+    }
+  ],
+  "final": "DRIFTED — criteria 1 failed"
+}
+```
+
+OBSERVATIONS: The implementation sorts in ascending order (oldest date first) using `sorted(posts, key=lambda p: p["date"])`. The original request explicitly asks for "newest first," which requires descending order. The code should use `sorted(posts, key=lambda p: p["date"], reverse=True)` to match the request.

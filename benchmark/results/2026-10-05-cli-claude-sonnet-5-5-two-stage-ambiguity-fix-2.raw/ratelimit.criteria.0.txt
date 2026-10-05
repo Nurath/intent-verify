@@ -1,0 +1,10 @@
+{"manifest": 1,
+ "criteria": [
+   {"id": 1, "text": "Up to 5 login attempts from a single IP within one minute are processed normally (not rejected by the rate limit)", "quote": "5 attempts per minute"},
+   {"id": 2, "text": "A 6th login attempt from the same IP within the same minute is rejected by the rate limit", "quote": "5 attempts per minute per IP"},
+   {"id": 3, "text": "After the one-minute window has passed, an IP that was blocked can attempt to log in again", "quote": "per minute"},
+   {"id": 4, "text": "Login attempts from one IP do not count against the limit of a different IP: when one IP is blocked, another IP can still attempt to log in", "quote": "different IPs are tracked independently"}
+ ],
+ "ambiguities": [
+   {"question": "Does the limit count all login attempts or only failed ones?", "assumed": "All login attempts count, regardless of whether credentials are correct", "criteria": [1, 2]}
+ ]}

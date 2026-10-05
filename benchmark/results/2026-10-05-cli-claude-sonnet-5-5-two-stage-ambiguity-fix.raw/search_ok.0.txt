@@ -1,0 +1,28 @@
+INTENT-VERIFY LEDGER v1
+mode: FULL
+
+CRITERION 1: Every returned item contains the query as a substring
+VERDICT: PASS
+EVIDENCE-CMD: cd benchmark/impl/correct && python -c "from search_ok import search; print(search(['ABC','abc','xAbCx','zzz','','Abd','aBc def','ab'],'abc'))"  (run as a heredoc script in the session)
+EVIDENCE-OUT: ['ABC', 'abc', 'xAbCx', 'aBc def']
+  Every returned item contains "abc" ignoring case. Non-matches 'zzz', '', 'Abd' and 'ab' were excluded.
+
+CRITERION 2: Every item that contains the query as a substring is returned (none that match are dropped)
+VERDICT: PASS
+EVIDENCE-CMD: same script, items ['ABC','abc','xAbCx','zzz','','Abd','aBc def','ÄBC','ab'], queries 'abc' and 'b'
+EVIDENCE-OUT: search(items,'abc') -> ['ABC', 'abc', 'xAbCx', 'aBc def']. All four case-insensitive matches in the list are present.
+  search(items,'') -> all 9 items, which is correct since every string contains the empty string.
+  search(items,'b')==expected -> True.
+  search([], 'a') -> []
+  The 'b' check compared against a reimplementation of the same logic, so it adds little.
+
+CRITERION 3: Matching ignores letter case: an item matches whether its case differs from the query's case in either direction (e.g. query 'abc' matches 'ABC' and query 'ABC' matches 'abc')
+VERDICT: PASS
+EVIDENCE-CMD: same script, queries 'abc', 'ABC' and 'aBc' against the same items
+EVIDENCE-OUT: 'abc' -> ['ABC', 'abc', 'xAbCx', 'aBc def']
+  'ABC' -> ['ABC', 'abc', 'xAbCx', 'aBc def']
+  'aBc' -> ['ABC', 'abc', 'xAbCx', 'aBc def']
+
+FINAL: MATCHES INTENT
+
+OBSERVATIONS: Unicode edge cases were not tested beyond a single 'ß' query. `lower()` is not full case folding, so 'ß' will not match 'SS', and 'STRASSE' was correctly not returned for 'ß'. This is outside the request's scope.

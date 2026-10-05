@@ -1,0 +1,53 @@
+```json
+{
+  "ledger": 1,
+  "nonce": "809a9d035b1ac48c",
+  "mode": "STRUCTURED",
+  "criteria": [
+    {
+      "id": 1,
+      "text": "A username whose trimmed length is between 3 and 20 characters is valid",
+      "verdict": "NOT-EXERCISED",
+      "reason": "Covered by load-bearing boundary tests 2-5; within STRUCTURED 5-criterion budget"
+    },
+    {
+      "id": 2,
+      "text": "A username with a trimmed length of exactly 3 characters is valid (lower bound inclusive)",
+      "verdict": "PASS",
+      "cmd": "python -c \"from benchmark.impl.correct.validate_ok import valid_username; print(valid_username('abc'))\"",
+      "out": "True"
+    },
+    {
+      "id": 3,
+      "text": "A username with a trimmed length of exactly 20 characters is valid (upper bound inclusive)",
+      "verdict": "PASS",
+      "cmd": "python -c \"from benchmark.impl.correct.validate_ok import valid_username; print(valid_username('a'*20))\"",
+      "out": "True"
+    },
+    {
+      "id": 4,
+      "text": "A username with a trimmed length of 2 or fewer characters is not valid",
+      "verdict": "PASS",
+      "cmd": "python -c \"from benchmark.impl.correct.validate_ok import valid_username; print([valid_username('ab'), valid_username('a')])\"",
+      "out": "[False, False]"
+    },
+    {
+      "id": 5,
+      "text": "A username with a trimmed length of 21 or more characters is not valid",
+      "verdict": "PASS",
+      "cmd": "python -c \"from benchmark.impl.correct.validate_ok import valid_username; print([valid_username('a'*21), valid_username('a'*25)])\"",
+      "out": "[False, False]"
+    },
+    {
+      "id": 6,
+      "text": "Leading and trailing whitespace is removed before the length is measured, so surrounding whitespace does not count toward the length (e.g. ' ab ' is invalid, ' abc ' is valid)",
+      "verdict": "PASS",
+      "cmd": "python -c \"from benchmark.impl.correct.validate_ok import valid_username; print([valid_username(' abc '), valid_username(' ab '), valid_username('  abc  ')])\"",
+      "out": "[True, False, True]"
+    }
+  ],
+  "final": "INCONCLUSIVE — criteria 1"
+}
+```
+
+OBSERVATIONS: All tested criteria (2-6) pass. Criterion 1 is a general statement redundant with the boundary tests; within the STRUCTURED 5-criterion budget, the most load-bearing tests (lower bound, upper bound, below range, above range, trimming) were prioritized.

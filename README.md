@@ -146,8 +146,19 @@ criteria (with every tool disabled) and verifying, each call in
   criteria cost about 3.6k tokens a case; verifying cost 73k to 222k.
 - **Questions on every request.** Stage 1 raised 2 to 4 ambiguities on each of
   the 16 one-line requests, 41 in all. None was about a planted drift and the
-  verdicts did not need them, because the harness asks no one. In a session the
-  skill puts every one of them to the user before verifying.
+  verdicts did not need them, because the harness asks no one. The 0.3.1 skill
+  put every one of them to the user before verifying; 0.3.2 does not.
+
+**0.3.2, re-run the same way.** Ambiguities are now recorded only when a
+criterion depends on them, and asked only after the verdict, when it rests on
+one. On the 16 requests: 3 questions instead of 41, 13 requests with none, none
+asked before verifying, verdicts 16 of 16. On the 7 field requests, run
+two-stage for the first time: 4 questions, 5 of 7 expected verdicts. One is a
+false `DRIFTED` (`recall_weekend`: the criterion expects the code to recognise a
+weekend date, the code takes a flag from the caller), a second reading that
+nobody recorded and that an up-front question might have caught. The other is
+`INCONCLUSIVE` because the fixture has no earlier version to compare against.
+[`benchmark/results/2026-10-05-cli-claude-sonnet-5-5-two-stage-ambiguity-fix-2.md`](benchmark/results/2026-10-05-cli-claude-sonnet-5-5-two-stage-ambiguity-fix-2.md).
 
 What this does not show is that two-stage beats single-stage: single-stage was
 also 16 of 16 in July, so the set is at its ceiling for both. It shows that 0.3
@@ -308,7 +319,8 @@ Everything that could loop is capped: re-verification stops after 2 rounds
 (the second re-runs every criterion against the same manifest, then the skill
 reports the persistent divergence instead of ping-ponging with a
 non-deterministic verifier), a malformed manifest or ledger gets exactly one
-re-request (then `INCONCLUSIVE`), ambiguities are put to you once, the verifier
+re-request (then `INCONCLUSIVE`), a question about an ambiguity comes at most
+once, after the verdict, and only when the verdict rests on it, the verifier
 has an execution budget (attempts per criterion, total commands,
 non-interactive, installs nothing) and is read-only — it can never "fix" the
 code it is judging. Verifier depth is always exactly one: no verifying the
@@ -433,8 +445,11 @@ to be the discriminators.
 - **The two-stage flow is measured once.** 16 cases, one run each, one model for
   both stages, on fixtures where single-stage was already perfect. It matched
   July's result; it has not been shown to beat it.
-- **Stage 1 raises questions freely:** 2 to 4 ambiguities per one-line request
-  in that run, each put to the user. This is not tuned yet.
+- **Fewer questions has a price.** 0.3.2 asks nothing before verifying, and a
+  question comes afterwards only for a reading the criteria agent recorded. When
+  it misses the real second reading, the verdict arrives without one: in the
+  field set that was one false `DRIFTED` in 7. The evidence in the ledger shows
+  what the code does, so you can still tell, but the tool does not ask.
 - **The platform behaviour 0.3 relies on was seen once, on one machine:** the
   criteria agent launching without file access, a `decision` recorded from an
   answered question, and the data directory filled into the skill's commands,
@@ -489,12 +504,16 @@ to be the discriminators.
 - [x] The three platform checks (October 2026, one machine)
 - [x] Measure the two-stage flow on the controlled set: 16 of 16, no
       `INCONCLUSIVE`
-- [ ] Fewer stage-1 questions (2 to 4 per one-line request today)
+- [x] **v0.3.2** — ambiguities recorded only when a criterion depends on them,
+      asked only after the verdict: 3 questions on the controlled set instead
+      of 41
 - [ ] Cross-model ablation, on drift a model produced itself (the controlled
       set's drift is planted, and both arms would likely sit at its ceiling)
 - [ ] A structured ledger bound to its run and captured by a hook, so the
       implementing session no longer handles the evidence
-      ([design](docs/DESIGN-v0.3.md), Change C)
+      ([design](docs/DESIGN-v0.3.md), Change C). Its two gating checks passed
+      in October: [hook spike](benchmark/results/2026-10-05-platform-spikes.md),
+      [JSON ledger](benchmark/results/2026-10-05-m4-json-ledger.md)
 - [ ] Field recall on real *under-specified* tasks with a known intended answer
 - [ ] Registry refresh (the snapshot predates current models)
 

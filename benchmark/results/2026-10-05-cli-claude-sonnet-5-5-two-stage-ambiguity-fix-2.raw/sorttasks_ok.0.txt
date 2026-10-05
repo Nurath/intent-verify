@@ -1,0 +1,24 @@
+```
+INTENT-VERIFY LEDGER v1
+mode: FULL
+
+CRITERION 1: Tasks are ordered by priority, with the highest-priority tasks first
+VERDICT: PASS
+EVIDENCE-CMD: cd benchmark/impl/correct && python -c "from sorttasks_ok import sort_tasks; t=[{'id':'a','priority':1,'due':5},{'id':'b','priority':3,'due':9},{'id':'c','priority':3,'due':2},{'id':'d','priority':2,'due':1},{'id':'e','priority':1,'due':3},{'id':'f','priority':3,'due':2}]; print([x['id'] for x in sort_tasks(t)])"
+EVIDENCE-OUT: ['c', 'f', 'b', 'd', 'e', 'a']  (priorities 3,3,3,2,1,1 — highest first)
+
+CRITERION 2: Among tasks with equal priority, the one with the earliest due date comes first
+VERDICT: PASS
+EVIDENCE-CMD: same run as criterion 1
+EVIDENCE-OUT: ['c', 'f', 'b', 'd', 'e', 'a']  (priority 3: due 2, 2, 9 → c, f, b; priority 1: due 3, 5 → e, a)
+
+CRITERION 3: Sorting does not add or drop tasks; the same set of tasks is returned
+VERDICT: PASS
+EVIDENCE-CMD: same run, plus checks len(r)==len(t), sorted ids equal, and sort_tasks([])
+EVIDENCE-OUT: True True
+  []
+
+FINAL: MATCHES INTENT
+```
+
+OBSERVATIONS: Python 3 was only available as `python` (3.14.3), not `python3`. The tests used integer priorities and integer due values. I did not test date objects or strings, and I did not test missing keys.

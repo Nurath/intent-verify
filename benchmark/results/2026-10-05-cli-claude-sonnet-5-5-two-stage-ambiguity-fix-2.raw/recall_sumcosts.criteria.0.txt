@@ -1,0 +1,10 @@
+{"manifest": 1,
+ "criteria": [
+  {"id": 1, "text": "A function named sum_costs exists and accepts a list of calls", "quote": "sum_costs() aggregator"},
+  {"id": 2, "text": "For each of the 5 cost fields, the result contains the total of that field's values across all calls in the list", "quote": "sums the 5 cost fields across calls"},
+  {"id": 3, "text": "The summed values in the result are rounded", "quote": "rounds"},
+  {"id": 4, "text": "Given an empty list, sum_costs returns zero for every one of the 5 cost fields", "quote": "returns zeros for an empty list"}
+ ],
+ "ambiguities": [
+  {"question": "What does 'rounds' mean: rounding each summed total, and to how many decimal places?", "assumed": "Each summed total is rounded once after summing (not each call's value before summing), to a fixed number of decimal places suitable for cost values", "criteria": [3]}
+ ]}

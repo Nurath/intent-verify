@@ -1,0 +1,11 @@
+{"manifest": 1,
+ "criteria": [
+  {"id": 1, "text": "The result of rounding a price is expressed to 2 decimal places (e.g. 3.14159 gives 3.14, and 5 gives 5.00 in value, i.e. no more than 2 decimal digits of precision)", "quote": "Round a price to 2 decimal places"},
+  {"id": 2, "text": "A price whose third decimal digit is exactly 5 with nothing after it rounds up (e.g. 1.005 gives 1.01, 2.675 gives 2.68, 0.125 gives 0.13)", "quote": "rounding half up"},
+  {"id": 3, "text": "A price whose remainder beyond 2 decimals is below one half rounds down (e.g. 1.004 gives 1.00, 2.674 gives 2.67)", "quote": "rounding half up"},
+  {"id": 4, "text": "A price whose remainder beyond 2 decimals is above one half rounds up (e.g. 1.006 gives 1.01)", "quote": "rounding half up"},
+  {"id": 5, "text": "A price already at 2 or fewer decimal places is returned unchanged in value (e.g. 4.50 stays 4.50, 7 stays 7.00)", "quote": null}
+ ],
+ "ambiguities": [
+  {"question": "Does half up apply to binary floating-point inputs as their literal decimal representation (1.005 gives 1.01) or to their exact binary value (1.005 is stored slightly below, giving 1.00)?", "assumed": "Decimal-literal reading: the price is treated as the decimal value written, so 1.005 gives 1.01", "criteria": [2]}
+ ]}

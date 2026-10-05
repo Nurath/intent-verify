@@ -1,0 +1,27 @@
+```
+INTENT-VERIFY LEDGER v1
+mode: FULL
+
+CRITERION 1: Tasks are ordered by priority, with the highest-priority tasks first
+VERDICT: PASS
+EVIDENCE-CMD: python (from benchmark/impl/omitted-intent): from sorttasks import sort_tasks; sort_tasks of 4 tasks (priorities 2,2,5,2); print (id, priority, due) per result
+EVIDENCE-OUT: [(3, 5, '2026-09-01'), (1, 2, '2026-03-01'), (2, 2, '2026-01-01'), (4, 2, '2026-02-01')]
+  The priority-5 task comes first, followed by the priority-2 tasks.
+
+CRITERION 2: Among tasks with equal priority, the task with the earliest due date comes first
+VERDICT: FAIL
+EVIDENCE-CMD: same python run as criterion 1
+EVIDENCE-OUT: [(3, 5, '2026-09-01'), (1, 2, '2026-03-01'), (2, 2, '2026-01-01'), (4, 2, '2026-02-01')]
+  The three priority-2 tasks are in input order (due 03-01, 01-01, 02-01), not earliest due first. The sort key is only -priority, so there is no due-date tie-break.
+
+CRITERION 3: The sorted result contains exactly the same tasks as the input, none dropped or duplicated
+VERDICT: PASS
+EVIDENCE-CMD: same python run; print(len(r)==len(a), sorted(t['id'] for t in r))
+EVIDENCE-OUT: True [1, 2, 3, 4]
+
+FINAL: DRIFTED — criteria 2 failed
+```
+
+OBSERVATIONS:
+- `python3` is not installed in this environment, so I used `python`.
+- The fix is to use `key=lambda t: (-t["priority"], t["due"])`. The `YYYY-MM-DD` format sorts correctly as a string.

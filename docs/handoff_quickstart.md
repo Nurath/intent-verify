@@ -50,9 +50,9 @@ The version is `version` in `.claude-plugin/plugin.json`; the top heading of
 `CHANGELOG.md` must match it (a test enforces that). An installed copy changes
 only when someone runs the two update commands in the runbook and restarts.
 
-## Test baseline (0.3.1)
+## Test baseline (0.3.2)
 
-- `python3 -m unittest discover -s tests`: 183 tests. On Windows 18 skip (POSIX
+- `python3 -m unittest discover -s tests`: 193 tests. On Windows 18 skip (POSIX
   shell tests and one layout-specific test); on Linux and macOS the PowerShell
   classes skip instead.
 - `node hooks/capture-intent.js --selftest`: 26 of 26.
@@ -84,15 +84,23 @@ Done later on 2026-10-05: the three platform checks passed, and the two-stage
 flow scored 16 of 16 on the controlled set
 (`benchmark/results/2026-10-05-cli-claude-sonnet-5-5-two-stage.md`).
 
-1. **Stage 1 asks too many questions.** In that run it raised 2 to 4
-   ambiguities on every one-line request, 41 over 16, and the verdicts needed
-   none of them. The skill puts each one to the user. Decide a rule before
-   more people hit it.
-2. **Change C: checks first, then decide** (decided 2026-10-05). Run spike S2
-   (does `SubagentStop` fire for the plugin's verifier with the complete
-   reply?) and measurement M4 (can verifiers write the JSON ledger reliably?).
-   Build C1 only if both hold. The design also lists S3, which matters only
-   for C2, and M3, which sizes the threat C1 removes.
+1. **Stage-1 questions: fixed in 0.3.2, with one cost to watch.** 41 up-front
+   questions on the 16 controlled requests became 3, none asked before
+   verifying. The cost: a second reading the criteria agent does not record
+   gets no question at all. In the field set that produced one false DRIFTED
+   (`recall_weekend`: a flag from the caller versus recognising a weekend date).
+   If it recurs, the candidate fix is a question after any FAIL whose evidence
+   shows the code doing what the words say by another route. That question
+   would come from the session that wrote the code, so it needs care.
+2. **Change C: both gating checks passed; build C1 or not is the decision.**
+   S2: a plugin `SubagentStop` hook fired for the plugin's agent, foreground and
+   background, and received its reply byte for byte; the matcher must be the
+   plugin-qualified name (`intent-verify:intent-verifier`), the bare name never
+   fires. M4: verifiers, Haiku 4.5 (T3) included, wrote a JSON ledger at least
+   as reliably as the text one, though long or backslash-heavy output was barely
+   exercised (`benchmark/results/2026-10-05-m4-json-ledger.md`). The design also
+   lists S3, which matters only for C2, and M3, which sizes the threat C1
+   removes.
 3. **Cross-model ablation** not run. On the controlled set the drift is planted
    and both arms would likely sit at the ceiling. A fair test needs drift a
    model produced itself, which is the field-recall work.

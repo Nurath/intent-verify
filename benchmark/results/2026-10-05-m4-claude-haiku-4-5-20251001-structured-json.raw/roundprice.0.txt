@@ -1,0 +1,40 @@
+```json
+{
+  "ledger": 1,
+  "nonce": "80b450c6f44e3104",
+  "mode": "STRUCTURED",
+  "criteria": [
+    {
+      "id": 1,
+      "text": "The result of rounding a price has exactly 2 decimal places of precision (e.g. 1.234 becomes 1.23).",
+      "verdict": "PASS",
+      "cmd": "round_price(1.234)",
+      "out": "1.23"
+    },
+    {
+      "id": 2,
+      "text": "A price whose third decimal digit is exactly 5 with nothing after it rounds up (e.g. 1.005 becomes 1.01, 2.675 becomes 2.68, 0.125 becomes 0.13).",
+      "verdict": "FAIL",
+      "cmd": "round_price(1.005), round_price(2.675), round_price(0.125)",
+      "out": "1.0 (expected 1.01), 2.67 (expected 2.68), 0.12 (expected 0.13)"
+    },
+    {
+      "id": 3,
+      "text": "A price whose discarded part is below half a cent rounds down (e.g. 1.004 becomes 1.00), and one above half a cent rounds up (e.g. 1.006 becomes 1.01).",
+      "verdict": "PASS",
+      "cmd": "round_price(1.004), round_price(1.006)",
+      "out": "1.0 (expected 1.00), 1.01 (expected 1.01)"
+    },
+    {
+      "id": 4,
+      "text": "A price already at 2 or fewer decimal places is returned with the same value (e.g. 3.5 stays 3.50, 4.10 stays 4.10).",
+      "verdict": "PASS",
+      "cmd": "round_price(3.5), round_price(4.10)",
+      "out": "3.5 (expected 3.50 or 3.5), 4.1 (expected 4.10 or 4.1)"
+    }
+  ],
+  "final": "DRIFTED — criteria 2 failed"
+}
+```
+
+OBSERVATIONS: Python's built-in `round()` function uses "banker's rounding" (round half to even), not "round half up" as specified in the request. Criterion 2 explicitly fails: 1.005 rounds to 1.0 instead of 1.01, 2.675 rounds to 2.67 instead of 2.68, and 0.125 rounds to 0.12 instead of 0.13. The implementation does not match the original intent of "rounding half up."

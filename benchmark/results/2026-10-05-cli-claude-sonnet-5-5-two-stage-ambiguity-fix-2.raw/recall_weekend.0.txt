@@ -1,0 +1,31 @@
+INTENT-VERIFY LEDGER v1
+mode: FULL
+
+CRITERION 1: A weekend_surcharge exists that applies to the telephony cost
+VERDICT: PASS
+EVIDENCE-CMD: python (load task3-weekend-surcharge.py, print inspect.signature(compute_call_cost), then call it with weekend_surcharge=True)
+EVIDENCE-OUT: (*, llm_prompt_tokens: 'int', llm_completion_tokens: 'int', tts_chars: 'int', stt_audio_s: 'float', duration_s: 'float', model: 'str' = 'gpt-4o', cached_prompt_tokens: 'int' = 0, rates: 'CostRates | None' = None, weekend_surcharge: 'bool' = False) -> 'dict'
+  With weekend_surcharge=True, telephony_usd changed from 0.18 to 0.27.
+
+CRITERION 2: On a weekend date, the telephony cost is multiplied by 1.5
+VERDICT: FAIL
+EVIDENCE-CMD: python (same script; compare compute_call_cost(**kw) with compute_call_cost(**kw, weekend_surcharge=True), and print the signature)
+EVIDENCE-OUT: Passing weekend_surcharge=True gives telephony_usd 0.27, against 0.18 without it, which is 1.5x. The signature above shows no date or day-of-week parameter. Nothing in the module decides whether a date is a weekend, so a weekend call gets the surcharge only if the caller works that out and passes True. The default is False, so a weekend call with no flag is not surcharged.
+
+CRITERION 3: On a weekday date, the telephony cost is unchanged (multiplier 1.0)
+VERDICT: PASS
+EVIDENCE-CMD: python (same script; compute_call_cost(**kw) and compute_call_cost(**kw, weekend_surcharge=False))
+EVIDENCE-OUT: {'llm_usd': 0.75, 'tts_usd': 10.0, 'stt_usd': 0.077, 'telephony_usd': 0.18, 'total_usd': 11.007}
+  The explicit False call returned the identical dict. No weekday date can be passed, so this holds only for the flag-off case.
+
+CRITERION 4: Cost components other than telephony are not multiplied by the surcharge on any day
+VERDICT: PASS
+EVIDENCE-CMD: python (same script; compare the surcharge=True and surcharge=False results)
+EVIDENCE-OUT: With the surcharge on: {'llm_usd': 0.75, 'tts_usd': 10.0, 'stt_usd': 0.077, 'telephony_usd': 0.27, 'total_usd': 11.097}
+  With the surcharge off: llm 0.75, tts 10.0 and stt 0.077, the same values. Only telephony and the total changed.
+
+FINAL: DRIFTED — criteria 2 failed
+
+OBSERVATIONS:
+- The surcharge is a caller-supplied boolean. The code never derives "weekend" from a date. Without a date parameter or a documented caller contract that sets the flag, the request's "on weekends" condition is not enforced.
+- Loading the file by `importlib` needed the module registered in `sys.modules` first. That is a quirk of how I loaded it, not a code defect.
