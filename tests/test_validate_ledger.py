@@ -1119,15 +1119,17 @@ class TestRunCommandLine(unittest.TestCase):
             self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
             self.assertIn("is checked with --unsealed", r.stdout)
 
-    def test_the_sealed_run_kept_from_0_4_2_checks_out_as_it_is(self):
-        """A real verifier's version 2 reply, as the hook filed it."""
-        run = os.path.join(os.path.dirname(os.path.dirname(self.TOOL)), "benchmark", "results", "2026-10-06-sealed-live.raw")
-        r = subprocess.run([sys.executable, self.TOOL, "--run", run, "--manifest", os.path.join(run, "manifest.json")],
-                           capture_output=True, text=True, encoding="utf-8", timeout=30)
-        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        self.assertIn("final = DRIFTED", r.stdout)
-        self.assertIn("captured by the hook", r.stdout)
-        self.assertNotIn("version 1", r.stdout)
+    def test_the_sealed_runs_kept_from_0_4_2_check_out_as_they_are(self):
+        """A real verifier's version 2 reply as the hook filed it, headless and in the desktop app."""
+        results = os.path.join(os.path.dirname(os.path.dirname(self.TOOL)), "benchmark", "results")
+        for name in ("2026-10-06-sealed-live.raw", "2026-10-06-sealed-desktop.raw"):
+            run = os.path.join(results, name)
+            r = subprocess.run([sys.executable, self.TOOL, "--run", run, "--manifest", os.path.join(run, "manifest.json")],
+                               capture_output=True, text=True, encoding="utf-8", timeout=30)
+            self.assertEqual(r.returncode, 0, name + r.stdout + r.stderr)
+            self.assertIn("final = DRIFTED", r.stdout)
+            self.assertIn("captured by the hook", r.stdout)
+            self.assertNotIn("version 1", r.stdout)
 
 
 if __name__ == "__main__":

@@ -88,6 +88,24 @@ The run is kept as `2026-10-06-sealed-live.raw/` (local paths replaced with
 placeholders) and checks out from the published copy; a test runs it:
 `python tools/validate_ledger.py --run benchmark/results/2026-10-06-sealed-live.raw --manifest benchmark/results/2026-10-06-sealed-live.raw/manifest.json`.
 
+### The same, in the desktop app
+
+Added after the release, the same day. The Windows desktop app was restarted
+with 0.4.2 installed from the marketplace, and a session there started a run
+with the installed copy and dispatched `intent-verify:intent-verifier` (Sonnet
+5.5) on the same fixture with the same manifest.
+
+- The verifier handed back a version 2 ledger and nothing else: no sentence
+  before it, nothing after it, exactly the format's keys, the nonce twice.
+- The hook filed it in the run's directory, the same 8,041 characters the
+  verifier handed back. Nothing went to `_unmatched/`.
+- `validate_ledger.py --run <dir> --manifest <manifest>`, run from the installed
+  copy: `VALID: 5 criteria (all 5 manifest criteria covered), final = DRIFTED —
+  criteria 2, 3, 4 failed (captured by the hook: reply-….txt)`.
+
+The run is kept as `2026-10-06-sealed-desktop.raw/` (local paths replaced,
+session id replaced), and the same test runs it.
+
 ### The benchmark sets
 
 | run | verifier | expected verdict | valid on the first reply | retries | cost |
@@ -112,9 +130,9 @@ version 1.
 
 ## What this does not show
 
-- **The desktop app.** The hook does not look at the format, and it was seen
-  capturing a reply there on 0.4.1. But no desktop verifier has written a
-  version 2 ledger yet; the first verification after the update is that check.
+- **More than one run per harness.** The sealed ledger has been captured and
+  validated once headless and once in the desktop app. The interactive
+  terminal has not been checked as a harness of its own.
 - **Other verifier models**, and FULL mode on a small one.
 - **That nothing is left.** Two reviews and two adversarial passes are a record
   of what was looked for.
