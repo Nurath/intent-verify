@@ -51,9 +51,9 @@ The version is `version` in `.claude-plugin/plugin.json`; the top heading of
 `CHANGELOG.md` must match it (a test enforces that). An installed copy changes
 only when someone runs the two update commands in the runbook and restarts.
 
-## Test baseline (0.4.2)
+## Test baseline (0.4.3)
 
-- `python3 -m unittest discover -s tests`: 250 tests. On Windows 18 skip (POSIX
+- `python3 -m unittest discover -s tests`: 254 tests. On Windows 18 skip (POSIX
   shell tests and one layout-specific test); on Linux and macOS the PowerShell
   classes skip instead.
 - `node hooks/capture-intent.js --selftest`: 34 of 34.
@@ -87,6 +87,14 @@ only when someone runs the two update commands in the runbook and restarts.
   switched off, because random pieces almost never form the one sequence that
   works. The test that replaced it enumerates a grammar that contains the known
   attack and counts the payloads that only the new rules stop.
+- **A check on what a reply contains has two readings: as written and as
+  decoded.** The nonce rule counted the nonce in the raw text, and a JSON
+  escape for one character hid it (0.4.3). When a rule is about content, apply
+  it to the decoded values too.
+- **Locate, do not count.** The first fix for that added a second count, and
+  the two could be balanced: an escape took an occurrence out of one place and
+  a copy elsewhere put it back. A rule about where something may be has to
+  look at each place separately.
 - **Version 1 ledgers need `--unsealed`.** The runs kept from 0.4.0 and 0.4.1
   are version 1 objects. The default path rejects them and says so.
 - **A harness is a thing to test.** The verifier-capture hook worked headless

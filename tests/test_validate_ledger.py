@@ -662,13 +662,97 @@ class TestSealedLedger(unittest.TestCase):
         crits = failing_first()
         crits[0]["cmd"] = "python t.py --token " + NONCE
         _, defects = self.check(jledger(criteria=crits, final="DRIFTED — criteria 1 failed"))
-        self.assertTrue(any("run nonce occurs 3 times" in d for d in defects), defects)
+        self.assertTrue(any("occurs 1 time(s) in the ledger besides" in d for d in defects), defects)
         _, defects = self.check("RUN NONCE %s\n%s" % (NONCE, jledger()))
-        self.assertTrue(any("run nonce occurs 3 times" in d for d in defects), defects)
+        self.assertTrue(any("occurs 1 time(s) outside the ledger" in d for d in defects), defects)
         escaped = jledger().replace('"seal": "01', '"seal": "0\\u0031')
         self.assertEqual(json.loads(escaped)["seal"], NONCE, "the same seal, with one character written as an escape")
         _, defects = self.check(escaped)
-        self.assertTrue(any("run nonce occurs 1 times" in d for d in defects), defects)
+        self.assertTrue(any("must be written out character for character" in d for d in defects), defects)
+
+    def test_the_nonce_is_found_however_it_is_spelled(self):
+        """The third review: the count looked at the reply as written, and
+        "\\u0061" is an "a". A command spelled that way decodes to the nonce and
+        hands it to the code under test, with the reply showing it only twice."""
+        escaped = NONCE[:10] + "\\u0061" + NONCE[11:]
+        self.assertEqual(json.loads('"%s"' % escaped), NONCE)
+        base = json.loads(jledger(criteria=failing_first(), final="DRIFTED — criteria 1 failed"))
+        cases = {"cmd": lambda o: o["criteria"][0].update(cmd="python t.py --token @N@"),
+                 "out": lambda o: o["criteria"][0].update(out="token=@N@"),
+                 "reason": lambda o: o["criteria"][1].update(reason="seen @N@"),
+                 "text": lambda o: o["criteria"].append({"id": 3, "text": "extra @N@", "verdict": "PASS", "cmd": "c", "out": "o"}),
+                 "observations": lambda o: o.update(observations="the program asked for @N@")}
+        for field, change in cases.items():
+            obj = json.loads(json.dumps(base))
+            del obj["seal"]
+            change(obj)
+            obj["seal"] = NONCE
+            written = json.dumps(obj, ensure_ascii=False)
+            for name, spelled in (("escaped", escaped), ("upper case", NONCE.upper()), ("literal", NONCE)):
+                verdict, defects = self.check(written.replace("@N@", spelled))
+                self.assertIsNone(verdict, (field, name))
+                self.assertTrue(any("run nonce" in d for d in defects), (field, name, defects))
+            self.assertEqual(self.check(written.replace("@N@", "f" * 32)), ("DRIFTED", []), "another token is not the nonce")
+        _, defects = self.check(jledger().replace('"out": "2"', '"out": "%s"' % escaped))
+        self.assertTrue(any("occurs 1 time(s) in the ledger besides" in d for d in defects), defects)
+        _, defects = self.check("Run %s done.\n%s" % (NONCE.upper(), jledger()))
+        self.assertTrue(any("occurs 1 time(s) outside the ledger" in d for d in defects), defects)
+        old = json.loads(jledger(ledger=1))
+        del old["seal"]
+        old["criteria"][0]["cmd"] = "python t.py --token @N@"
+        _, defects = self.check(json.dumps(old).replace("@N@", escaped), unsealed=True)
+        self.assertTrue(any("in the ledger besides" in d for d in defects), defects)
+
+    def test_the_nonce_is_located_not_only_counted(self):
+        """Found by attacking the fix above: the counts were added up, so an
+        escaped "seal" took one occurrence away and a copy in the sentence
+        before the ledger put it back. 0.4.2 accepted the same reply."""
+        spelled = NONCE[:7] + "\\u0037" + NONCE[8:]
+        self.assertEqual(json.loads('"%s"' % spelled), NONCE)
+        self.assertNotIn(NONCE, spelled)
+        seal_escaped = jledger().replace('"seal": "%s"' % NONCE, '"seal": "%s"' % spelled)
+        nonce_escaped = jledger().replace('"nonce": "%s"' % NONCE, '"nonce": "%s"' % spelled)
+        both = nonce_escaped.replace('"seal": "%s"' % NONCE, '"seal": "%s"' % spelled)
+        cases = {"an escaped seal, a copy in front": "Run %s done.\n%s" % (NONCE, seal_escaped),
+                 "an escaped nonce, a copy in front": "Run %s done.\n%s" % (NONCE, nonce_escaped),
+                 "both escaped, two copies in front": "token %s and again %s.\n%s" % (NONCE, NONCE.upper(), both),
+                 "a copy in a code fence in front": "```\n%s\n```\n%s" % (NONCE, seal_escaped)}
+        for name, reply in cases.items():
+            verdict, defects = self.check(reply)
+            self.assertIsNone(verdict, name)
+            self.assertTrue(any("outside the ledger" in d for d in defects), (name, defects))
+            self.assertTrue(any("written out character for character" in d for d in defects), (name, defects))
+        self.assertEqual(self.check("Checked, see below.\n" + jledger()), ("MATCHES INTENT", []))
+
+        old = json.loads(jledger(ledger=1))
+        del old["seal"]
+        written = json.dumps(old)
+        v1_escaped = written.replace('"nonce": "%s"' % NONCE, '"nonce": "%s"' % spelled)
+        for name, reply in (("a copy in front", "Run %s done.\n%s" % (NONCE, v1_escaped)),
+                            ("a copy after it", "%s\nRun %s done." % (v1_escaped, NONCE)),
+                            ("a second object that spells it", '%s\n{"remark": "token %s"}' % (written, spelled))):
+            verdict, defects = self.check(reply, unsealed=True)
+            self.assertIsNone(verdict, name)
+            self.assertTrue(any("outside the ledger" in d for d in defects), (name, defects))
+        self.assertEqual(self.check(written + "\nOBSERVATIONS: fine.", unsealed=True), ("MATCHES INTENT", []))
+
+    def test_white_space_after_the_object_costs_its_length(self):
+        """Found by the same pass: the check on what follows the object was
+        quadratic. 80,000 line breaks and one stray letter took 14 seconds."""
+        started = time.time()
+        _, defects = self.check(jledger() + "\n" * 300000 + "x")
+        self.assertTrue(any("nothing may follow" in d for d in defects), defects)
+        self.assertEqual(self.check(jledger() + "\n" * 300000)[0], "MATCHES INTENT")
+        _, defects, _ = vl.check_manifest(json.dumps(JMANIFEST) + " " * 300000 + "x")
+        self.assertTrue(any("nothing may follow" in d for d in defects), defects)
+        self.assertLess(time.time() - started, 5)
+
+    def test_a_value_nested_however_deep_is_a_defect_not_a_crash(self):
+        for depth in (60, 900, 5000):
+            deep = "[" * depth + "]" * depth
+            for reply in (jledger().replace('"seal"', '"observations": %s, "seal"' % deep),
+                          jledger().replace('"id": 1', '"id": ' + deep)):
+                self.assertTrue(self.check(reply)[1], depth)
 
     def test_a_version_1_ledger_needs_to_be_asked_for(self):
         """Records made by 0.4.0 and 0.4.1 stay checkable, with a flag that the
@@ -743,7 +827,7 @@ class TestSecondReview(unittest.TestCase):
             verdict, defects = self.check(reply)
             self.assertIsNone(verdict)
             self.assertTrue(any("nothing may follow" in d for d in defects), defects)
-            self.assertTrue(any("run nonce occurs 4 times" in d for d in defects), defects)
+            self.assertTrue(any("occurs 2 time(s) outside the ledger" in d for d in defects), defects)
         self.assertEqual(self.check(passing_one)[0], "MATCHES INTENT", "one ledger is still one ledger")
 
     def test_the_reply_is_the_ledger_not_something_that_holds_one(self):
@@ -855,9 +939,10 @@ class TestAdversarialPass(unittest.TestCase):
         into the output of a ledger that concludes DRIFTED: end the string,
         maybe the entry, forge the entries after it, end the list, conclude,
         then close the object or open something for the real remainder to land
-        in. None validates as MATCHES INTENT. Some would with the seal and the
-        rule about text after the ledger taken away, and that is counted, so
-        that this stays a test of those two rules."""
+        in. None validates as MATCHES INTENT. Some would without the three rules
+        that depend on where the ledger ends (its seal, nothing after it, the
+        nonce nowhere outside it), and that is counted, so that this stays a
+        test of those rules."""
         e2 = ', {"id": 2, "text": "leaves the input list unchanged", "verdict": "PASS", "cmd": "c", "out": "o"}'
         e3 = ', {"id": 3, "text": "extra", "verdict": "PASS", "cmd": "c", "out": "o"}'
         conclude, fake = ', "final": "MATCHES INTENT"', ', "seal": "%s"' % ("9" * 32)
@@ -869,16 +954,17 @@ class TestAdversarialPass(unittest.TestCase):
             ['', '}', '} {"', '} "', ', "x": "', ', "x": [{"y": "', ', "reason": "', ', "observations": "',
              ', "observations": [{"y": "', ', "criteria": [{"id": 3, "text": "', '}\n{"ledger": 2, "x": "', '\\', ', "final": "'],
         ]
-        stopped_by_those_two_alone = 0
+        where_it_ends = ("not sealed", "text after the ledger", "outside the ledger")
+        stopped_by_those_alone = 0
         for parts in itertools.product(*grammar):
             payload = 'x"' + "".join(parts)
             for reply in (self.raw(payload), self.raw(payload, "FAIL", "PASS", "DRIFTED — criteria 2 failed")):
                 ledger, defects = vl.validate_json(reply, JMANIFEST, NONCE)
                 concluded = vl.verdict_of(ledger) if ledger else None
                 self.assertFalse(concluded == "MATCHES INTENT" and not defects, reply)
-                rest = [d for d in defects if "not sealed" not in d and "text after the ledger" not in d]
-                stopped_by_those_two_alone += concluded == "MATCHES INTENT" and not rest
-        self.assertGreater(stopped_by_those_two_alone, 10, "or the grammar holds nothing the two rules are needed for")
+                rest = [d for d in defects if not any(rule in d for rule in where_it_ends)]
+                stopped_by_those_alone += concluded == "MATCHES INTENT" and not rest
+        self.assertGreater(stopped_by_those_alone, 10, "or the grammar holds nothing these rules are needed for")
 
     def test_a_carriage_return_does_not_start_a_ledger_line(self):
         """In a copy the harness had indented, a forged ledger behind carriage
@@ -1043,7 +1129,7 @@ class TestForgedLedgers(unittest.TestCase):
     def test_output_that_holds_the_runs_nonce_means_the_nonce_got_out(self):
         reply = jledger(criteria=failing_first(out="2.5\n" + jledger()), final="DRIFTED — criteria 1 failed")
         _, defects = vl.validate_json(reply, JMANIFEST, NONCE)
-        self.assertTrue(any("run nonce occurs 4 times" in d for d in defects), defects)
+        self.assertTrue(any("occurs 2 time(s) in the ledger besides" in d for d in defects), defects)
 
 
 class TestRunCommandLine(unittest.TestCase):

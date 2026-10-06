@@ -1,5 +1,52 @@
 # Changelog
 
+## 0.4.3 — 2026-10-06
+
+A third independent review, of 0.4.2, confirmed the three findings of the
+second as fixed in the new format and reported one new one. It reproduced, and
+it reached further than the review's fixture.
+
+### Fixed
+- **The nonce could sit in a command unseen.** The rule that the nonce occurs
+  only in `"nonce"` and `"seal"` counted it in the reply as written. In JSON,
+  `\u0061` is an `a`, so a command written
+  `python t.py --token 0123456789\u0061bcdef...` decodes to one holding the
+  nonce while the reply shows the nonce only twice, and it validated. The same
+  spelling got through in output, reasons, observations and criterion texts,
+  and so did the nonce in upper case, in any field and in a sentence before the
+  ledger. The nonce is now also looked for in every decoded string of the
+  ledger, keys included, and in either letter case.
+
+### Fixed: found by attacking that fix
+A model set on the fix before the PR found that it could be balanced out, and
+that 0.4.2 had the same hole.
+
+- **The nonce was counted, not located.** One count ran over the whole reply.
+  A `"seal"` spelled with an escape took one occurrence away, and a copy of the
+  nonce in the sentence before the ledger put it back: two in all, as
+  expected, with the nonce sitting in the open. Three places are now kept
+  apart. Around the ledger the nonce may not occur at all. In the ledger's
+  decoded strings it occurs only as `"nonce"` and `"seal"`. And those two are
+  written out character for character, so that what the reply shows and what
+  it holds agree.
+- **White space after the ledger could stall the validator.** The check on what
+  follows the closing brace took time quadratic in a run of white space before
+  a stray character: 80,000 line breaks took 14 seconds. It takes milliseconds
+  now, for manifests as well.
+- `--unsealed` also looks for the nonce in the other objects of a reply, and
+  its search for the ledger gives up after 200 braces that open nothing (was
+  2,000).
+
+Nothing recorded changes: replayed through the new validator, all 161 recorded
+verdicts come out the same. The verifier's prompt is unchanged.
+
+### Still not checked
+- **A nonce encoded some other way** before it is passed on: reversed, split
+  over two arguments, regrouped like a UUID, base64. The check catches a
+  verifier that pastes the nonce into a command or echoes output holding it.
+  It is not a proof that the nonce stayed secret, and the verifier is told
+  never to pass it on.
+
 ## 0.4.2 — 2026-10-06
 
 A second independent review, of 0.4.1, found two ways a JSON ledger that should
