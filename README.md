@@ -507,18 +507,21 @@ to be the discriminators.
   harness that delivers reports some other way), the session relays the reply
   itself and the report has to say so. A verifier that put the nonce into a
   command it ran would hand it to the code under test; it is told never to, and
-  a reply that shows the nonce anywhere but its two places is rejected.
+  a reply that holds the nonce anywhere but its two places is rejected, in
+  whatever JSON spelling or letter case. A nonce encoded some other way before
+  it was passed on would not be noticed.
 - **The validator reads structure, not prose.** It checks that the ledger is
   one sealed object with evidence for every verdict and a consistent
   conclusion. A remark that contradicts a verdict is still a valid ledger, and
   `.` is still output. The report shows the evidence and the observations so
   that a person can read them.
-- **Attacked is not proven.** The validator has now been through two outside
-  reviews and two adversarial passes by other models. The first three each
-  found replies that validated and should not have; the fourth, on the
-  rewritten validator, found none. What they found is fixed and pinned by
-  tests. That is a record of what was looked for, not a proof that nothing is
-  left.
+- **Attacked is not proven.** The validator has now been through three outside
+  reviews and three adversarial passes by other models. All three reviews and
+  two of the passes found replies that validated and should not have. The one
+  pass that found none was followed by a review that found a gap it had
+  missed, and the fix for that gap was broken by the next pass before it
+  shipped. What they found is fixed and pinned by tests. That is a record of
+  what was looked for, not a proof that nothing is left.
 - **Prompts are stored in plaintext**, partly redacted: in your home directory
   with the plugin's hook, inside the project with the alternates.
 - **Ground-truth limit.** On genuinely ambiguous requests there may be no single
@@ -566,6 +569,8 @@ to be the discriminators.
 - [x] **v0.4.2** — a second independent review, then two adversarial passes
       before release: the ledger is one sealed object and the reply is that
       object
+- [x] **v0.4.3** — a third review: the nonce is found outside its two places
+      in whatever JSON spelling or letter case it is written
 - [ ] Field recall on real *under-specified* tasks with a known intended answer
 - [ ] Registry refresh (the snapshot predates current models)
 
@@ -611,6 +616,12 @@ that did not parse was not counted, and output pasted with an unescaped quote
 could rewrite the ledger around itself. So the format changed instead of the
 parser growing another case. The reply is one object, nothing follows it, it
 has no key the format does not name, and it ends with the run's nonce.
+
+v0.4.3 closes the one finding of a third review, of 0.4.2. The check that
+keeps the nonce out of commands and output read the reply as written, and a
+JSON escape for a single character hid the nonce from it. A model set on the
+fix showed that counting was the weakness: one count over the whole reply
+could be balanced. The nonce is now located, not counted.
 
 ## License
 

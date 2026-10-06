@@ -192,8 +192,11 @@ resolved silently, when:
   double quote left unescaped ends its string, and what follows it is parsed as
   ledger: it can supply verdicts and close the object. It cannot supply the
   nonce, so what it closes has no seal.
-- **The nonce occurs anywhere but in `nonce` and `seal`.** In a command or in
-  output, it has reached the code under test.
+- **The nonce occurs anywhere but in `nonce` and `seal`**, in either letter
+  case. Three places are checked apart: around the ledger it may not occur at
+  all; in the ledger's strings as they decode (`\u0061` is an `a`) it occurs
+  only as those two values; and those two are written out character for
+  character. In a command or in output, it has reached the code under test.
 
 Evidence strings are kept exactly as written. Only the text grammar treats
 output made of nothing but field-looking lines as missing, because there output

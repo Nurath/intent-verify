@@ -39,7 +39,10 @@ Since 0.4.0 the ledger is ONE JSON OBJECT bound to its run (--run, --nonce):
     sit beside the first under another name
   - "nonce" is the run's nonce, which the code under test cannot know. "seal",
     the last key, repeats it: output pasted with its quotes unescaped can close
-    the object early, but cannot complete it. The nonce occurs nowhere else
+    the object early, but cannot complete it. The nonce occurs nowhere else:
+    not around the ledger, and not in its other strings as they decode, in
+    either letter case; the two that hold it write it out character for
+    character
   Captured output is a string there and never structure. --unsealed accepts the
   version 1 object that 0.4.0 and 0.4.1 wrote (no seal, text around it), so
   that records made then can still be checked.
@@ -77,6 +80,9 @@ What it cannot do:
     selection rather than "validated harder" (see docs/MODEL-COMPAT.md);
   - read prose. A ledger whose "observations" or "reason" contradicts its own
     verdicts is still a well-formed ledger, and "." is still output;
+  - prove that the nonce stayed secret. It is found in a command or in output
+    however JSON spells it and in either letter case. A verifier that reversed
+    it, split it or regrouped it before passing it on would not be noticed;
   - know whether a manifest is COMPLETE, or whether a quote has anything to do
     with the criterion it is attached to. What a request demands is still a
     model's judgement; the manifest only makes that judgement explicit, early
@@ -107,7 +113,7 @@ VERDICTS = {"PASS", "FAIL", "NOT-EXERCISED"}
 STRUCTURED_BUDGET = 5
 NOTES_SHOWN = 10
 MIN_QUOTE = 4
-MAX_FAILED_SCANS = 2000
+MAX_FAILED_SCANS = 200
 # capture-intent.js --begin-run makes 32 characters; the M4 runs of 2026-10-05 used 16.
 NONCE = re.compile(r"[0-9a-f]{16,64}\Z")
 LEDGER_KEYS = ("ledger", "nonce", "mode", "criteria", "final", "observations", "seal")
@@ -362,8 +368,24 @@ def _unknown(obj, allowed, where):
     return [f"{where}: unknown key(s) {extra}; the keys are {keys} and no others"] if extra else []
 
 
+def _strings(value):
+    """Every string in a decoded JSON value, keys included. A loop and not a
+    recursion: a reply decides how deep the value goes."""
+    todo = [value]
+    while todo:
+        item = todo.pop()
+        if isinstance(item, str):
+            yield item
+        elif isinstance(item, dict):
+            todo.extend(item)
+            todo.extend(item.values())
+        elif isinstance(item, list):
+            todo.extend(item)
+
+
 def _only_object(text, what, remarks=""):
-    """The JSON object a reply consists of, as (object, defects). Its first "{"
+    """The JSON object a reply consists of, as (object, defects, where it stands
+    in the text: a start and an end). Its first "{"
     opens the object and nothing may follow the closing brace but the end of a
     code fence. A sentence before it is tolerated if it holds no brace (3 of
     the 53 real version 1 replies had one). Text after it is where a second,
@@ -373,20 +395,22 @@ def _only_object(text, what, remarks=""):
     costs its length and no more."""
     start = text.find("{")
     if start == -1:
-        return None, [f"no JSON object found: the reply must be the {what}"]
+        return None, [f"no JSON object found: the reply must be the {what}"], None
     try:
         obj, end, repeated = _decode(text, start)
     except RecursionError:
-        return None, [f"the {what} is nested too deeply to read"]
+        return None, [f"the {what} is nested too deeply to read"], None
     except ValueError as e:  # JSONDecodeError, or a number too long for Python to convert
         return None, [f"the {what} does not parse as JSON: {e}. The reply's first '{{' must open the {what}, "
                       'and inside a string a line break is written \\n, a tab \\t, a double quote \\" '
-                      "and a backslash \\\\"]
+                      "and a backslash \\\\"], None
     defects = []
-    after = text[end:]
-    if not re.fullmatch(r"\s*(?:`{3,})?\s*", after):
+    # Stripped before it is matched: with the white space in the pattern, a long
+    # run of it in front of one stray character took time quadratic in its length.
+    after = text[end:].strip()
+    if not re.fullmatch(r"(?:`{3,})?", after):
         defects.append(f"text after the {what}: nothing may follow its closing brace, and a correction replaces the "
-                       f"{what}, it does not follow it.{remarks} Found: {' '.join(after.split())[:60]!r}")
+                       f"{what}, it does not follow it.{remarks} Found: {' '.join(after[:400].split())[:60]!r}")
     if repeated:
         defects.append(_repeats(what, repeated))
     try:
@@ -395,12 +419,13 @@ def _only_object(text, what, remarks=""):
         defects.append(f"the {what} holds half of a surrogate pair (an escape like \\ud83d with no partner): "
                        "write the character itself")
     except RecursionError:
-        return None, [f"the {what} is nested too deeply to read"]
-    return obj, defects
+        return None, [f"the {what} is nested too deeply to read"], None
+    return obj, defects, (start, end)
 
 
 def _json_objects(text):
-    """Every top-level JSON object in a reply, as (object, repeated keys). Only
+    """Every top-level JSON object in a reply, as (object, repeated keys, start,
+    end). Only
     a version 1 ledger is looked for this way: it could stand anywhere in a
     reply. The search gives up after MAX_FAILED_SCANS braces that open nothing."""
     found, at, failed = [], 0, 0
@@ -413,7 +438,7 @@ def _json_objects(text):
         except (ValueError, RecursionError):
             at, failed = at + 1, failed + 1
             continue
-        found.append((obj, repeated))
+        found.append((obj, repeated, at, end))
         at = end
     return found
 
@@ -423,11 +448,16 @@ def _version_1(text, nonce):
     reply that has a "ledger" key and the run's nonce, with remarks allowed
     around it and no seal. Kept so that records made then can be checked
     (--unsealed); the plugin itself no longer accepts it."""
-    mine = [(o, r) for o, r in _json_objects(text) if "ledger" in o and o.get("nonce") == nonce]
+    found = _json_objects(text)
+    mine = [f for f in found if "ledger" in f[0] and f[0].get("nonce") == nonce]
     if len(mine) != 1:
-        return None, [f"{len(mine)} version 1 ledgers in the reply carry this run's nonce: there must be exactly one"]
-    obj, repeated = mine[0]
-    return obj, ([_repeats("ledger", repeated)] if repeated else [])
+        return (None, [f"{len(mine)} version 1 ledgers in the reply carry this run's nonce: there must be exactly one"],
+                None, 0)
+    obj, repeated, start, end = mine[0]
+    # What the reply's other objects hold of the nonce once decoded: remarks
+    # were allowed around a version 1 ledger, objects among them.
+    elsewhere = sum(s.lower().count(nonce) for other in found if other[0] is not obj for s in _strings(other[0]))
+    return obj, ([_repeats("ledger", repeated)] if repeated else []), (start, end), elsewhere
 
 
 def validate_json(text, manifest, nonce, unsealed=False):
@@ -443,9 +473,10 @@ def validate_json(text, manifest, nonce, unsealed=False):
     if not isinstance(nonce, str) or not NONCE.match(nonce):
         raise ValueError("a run nonce is 16 to 64 hexadecimal characters")
     if unsealed:
-        obj, defects = _version_1(text, nonce)
+        obj, defects, span, elsewhere = _version_1(text, nonce)
     else:
-        obj, defects = _only_object(text, "ledger", ' Remarks go in its "observations".')
+        obj, defects, span = _only_object(text, "ledger", ' Remarks go in its "observations".')
+        elsewhere = 0
     if obj is None:
         return None, defects
     if obj.get("nonce") != nonce:
@@ -459,26 +490,40 @@ def validate_json(text, manifest, nonce, unsealed=False):
                                 '"nonce", though the nonce is in the reply. The ledger must be that first object: write '
                                 "no brace before it and do not wrap it in another object"]
 
-    version, count = (1 if unsealed else 2), text.count(nonce)
+    # Where the nonce is, as against where it belongs, in either letter case.
+    # Three places are counted and kept apart: around the ledger as the reply
+    # writes it, inside the ledger as the reply writes it, and in the ledger's
+    # strings once decoded, where an escape for one character no longer hides
+    # it. Added into one count they cancelled out: an escaped "seal" took an
+    # occurrence away and a copy in the sentence before the ledger put it back.
+    version, legit = (1, 1) if unsealed else (2, 1 + (obj.get("seal") == nonce))
+    start, end = span
+    outside = text[:start].lower().count(nonce) + text[end:].lower().count(nonce) + elsewhere
+    written = text[start:end].lower().count(nonce)
+    held = sum(s.lower().count(nonce) for s in _strings(obj))
+    places = '"nonce"' if unsealed else '"nonce" and "seal"'
     if type(obj.get("ledger")) is not int or obj["ledger"] != version:
         older = (" (a version 1 ledger, as 0.4.0 and 0.4.1 wrote it, is checked with --unsealed)"
                  if type(obj.get("ledger")) is int and obj["ledger"] == 1 else "")
         defects.append(f'"ledger" must be {version}, the version of this format, found {obj.get("ledger")!r}{older}')
-    if unsealed:
-        if count != 1:
-            defects.append(f'the run nonce occurs {count} times in the reply: in a version 1 ledger it occurs once, as "nonce"')
-    else:
+    if not unsealed:
         defects += _unknown(obj, LEDGER_KEYS, "the ledger")
-        sealed = obj.get("seal") == nonce and list(obj)[-1] == "seal"
-        if not sealed:
+        if obj.get("seal") != nonce or list(obj)[-1] != "seal":
             defects.append('the ledger is not sealed: its last key must be "seal", holding the run nonce again. A ledger '
                            "that closes before its seal is what pasted output with an unescaped double quote produces: "
                            'inside a string a double quote is written \\"')
-        if count > 2 or (sealed and count != 2):
-            defects.append(f'the run nonce occurs {count} times in the reply: it is written out twice, as "nonce" and as '
-                           '"seal", and nowhere else (not in a command, in output, in a remark or in a second ledger)')
         if obj.get("observations") is not None and not isinstance(obj["observations"], str):
             defects.append('"observations" must be a string')
+    if outside:
+        defects.append(f"the run nonce occurs {outside} time(s) outside the ledger: it belongs in {places} and nowhere "
+                       "else in the reply, not in a sentence before the ledger and not in a second one")
+    if held > legit:
+        defects.append(f"the run nonce occurs {held - legit} time(s) in the ledger besides {places}: it does not belong "
+                       "in a command, in output, in a reason, in a remark or in a criterion, however it is spelled "
+                       '(an escape such as \\u0061 for "a", or upper case, is still the nonce)')
+    if written != held:
+        defects.append(f"the run nonce must be written out character for character: the ledger spells it {written} "
+                       f"time(s) and holds it {held} time(s) once decoded")
 
     entries = obj.get("criteria")
     if not isinstance(entries, list) or not entries:
@@ -550,7 +595,7 @@ def check_manifest(text, request=None):
     """Validate a criterion manifest. Returns (manifest, defects, notes): the
     manifest in normalised form, and as notes the parts of the request that no
     criterion quotes."""
-    obj, defects = _only_object(text, "manifest")
+    obj, defects, _span = _only_object(text, "manifest")
     if obj is None:
         return None, defects, []
     raw = obj.get("criteria")
