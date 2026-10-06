@@ -1,0 +1,11 @@
+{"ledger": 2,
+ "nonce": "2569ff3edbb8670bbbf9fdab941c9b05",
+ "mode": "FULL",
+ "criteria": [
+  {"id": 1, "text": "Tasks are ordered by priority, with the highest-priority tasks appearing first", "verdict": "PASS", "cmd": "cd benchmark/impl/correct && python3 -c \"from sorttasks_ok import sort_tasks; ... r=sort_tasks(t); print([x['n'] for x in r],[x['priority'] for x in r])\" (6 tasks, priorities 1,3,3,2,1,3)", "out": "['c', 'f', 'b', 'd', 'e', 'a'] [3, 3, 3, 2, 1, 1]"},
+  {"id": 2, "text": "Among tasks with equal priority, the task with the earliest due date appears first", "verdict": "PASS", "cmd": "same run as criterion 1; the priority-3 tasks had due dates b=2026-03-01, c=2026-02-01, f=2026-02-01, and the priority-1 tasks had a=2026-01-05, e=2026-01-02", "out": "['c', 'f', 'b', 'd', 'e', 'a'] — within priority 3, c and f (02-01) come before b (03-01); within priority 1, e (01-02) comes before a (01-05)"},
+  {"id": 3, "text": "Sorting returns every task exactly once; no tasks are dropped or duplicated", "verdict": "PASS", "cmd": "same run; print(len(r), sorted names of result == sorted names of input); print(sort_tasks([]))", "out": "6 True\n[]"}
+ ],
+ "final": "MATCHES INTENT",
+ "observations": "The code uses ISO date strings for 'due', which compare correctly as strings. Other date formats (for example, non-zero-padded dates) were not tested. Equal priority and equal due date keeps input order (sorted is stable), as seen with c before f.",
+ "seal": "2569ff3edbb8670bbbf9fdab941c9b05"}

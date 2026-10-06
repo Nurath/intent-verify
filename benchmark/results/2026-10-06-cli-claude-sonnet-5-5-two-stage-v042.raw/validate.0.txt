@@ -1,0 +1,13 @@
+{"ledger": 2,
+"nonce": "c46d244f664e21580cb1ee608eca6020",
+"mode": "FULL",
+"criteria": [
+{"id": 1, "text": "A username whose length is between 3 and 20 characters after trimming is judged valid", "verdict": "FAIL", "cmd": "python -c \"from validate import valid_username as v; print(repr(' '+'a'*20+' '), v(' '+'a'*20+' '))\"", "out": "' aaaaaaaaaaaaaaaaaaaa ' False  (20 chars after trimming, should be valid; code does not trim)"},
+{"id": 2, "text": "A username with fewer than 3 characters after trimming is judged invalid", "verdict": "FAIL", "cmd": "python -c \"from validate import valid_username as v; print(repr('   '), v('   '))\"", "out": "'   ' True  (empty after trimming, should be invalid)"},
+{"id": 3, "text": "A username with more than 20 characters after trimming is judged invalid", "verdict": "PASS", "cmd": "python -c \"from validate import valid_username as v; print(v('a'*21), v(' '+'a'*21+' '))\"", "out": "'aaaaaaaaaaaaaaaaaaaaa' False\n' aaaaaaaaaaaaaaaaaaaaa ' False"},
+{"id": 4, "text": "Leading and trailing whitespace is removed before the length is measured, so ' abc ' is valid and ' ab ' is invalid", "verdict": "FAIL", "cmd": "python -c \"from validate import valid_username as v; print(v(' abc '), v(' ab '))\"", "out": "' abc ' True\n' ab ' True  (' ab ' should be invalid, but is True because untrimmed length is 4)"},
+{"id": 5, "text": "Whitespace inside the username (not surrounding) is not trimmed and counts toward the length", "verdict": "PASS", "cmd": "python -c \"from validate import valid_username as v; print(v('a b'))\"", "out": "'a b' True  (3 chars with interior space counted)"}
+],
+"final": "DRIFTED — criteria 1, 2, 4 failed",
+"observations": "The code never trims whitespace (no strip call), so the central requirement is missing. Criteria 3 and 5 pass only because untrimmed length happens to give the right answer for the inputs tested.",
+"seal": "c46d244f664e21580cb1ee608eca6020"}

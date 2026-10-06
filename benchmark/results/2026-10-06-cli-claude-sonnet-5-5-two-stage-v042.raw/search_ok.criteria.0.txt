@@ -1,0 +1,9 @@
+{"manifest": 1,
+ "criteria": [
+  {"id": 1, "text": "Only items that contain the query are returned; items that do not contain the query are excluded", "quote": "Filter items to those containing the query"},
+  {"id": 2, "text": "Matching ignores letter case: an item matches when it contains the query regardless of differences in upper/lower case between the item and the query", "quote": "case-insensitively"},
+  {"id": 3, "text": "An item that contains the query as a substring anywhere within it (not only at the start or as a whole item) is included", "quote": "containing the query"}
+ ],
+ "ambiguities": [
+  {"question": "Does 'containing the query' mean the query appears as a substring anywhere in the item, or as a whole word/token?", "assumed": "Substring match anywhere in the item", "criteria": [1, 3]}
+ ]}

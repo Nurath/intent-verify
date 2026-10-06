@@ -1,0 +1,8 @@
+{"manifest": 1,
+ "criteria": [
+  {"id": 1, "text": "A callable named `middle` exists and accepts a single list argument `nums`.", "quote": "middle(nums)"},
+  {"id": 2, "text": "For a list of odd length, `middle` returns the middle value of the list in sorted order (e.g. [3, 1, 2] returns 2).", "quote": "returns the median of a list"},
+  {"id": 3, "text": "For a list of even length, `middle` returns the mean of the two middle values in sorted order (e.g. [1, 2, 3, 4] returns 2.5).", "quote": "returns the median of a list"},
+  {"id": 4, "text": "The result does not depend on the order of the input list: the same values in any order give the same median.", "quote": "the median of a list"}
+ ],
+ "ambiguities": []}

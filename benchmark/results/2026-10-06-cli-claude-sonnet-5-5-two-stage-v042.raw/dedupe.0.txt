@@ -1,0 +1,17 @@
+{"ledger": 2,
+ "nonce": "e17b8d149ad13e0af486548b2237d120",
+ "mode": "FULL",
+ "criteria": [
+  {"id": 1, "text": "No email address appears more than once in the resulting list", "verdict": "PASS",
+   "cmd": "python -c \"from dedupe import dedupe; src=['zed@x.com','bob@x.com','amy@x.com','bob@x.com','zed@x.com','carl@x.com','amy@x.com']; r=dedupe(src); print(r); print('nodup',len(r)==len(set(r)))\"",
+   "out": "['bob@x.com', 'zed@x.com', 'carl@x.com', 'amy@x.com']\nnodup True"},
+  {"id": 2, "text": "The remaining emails are in the same relative order as in the original list, each at the position of its first occurrence", "verdict": "FAIL",
+   "cmd": "python -c \"from dedupe import dedupe; src=['zed@x.com','bob@x.com','amy@x.com','bob@x.com','zed@x.com','carl@x.com','amy@x.com']; r=dedupe(src); exp=list(dict.fromkeys(src)); print(r); print('order',r==exp,'expected',exp)\"",
+   "out": "Run 1: ['bob@x.com', 'zed@x.com', 'carl@x.com', 'amy@x.com'] order False expected ['zed@x.com', 'bob@x.com', 'amy@x.com', 'carl@x.com']\nRun 2: ['carl@x.com', 'bob@x.com', 'amy@x.com', 'zed@x.com'] order False\nRun 3: ['zed@x.com', 'amy@x.com', 'bob@x.com', 'carl@x.com'] order False"},
+  {"id": 3, "text": "Every distinct email present in the original list is still present in the result", "verdict": "PASS",
+   "cmd": "python -c \"from dedupe import dedupe; src=['zed@x.com','bob@x.com','amy@x.com','bob@x.com','zed@x.com','carl@x.com','amy@x.com']; r=dedupe(src); print('complete',set(r)==set(src))\"",
+   "out": "complete True (in all 3 runs)"}
+ ],
+ "final": "DRIFTED — criteria 2 failed",
+ "observations": "dedupe uses list(set(emails)), which discards order; the result order varies between runs because of string hash randomization. The original request explicitly required keeping the original order. Fix would be list(dict.fromkeys(emails)). python3 was not installed, so python (3.14.3) was used.",
+ "seal": "e17b8d149ad13e0af486548b2237d120"}

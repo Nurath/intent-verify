@@ -12,9 +12,9 @@ varies only the ledger's encoding:
 
 `--format json` uses agents/verifier.md as shipped. `--format text` swaps its
 output section for the text-ledger instructions of 0.3.x, kept in
-benchmark/verifier-text-ledger.md. Both are checked by the same validator: a
-JSON ledger is rewritten as a text one (validate_ledger.validate_json). The
-2026-10-05 run used an earlier wording of the JSON section.
+benchmark/verifier-text-ledger.md. Both are held to the same rules
+(validate_ledger.validate and validate_json). The 2026-10-05 run used the
+version 1 object, which had no seal and allowed remarks after it.
 """
 import argparse
 import datetime as _dt

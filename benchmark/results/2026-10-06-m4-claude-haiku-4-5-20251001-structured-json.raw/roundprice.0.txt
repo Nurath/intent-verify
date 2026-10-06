@@ -1,0 +1,22 @@
+```json
+{"ledger": 2,
+ "nonce": "52075c2b8b16a00532ff0af3eccbe4b2",
+ "mode": "STRUCTURED",
+ "criteria": [
+  {"id": 1, "text": "The result of rounding a price has exactly 2 decimal places of precision (e.g. 1.234 becomes 1.23).", "verdict": "PASS",
+   "cmd": "python /tmp/test_roundprice.py",
+   "out": "Criterion 1: Result has exactly 2 decimal places\n  round_price(1.234) = 1.23\n  Expected: 1.23\n  Match: True"},
+  {"id": 2, "text": "A price whose third decimal digit is exactly 5 with nothing after it rounds up (e.g. 1.005 becomes 1.01, 2.675 becomes 2.68, 0.125 becomes 0.13).", "verdict": "FAIL",
+   "cmd": "python /tmp/test_roundprice.py",
+   "out": "Criterion 2: Third decimal digit 5 with nothing after rounds up\n  round_price(1.005) = 1.0, expected 1.01, match: False\n  round_price(2.675) = 2.67, expected 2.68, match: False\n  round_price(0.125) = 0.12, expected 0.13, match: False\n\nDetailed examination of Criterion 2 (half-5) cases:\n  round_price(1.005) = 1.0\n  round_price(2.675) = 2.67\n  round_price(0.125) = 0.12"},
+  {"id": 3, "text": "A price whose discarded part is below half a cent rounds down (e.g. 1.004 becomes 1.00), and one above half a cent rounds up (e.g. 1.006 becomes 1.01).", "verdict": "PASS",
+   "cmd": "python /tmp/test_roundprice.py",
+   "out": "Criterion 3: Discarded part below/above half cent\n  round_price(1.004) = 1.0, expected 1.0, match: True\n  round_price(1.006) = 1.01, expected 1.01, match: True"},
+  {"id": 4, "text": "A price already at 2 or fewer decimal places is returned with the same value (e.g. 3.5 stays 3.50, 4.10 stays 4.10).", "verdict": "PASS",
+   "cmd": "python /tmp/test_roundprice.py",
+   "out": "Criterion 4: Price at 2 or fewer decimal places returned with same value\n  round_price(3.5) = 3.5, expected 3.5, match: True\n  round_price(4.1) = 4.1, expected 4.1, match: True"}
+ ],
+ "final": "DRIFTED — criteria 2 failed",
+ "observations": "Python's built-in round() function uses banker's rounding (round half to even), not round half up. The request explicitly requires rounding half up, so cases where the third decimal is exactly 5 fail: 1.005→1.0 instead of 1.01, 2.675→2.67 instead of 2.68, 0.125→0.12 instead of 0.13.",
+ "seal": "52075c2b8b16a00532ff0af3eccbe4b2"}
+```

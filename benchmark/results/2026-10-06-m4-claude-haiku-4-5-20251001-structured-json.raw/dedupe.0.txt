@@ -1,0 +1,19 @@
+```json
+{"ledger": 2,
+ "nonce": "9bbaf6b9f2d3c0d68d54b661e6e922ee",
+ "mode": "STRUCTURED",
+ "criteria": [
+  {"id": 1, "text": "The resulting list contains no email address more than once", "verdict": "PASS",
+   "cmd": "python /tmp/test_dedupe.py",
+   "out": "Test 1 - No duplicates check:\nInput: ['alice@example.com', 'bob@example.com', 'alice@example.com', 'charlie@example.com', 'bob@example.com']\nOutput: ['charlie@example.com', 'bob@example.com', 'alice@example.com']\nUnique count in output: 3\nMax count of any email: 1"},
+  {"id": 2, "text": "The remaining emails appear in the same relative order as in the original list", "verdict": "FAIL",
+   "cmd": "python /tmp/test_dedupe.py",
+   "out": "Test 2 - Order preservation check:\nInput: ['z@test.com', 'a@test.com', 'z@test.com', 'b@test.com']\nOutput: ['z@test.com', 'b@test.com', 'a@test.com']\nExpected order: ['z@test.com', 'a@test.com', 'b@test.com']\nOrder preserved? False"},
+  {"id": 3, "text": "Every distinct email in the original list is still present in the result (only repeats are removed)", "verdict": "PASS",
+   "cmd": "python /tmp/test_dedupe.py",
+   "out": "Test 3 - All distinct emails present check:\nInput: ['alice@example.com', 'bob@example.com', 'alice@example.com']\nOutput: ['bob@example.com', 'alice@example.com']\nDistinct in input: {'bob@example.com', 'alice@example.com'}\nAll present? True"}
+ ],
+ "final": "DRIFTED — criteria 2 failed",
+ "observations": "The implementation uses list(set(emails)), which removes duplicates but loses insertion order. The set() built-in does not preserve the order of elements from the original list. To preserve order while removing duplicates, a solution using a dict or OrderedDict would be required (e.g., list(dict.fromkeys(emails))).",
+ "seal": "9bbaf6b9f2d3c0d68d54b661e6e922ee"}
+```

@@ -1,0 +1,25 @@
+```json
+{"ledger": 2,
+ "nonce": "fb4abd8ac47dbf519ff4e272f0866703",
+ "mode": "STRUCTURED",
+ "criteria": [
+  {"id": 1, "text": "Up to 5 login attempts from a single IP within one minute are processed normally (not rejected by the rate limit)", "verdict": "PASS",
+   "cmd": "python: 5 sequential allow_login() calls with same IP (192.168.1.1)",
+   "out": "Attempt 1: True\nAttempt 2: True\nAttempt 3: True\nAttempt 4: True\nAttempt 5: True\nAll 5 passed: True"},
+  {"id": 2, "text": "A 6th login attempt from the same IP within the same minute is rejected by the rate limit", "verdict": "PASS",
+   "cmd": "python: 6 sequential allow_login() calls with same IP (192.168.1.1)",
+   "out": "6th attempt result: False\n6th attempt rejected: True"},
+  {"id": 3, "text": "Once a single IP has hit the limit, a different IP can still make login attempts that are not rejected by the rate limit", "verdict": "PASS",
+   "cmd": "python: 5 allow_login() calls with IP1 (192.168.1.1), then 1 call with IP2 (192.168.1.2)",
+   "out": "First IP saturated after 5 attempts\nSecond IP attempt result: True\nSecond IP not rejected: True"},
+  {"id": 4, "text": "Attempts from one IP do not count toward the attempt total of any other IP", "verdict": "PASS",
+   "cmd": "python: 3 allow_login() calls with IP1 (10.0.0.1), 3 calls with IP2 (10.0.0.2), then 4th attempt from each",
+   "out": "IP1 (3 made, 4th attempt): True\nIP2 (3 made, 4th attempt): True\nBoth can continue: True"},
+  {"id": 5, "text": "After the one-minute window passes, a rate-limited IP can attempt login again", "verdict": "PASS",
+   "cmd": "python: 5 allow_login() calls with IP (172.16.0.1), verify rejection, simulate 61s time passage, retry",
+   "out": "Attempt while limited: False\nAfter window passes (simulated), attempt result: True\nCan login after window: True"}
+ ],
+ "final": "MATCHES INTENT",
+ "observations": "All 5 criteria passed. The implementation correctly enforces 5-attempt limit per IP within 60-second window, rejects 6th attempt, maintains independent tracking per IP, and properly expires attempts when the time window passes.",
+ "seal": "fb4abd8ac47dbf519ff4e272f0866703"}
+```

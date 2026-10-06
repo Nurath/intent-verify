@@ -1,0 +1,12 @@
+{"ledger": 2,
+"nonce": "8c89d088f609b42c2a209170031b4af4",
+"mode": "FULL",
+"criteria": [
+{"id": 1, "text": "A username whose length is between 3 and 20 characters (after trimming) is reported valid", "verdict": "PASS", "cmd": "cd benchmark/impl/correct && python -c \"from validate_ok import valid_username as v; [print(repr(s[:12]),len(s),v(s)) for s in ['abc','a'*20]]\"", "out": "'abc' 3 True\n'aaaaaaaaaaaa' 20 True"},
+{"id": 2, "text": "A username with fewer than 3 characters after trimming is reported invalid", "verdict": "PASS", "cmd": "cd benchmark/impl/correct && python -c \"from validate_ok import valid_username as v; [print(repr(s),len(s),v(s)) for s in ['ab','','   ']]\"", "out": "'ab' 2 False\n'' 0 False\n'   ' 3 False"},
+{"id": 3, "text": "A username with more than 20 characters after trimming is reported invalid", "verdict": "PASS", "cmd": "cd benchmark/impl/correct && python -c \"from validate_ok import valid_username as v; [print(repr(s[:12]),len(s),v(s)) for s in ['a'*21,'  '+'a'*21+'  ']]\"", "out": "'aaaaaaaaaaaa' 21 False\n'  aaaaaaaaaa' 25 False"},
+{"id": 4, "text": "Leading and trailing whitespace is trimmed before the length is measured, so surrounding whitespace does not count toward the length (e.g. ' ab ' is invalid, ' abc ' is valid)", "verdict": "PASS", "cmd": "cd benchmark/impl/correct && python -c \"from validate_ok import valid_username as v; [print(repr(s[:12]),len(s),v(s)) for s in [' ab ',' abc ','\\t\\nabc\\n','a'*20+'  ']]\"", "out": "' ab ' 4 False\n' abc ' 5 True\n'\\t\\nabc\\n' 6 True\n'aaaaaaaaaaaa' 22 True"}
+],
+"final": "MATCHES INTENT",
+"observations": "All inputs were run in a single bash invocation, and the outputs are split per criterion above. A 20-character name padded with 2 trailing spaces (22 raw characters) is valid, as the request requires. An all-whitespace string is invalid.",
+"seal": "8c89d088f609b42c2a209170031b4af4"}

@@ -1,0 +1,9 @@
+{"manifest": 1,
+ "criteria": [
+   {"id": 1, "text": "No email address appears more than once in the resulting list", "quote": "Remove duplicate emails"},
+   {"id": 2, "text": "The remaining emails are in the same relative order as in the original list, each at the position of its first occurrence", "quote": "keeping the original order"},
+   {"id": 3, "text": "Every distinct email present in the original list is still present in the result", "quote": null}
+ ],
+ "ambiguities": [
+   {"question": "Are emails that differ only in letter case (e.g. User@Example.com and user@example.com) duplicates of each other?", "assumed": "Only emails identical as strings are duplicates; differently cased addresses are treated as distinct", "criteria": [1, 3]}
+ ]}

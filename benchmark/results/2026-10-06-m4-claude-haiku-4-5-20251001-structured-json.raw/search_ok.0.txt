@@ -1,0 +1,24 @@
+```json
+{"ledger": 2,
+ "nonce": "37cd45c712054a1bb0c5cbbf2d2f94e5",
+ "mode": "STRUCTURED",
+ "criteria": [
+  {"id": 1, "text": "Every returned item contains the query as a substring.", "verdict": "PASS",
+   "cmd": "python test_search.py",
+   "out": "Query: 'apple'\nResult: ['apple', 'Apple', 'APPLE', 'pineapple', 'xAPPLEx']\n  'apple' contains 'apple' (case-insensitive): True\n  'Apple' contains 'apple' (case-insensitive): True\n  'APPLE' contains 'apple' (case-insensitive): True\n  'pineapple' contains 'apple' (case-insensitive): True\n  'xAPPLEx' contains 'apple' (case-insensitive): True\nAll returned items contain query: True"},
+  {"id": 2, "text": "Every item that contains the query as a substring is returned; none are dropped.", "verdict": "PASS",
+   "cmd": "python test_search.py",
+   "out": "Items that contain 'apple' (case-insensitive): ['apple', 'Apple', 'APPLE', 'pineapple', 'xAPPLEx']\nReturned by search: ['apple', 'Apple', 'APPLE', 'pineapple', 'xAPPLEx']\nAll matching items were returned: True\nReturned set == Expected set: True"},
+  {"id": 3, "text": "Matching ignores letter case: an item matches when it contains the query in any combination of upper and lower case (e.g. query 'abc' matches 'xABCx', and query 'ABC' matches 'xabcx').", "verdict": "PASS",
+   "cmd": "python test_search.py",
+   "out": "Query 'apple' (lowercase query): ['apple', 'Apple', 'APPLE', 'pineapple', 'xAPPLEx']\nQuery 'APPLE' (uppercase query): ['apple', 'Apple', 'APPLE', 'pineapple', 'xAPPLEx']\nQuery 'ApPlE' (mixed case query): ['apple', 'Apple', 'APPLE', 'pineapple', 'xAPPLEx']"},
+  {"id": 4, "text": "Items that do not contain the query (ignoring case) are excluded from the result.", "verdict": "PASS",
+   "cmd": "python test_search.py",
+   "out": "Items NOT containing 'apple': ['banana', 'BANANA', 'apricot', 'orange', 'grapefruit']\nAll non-matching items are excluded: True"},
+  {"id": 5, "text": "Returned items keep their original text (case is not altered by the matching).", "verdict": "PASS",
+   "cmd": "python test_search.py",
+   "out": "'apple' == returned 'apple': True\n'Apple' == returned 'Apple': True\n'APPLE' == returned 'APPLE': True\n'pineapple' == returned 'pineapple': True\n'xAPPLEx' == returned 'xAPPLEx': True\nAll returned items preserve original case: True"}
+ ],
+ "final": "MATCHES INTENT",
+ "seal": "37cd45c712054a1bb0c5cbbf2d2f94e5"}
+```

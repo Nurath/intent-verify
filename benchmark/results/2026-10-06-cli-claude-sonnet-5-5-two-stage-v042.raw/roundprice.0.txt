@@ -1,0 +1,13 @@
+{"ledger": 2,
+ "nonce": "f6a2384fb28a0a6eaebd288d59f4fdfe",
+ "mode": "FULL",
+ "criteria": [
+  {"id": 1, "text": "The result of rounding a price has exactly 2 decimal places of precision (e.g. 3.14159 becomes 3.14, and 5 becomes 5.00 or an equal value of 5)", "verdict": "PASS", "cmd": "python -c \"from roundprice import round_price as r; print(repr(r(3.14159)), repr(r(5)))\"  (run in benchmark/impl/omitted-intent, via a loop over several inputs)", "out": "3.14159 3.14\n5 5"},
+  {"id": 2, "text": "A price whose third decimal digit is 5 with nothing after it, i.e. exactly halfway between two cents, rounds up to the higher value (e.g. 1.005 gives 1.01, 2.675 gives 2.68, 0.125 gives 0.13)", "verdict": "FAIL", "cmd": "python -c \"from roundprice import round_price as r; [print(repr(x), repr(r(x))) for x in [1.005,2.675,0.125]]\"  (run in benchmark/impl/omitted-intent, via a loop over several inputs)", "out": "1.005 1.0\n2.675 2.67\n0.125 0.12"},
+  {"id": 3, "text": "A price that is less than halfway between two cents rounds down (e.g. 1.004 gives 1.00, 2.674 gives 2.67)", "verdict": "PASS", "cmd": "python -c \"from roundprice import round_price as r; [print(repr(x), repr(r(x))) for x in [1.004,2.674]]\"  (run in benchmark/impl/omitted-intent, via a loop over several inputs)", "out": "1.004 1.0\n2.674 2.67"},
+  {"id": 4, "text": "A price more than halfway between two cents rounds up (e.g. 1.006 gives 1.01)", "verdict": "PASS", "cmd": "python -c \"from roundprice import round_price as r; print(repr(1.006), repr(r(1.006)))\"  (run in benchmark/impl/omitted-intent, via a loop over several inputs)", "out": "1.006 1.01"},
+  {"id": 5, "text": "A price that already has 2 or fewer decimal places is returned with its value unchanged (e.g. 4.50 stays 4.50, 7 stays 7.00)", "verdict": "PASS", "cmd": "python -c \"from roundprice import round_price as r; [print(repr(x), repr(r(x))) for x in [4.50,7]]\"  (run in benchmark/impl/omitted-intent, via a loop over several inputs)", "out": "4.5 4.5\n7 7"}
+ ],
+ "final": "DRIFTED — criteria 2 failed",
+ "observations": "The code uses Python's built-in round(), which rounds half to even on the binary float value, not half up. Float representation adds to this. Exact halves 0.125 and 2.5-style values go to the even neighbour (0.125 gives 0.12), and 1.005 and 2.675 are stored just below the half, so they round down. Another half case, 0.375, gave 0.38, but only because its even neighbour is the upper one. A Decimal-based ROUND_HALF_UP implementation would be needed. The function is not wrong for non-half inputs.",
+ "seal": "f6a2384fb28a0a6eaebd288d59f4fdfe"}

@@ -1,0 +1,16 @@
+```json
+{"ledger": 2,
+ "nonce": "c58607188e758b0097efefe41bec19b1",
+ "mode": "STRUCTURED",
+ "criteria": [
+  {"id": 1, "text": "Posts are returned/displayed ordered by their date, with the most recent date first and the oldest last.", "verdict": "FAIL",
+   "cmd": "cd <repo> && python << 'EOF'\nfrom benchmark.impl.sortposts import sort_posts\n\nposts = [\n    {\"id\": 1, \"date\": \"2024-01-01\", \"title\": \"Old post\"},\n    {\"id\": 2, \"date\": \"2024-03-15\", \"title\": \"Newest post\"},\n    {\"id\": 3, \"date\": \"2024-02-10\", \"title\": \"Middle post\"},\n]\n\nresult = sort_posts(posts)\nfor post in result:\n    print(f\"  {post['date']}: {post['title']}\")\nEOF",
+   "out": "  2024-01-01: Old post\n  2024-02-10: Middle post\n  2024-03-15: Newest post"},
+  {"id": 2, "text": "Sorting does not add or drop any posts; the same set of posts appears, only reordered.", "verdict": "PASS",
+   "cmd": "cd <repo> && python << 'EOF'\nfrom benchmark.impl.sortposts import sort_posts\nposts = [{\"id\": 1, \"date\": \"2024-01-01\"}, {\"id\": 2, \"date\": \"2024-03-15\"}, {\"id\": 3, \"date\": \"2024-02-10\"}]\nresult = sort_posts(posts)\nprint(len(posts) == len(result) and set(p['id'] for p in posts) == set(p['id'] for p in result))\nEOF",
+   "out": "True"}
+ ],
+ "final": "DRIFTED — criteria 1 failed",
+ "observations": "The code sorts posts in ascending order (oldest first) when the request explicitly asks for newest first. The `sorted()` call lacks a `reverse=True` parameter needed to satisfy criterion 1.",
+ "seal": "c58607188e758b0097efefe41bec19b1"}
+```

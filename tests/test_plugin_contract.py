@@ -7,9 +7,12 @@ that one of those files makes and that a later edit could quietly break.
 import json
 import os
 import re
+import sys
 import unittest
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(BASE, "tools"))
+import validate_ledger  # noqa: E402
 
 
 def read(*parts):
@@ -104,6 +107,16 @@ class TestPluginFiles(unittest.TestCase):
         self.assertIn("RUN NONCE", body)
         self.assertIn('"nonce": "<the RUN NONCE, copied exactly>"', body)
         self.assertNotIn("INTENT-VERIFY LEDGER v1", body)
+
+    def test_the_verifiers_template_is_the_ledger_the_validator_accepts(self):
+        """The prompt and the validator are two descriptions of one format."""
+        body = read("agents", "verifier.md")
+        template = body[body.index('{"ledger": 2,'):body.index("Format rules the validator enforces")]
+        entry = template[template.index('{"id": 1'):template.index("...")]
+        top = template.replace(entry, "")
+        self.assertEqual(tuple(re.findall(r'"(\w+)":', top)), validate_ledger.LEDGER_KEYS, "the seal comes last")
+        self.assertEqual(tuple(re.findall(r'"(\w+)":', entry)), validate_ledger.ENTRY_KEYS)
+        self.assertNotIn("OBSERVATIONS:", body, "remarks go inside the object now")
 
     def test_hooks_register_every_capture_event_in_exec_form(self):
         hooks = json.loads(read("hooks", "hooks.json"))["hooks"]

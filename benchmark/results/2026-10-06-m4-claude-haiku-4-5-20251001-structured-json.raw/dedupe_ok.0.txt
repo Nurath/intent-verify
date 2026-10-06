@@ -1,0 +1,33 @@
+```json
+{
+  "ledger": 2,
+  "nonce": "b26f1913244b7926568ca534d1467cdf",
+  "mode": "STRUCTURED",
+  "criteria": [
+    {
+      "id": 1,
+      "text": "The resulting list contains no email appearing more than once",
+      "verdict": "PASS",
+      "cmd": "python /tmp/verify_test.py (test 1 portion)",
+      "out": "Input: ['a@b.com', 'c@d.com', 'a@b.com', 'e@f.com', 'c@d.com']\nOutput: ['a@b.com', 'c@d.com', 'e@f.com']\nResult length: 3, Set length: 3\nNo duplicates: True"
+    },
+    {
+      "id": 2,
+      "text": "The remaining emails appear in the same relative order as in the original list",
+      "verdict": "PASS",
+      "cmd": "python /tmp/verify_test.py (test 2 portion)",
+      "out": "Input: ['alice@example.com', 'bob@example.com', 'charlie@example.com', 'alice@example.com', 'bob@example.com']\nOutput: ['alice@example.com', 'bob@example.com', 'charlie@example.com']\nExpected order: ['alice@example.com', 'bob@example.com', 'charlie@example.com']\nOrder preserved: True"
+    },
+    {
+      "id": 3,
+      "text": "Every distinct email in the original list still appears in the result (only repeats are removed)",
+      "verdict": "PASS",
+      "cmd": "python /tmp/verify_test.py (test 3 portion)",
+      "out": "Input: ['x@y.com', 'a@b.com', 'x@y.com', 'c@d.com', 'a@b.com', 'e@f.com']\nOutput: ['x@y.com', 'a@b.com', 'c@d.com', 'e@f.com']\nDistinct in input: {'x@y.com', 'e@f.com', 'c@d.com', 'a@b.com'}\nAll distinct preserved: True"
+    }
+  ],
+  "final": "MATCHES INTENT",
+  "observations": "The implementation uses dict.fromkeys() which leverages Python 3.7+ dictionary insertion order preservation. All three criteria passed with diverse test cases covering edge cases with multiple duplicates in various positions.",
+  "seal": "b26f1913244b7926568ca534d1467cdf"
+}
+```
