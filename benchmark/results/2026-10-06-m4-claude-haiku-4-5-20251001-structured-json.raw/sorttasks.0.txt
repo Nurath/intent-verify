@@ -1,0 +1,19 @@
+```json
+{"ledger": 2,
+ "nonce": "c9aa476bcb3e9ba39c44d3e230d5401c",
+ "mode": "STRUCTURED",
+ "criteria": [
+  {"id": 1, "text": "Tasks are ordered by priority, with the highest-priority tasks first", "verdict": "PASS",
+   "cmd": "python -c \"from benchmark.impl.omitted_intent.sorttasks import sort_tasks; tasks = [{'priority': 1, 'due': '2026-10-10'}, {'priority': 5, 'due': '2026-10-15'}, {'priority': 3, 'due': '2026-10-12'}]; result = sort_tasks(tasks); print([t['priority'] for t in result])\"",
+   "out": "[5, 3, 1]"},
+  {"id": 2, "text": "Among tasks with equal priority, the task with the earliest due date comes first", "verdict": "FAIL",
+   "cmd": "python -c \"from benchmark.impl.omitted_intent.sorttasks import sort_tasks; tasks = [{'priority': 3, 'due': '2026-10-20'}, {'priority': 3, 'due': '2026-10-10'}, {'priority': 3, 'due': '2026-10-15'}]; result = sort_tasks(tasks); print([t['due'] for t in result])\"",
+   "out": "['2026-10-20', '2026-10-10', '2026-10-15']"},
+  {"id": 3, "text": "Sorting returns every task exactly once; no tasks are dropped or duplicated", "verdict": "PASS",
+   "cmd": "python -c \"from benchmark.impl.omitted_intent.sorttasks import sort_tasks; tasks = [{'priority': 2, 'due': '2026-10-12'}, {'priority': 1, 'due': '2026-10-10'}, {'priority': 3, 'due': '2026-10-15'}]; result = sort_tasks(tasks); print(f'Input length: {len(tasks)}, Output length: {len(result)}, All tasks present: {set(str(t) for t in tasks) == set(str(t) for t in result)}')\"",
+   "out": "Input length: 3, Output length: 3, All tasks present: True"}
+ ],
+ "final": "DRIFTED — criteria 2 failed",
+ "observations": "The implementation sorts only by priority (descending) but completely ignores the tie-breaking requirement for equal-priority tasks. Criterion 2 demonstrates that when all tasks have the same priority, they remain in their original order rather than being sorted by due date. The request explicitly requires 'break ties by earliest due date', which the code does not implement.",
+ "seal": "c9aa476bcb3e9ba39c44d3e230d5401c"}
+```

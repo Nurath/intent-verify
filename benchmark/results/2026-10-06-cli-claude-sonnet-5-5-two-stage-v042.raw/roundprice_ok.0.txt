@@ -1,0 +1,12 @@
+{"ledger": 2,
+ "nonce": "c71e6c0171e42a1f6f6e7752c0fc938c",
+ "mode": "FULL",
+ "criteria": [
+  {"id": 1, "text": "A price is rounded so the result has at most 2 decimal places (e.g. 3.14159 gives 3.14).", "verdict": "PASS", "cmd": "cd benchmark/impl/correct; python -c \"from roundprice_ok import round_price as r; print(r(3.14159), r(0.005), r(19.995))\"  (run as a loop over inputs)", "out": "3.14159 3.14\n0.005 0.01\n19.995 20.0"},
+  {"id": 2, "text": "A price exactly halfway between two 2-decimal values rounds up to the higher one (e.g. 1.005 gives 1.01, 2.675 gives 2.68, 0.125 gives 0.13).", "verdict": "PASS", "cmd": "python loop calling round_price on 1.005, 2.675, 0.125, 1.015", "out": "1.005 1.01\n2.675 2.68\n0.125 0.13\n1.015 1.02"},
+  {"id": 3, "text": "A price below the halfway point rounds down and one above it rounds up (e.g. 1.004 gives 1.00, 1.006 gives 1.01).", "verdict": "PASS", "cmd": "python loop calling round_price on 1.004, 1.006", "out": "1.004 1.0\n1.006 1.01"},
+  {"id": 4, "text": "A price that already has 2 or fewer decimal places keeps its value unchanged (e.g. 4.50 stays 4.50).", "verdict": "PASS", "cmd": "python loop calling round_price on 4.50, 7, 0.1, 2.5", "out": "4.5 4.5\n7 7.0\n0.1 0.1\n2.5 2.5"}
+ ],
+ "final": "MATCHES INTENT",
+ "observations": "The function returns a float, so 4.50 prints as 4.5. The value is unchanged. It converts through str(x), so it rounds the decimal as written (1.005 gives 1.01). It does not round the exact binary value, which is 1.00499999999999989.... That matches the request's examples. Negative prices were not tested.",
+ "seal": "c71e6c0171e42a1f6f6e7752c0fc938c"}

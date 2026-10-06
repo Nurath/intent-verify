@@ -173,6 +173,18 @@ and the skill fell back to the relayed reply and said so. 0.4.1 reads the
 report where the desktop app puts it, and the same check then passed there: the
 hook's copy was byte-identical to the verifier's report.
 
+**0.4.2, the sealed ledger.** The ledger became the whole reply, with the nonce
+repeated as its last key, after a review and an attack by another model found
+replies that validated as `MATCHES INTENT` and should not have. The format a
+verifier has to produce got stricter, so the question was whether real models
+still produce it. On the 16 controlled cases Sonnet 5.5 reached the expected
+verdict 16 of 16, and on the three fixtures that print forged verdicts 3 of 3,
+every ledger valid on the first reply. Haiku 4.5 in STRUCTURED mode wrote a
+valid sealed ledger 16 of 16 times. A live headless run was captured by the
+hook and validated from that copy. Replaying the 124 ledgers recorded before
+the change reproduces every verdict.
+[`benchmark/results/2026-10-06-sealed-ledger.md`](benchmark/results/2026-10-06-sealed-ledger.md).
+
 What this does not show is that two-stage beats single-stage: single-stage was
 also 16 of 16 in July, so the set is at its ceiling for both. It shows that 0.3
 keeps that result while adding the mechanical coverage check. Report and every
@@ -223,9 +235,10 @@ Invoke `intent-verify` after an agent completes a non-trivial change, or say
 3. **Dispatches the verifier** on a different model, with the request, the
    criteria and the code.
 4. **Validates the ledger mechanically** — the copy a hook captured from the
-   verifier, bound to the run by a nonce the code under test cannot know;
-   evidence for every PASS, a consistent verdict, every criterion from step 2
-   present — and returns it with a verdict:
+   verifier, bound to the run by a nonce the code under test cannot know and
+   sealed with it; evidence for every PASS, a consistent verdict, every
+   criterion from step 2 present, nothing said after it — and returns it with a
+   verdict:
    `MATCHES INTENT` / `DRIFTED` / `INCONCLUSIVE` (when the change couldn't
    honestly be exercised, or the request itself was incomplete — never
    laundered into a pass).
@@ -491,7 +504,19 @@ to be the discriminators.
   hook files nothing (an older Claude Code, one of the alternate hooks, a
   harness that delivers reports some other way), the session relays the reply
   itself and the report has to say so. A verifier that put the nonce into a
-  command it ran would hand it to the code under test; it is told never to.
+  command it ran would hand it to the code under test; it is told never to, and
+  a reply that shows the nonce anywhere but its two places is rejected.
+- **The validator reads structure, not prose.** It checks that the ledger is
+  one sealed object with evidence for every verdict and a consistent
+  conclusion. A remark that contradicts a verdict is still a valid ledger, and
+  `.` is still output. The report shows the evidence and the observations so
+  that a person can read them.
+- **Attacked is not proven.** The validator has now been through two outside
+  reviews and two adversarial passes by other models. The first three each
+  found replies that validated and should not have; the fourth, on the
+  rewritten validator, found none. What they found is fixed and pinned by
+  tests. That is a record of what was looked for, not a proof that nothing is
+  left.
 - **Prompts are stored in plaintext**, partly redacted: in your home directory
   with the plugin's hook, inside the project with the alternates.
 - **Ground-truth limit.** On genuinely ambiguous requests there may be no single
@@ -536,6 +561,9 @@ to be the discriminators.
 - [x] **v0.4.1** — the hook reads a report handed back through a tool call, as
       the desktop app does it; 0.4.0 captured nothing there
 - [x] The hook seen capturing a verifier's reply in the desktop app (0.4.1)
+- [x] **v0.4.2** — a second independent review, then two adversarial passes
+      before release: the ledger is one sealed object and the reply is that
+      object
 - [ ] Field recall on real *under-specified* tasks with a known intended answer
 - [ ] Registry refresh (the snapshot predates current models)
 
@@ -570,6 +598,17 @@ then the session that wrote the code carried the verifier's reply to the
 validator, and a ledger printed by the code under test could pass for the
 verifier's own. Now a hook keeps the reply and only the ledger carrying the
 run's nonce counts.
+
+v0.4.2 is the second correctness release, and for the same reason as the
+first. An independent review of 0.4.1 found that the new JSON ledger could
+still validate as `MATCHES INTENT` with a FAIL in it, by writing a key twice or
+by sending a second ledger after the first. The parser had shipped without
+anyone but its author attacking it. This time another model attacked the fix
+before it was released, and found that the fix was not enough: a second ledger
+that did not parse was not counted, and output pasted with an unescaped quote
+could rewrite the ledger around itself. So the format changed instead of the
+parser growing another case. The reply is one object, nothing follows it, it
+has no key the format does not name, and it ends with the run's nonce.
 
 ## License
 

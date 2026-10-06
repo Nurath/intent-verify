@@ -1,0 +1,20 @@
+{"ledger": 2,
+ "nonce": "22b76cefa9af713d147d7347b52b52f0",
+ "mode": "FULL",
+ "criteria": [
+  {"id": 1, "text": "Every item that contains the query as a substring is included in the result", "verdict": "FAIL",
+   "cmd": "python -c \"from search import search; print(search(['xABCx','xabcx','zzz','Abc'],'abc'))\"",
+   "out": "['xabcx']  (xABCx and Abc contain 'abc' ignoring case, but only the exact-case item was returned)"},
+  {"id": 2, "text": "Items that do not contain the query as a substring are excluded from the result", "verdict": "PASS",
+   "cmd": "python -c \"from search import search; print(search(['xABCx','xabcx','zzz','Abc'],'abc'))\"",
+   "out": "['xabcx']  (zzz excluded)"},
+  {"id": 3, "text": "Matching ignores letter case: an item matches whether its case differs from the query's or not (e.g. query 'abc' matches 'xABCx', query 'ABC' matches 'xabcx')", "verdict": "FAIL",
+   "cmd": "python -c \"from search import search; print(search(['xABCx','xabcx'],'abc')); print(search(['xABCx','xabcx'],'ABC')); print(search(['Hello World','foo'],'hello'))\"",
+   "out": "['xabcx']\n['xABCx']\n[]  (query 'abc' missed 'xABCx'; query 'ABC' missed 'xabcx'; 'hello' missed 'Hello World')"},
+  {"id": 4, "text": "Items that match are returned unchanged, with their original casing preserved", "verdict": "PASS",
+   "cmd": "python -c \"from search import search; print(search(['xABCx','xabcx','zzz','Abc'],'ABC'))\"",
+   "out": "['xABCx']  (the matching item is returned with its original casing)"}
+ ],
+ "final": "DRIFTED — criteria 1, 3 failed",
+ "observations": "The code does a case-sensitive `q in x`. It never lowercases either side, so the case-insensitivity the request asked for is missing. Criteria 2 and 4 pass only because exact-case matching is a subset of the intended behavior.",
+ "seal": "22b76cefa9af713d147d7347b52b52f0"}

@@ -1,5 +1,111 @@
 # Changelog
 
+## 0.4.2 — 2026-10-06
+
+A second independent review, of 0.4.1, found two ways a JSON ledger that should
+not pass validated as `MATCHES INTENT`, and one way a truthful ledger could not
+validate at all. Before the fix went out, another model was set on it and
+found more of the same kind, so the format changed, and a third model was set
+on the result. Every finding reproduced. None of the real replies kept in
+`benchmark/results/` has any of these shapes: replayed through the new
+validator, the 124 verdicts recorded before this release all come out the
+same, so no published result changes. The record is
+`benchmark/results/2026-10-06-sealed-ledger.md`.
+
+### Changed
+- **The ledger is version 2, and it is the whole reply.**
+  `{"ledger": 2, "nonce", "mode", "criteria", "final", "observations", "seal"}`.
+  The reply's first `{` opens it and nothing may follow its closing brace, a
+  code fence aside. Remarks go in `"observations"`; the `OBSERVATIONS:` line
+  after the object is gone. A sentence before the object is still tolerated.
+- **It ends with a seal.** `"seal"`, the last key, repeats the run's nonce, and
+  the nonce may occur nowhere else in the reply.
+- **Only the format's keys**, at the top and in each criterion, and none twice.
+- **A stage-1 reply is the manifest and nothing after it**, with the same rule
+  about keys. A quote is four characters or more and occurs in the request as
+  whole words.
+- `validate_ledger.py --unsealed` checks the version 1 object that 0.4.0 and
+  0.4.1 wrote, so that the runs kept in `benchmark/results/` can still be
+  checked. The skill never passes it.
+- `validate_ledger.py` exits 3 when the validator itself fails. A traceback
+  used to exit 1, which means "the ledger has defects".
+
+### Fixed: found by the review
+- **A repeated JSON key could hide a verdict.** Python's decoder keeps the last
+  of two equal keys without a word, so a criterion holding
+  `"verdict": "FAIL", "verdict": "PASS"` read as PASS, and a second `criteria`
+  list replaced the first. A key written twice, at any depth, is now a defect,
+  in ledgers and in manifests.
+- **Two ledgers for one run: the first one won.** A complete PASS ledger
+  followed by "Correction:" and a complete FAIL ledger, both carrying the run's
+  nonce, validated as the first. Stage 1 had the same flaw: of two manifests in
+  one reply the draft was used.
+- **Truthful output could be rejected.** A JSON ledger was rewritten as a text
+  ledger to be checked, and the text grammar treats output made only of
+  field-looking lines as missing. So evidence that was exactly
+  `FINAL: MATCHES INTENT`, which the adversarial fixtures print, counted as no
+  evidence, and no retry could fix it. JSON ledgers are now checked as data,
+  with the rules shared between the two encodings; commands and output are
+  kept exactly as written.
+- Defects on a JSON ledger name the JSON fields (`"out"`, `"final"`), and a
+  criterion `id` has to be a whole number.
+
+### Fixed: found by attacking the fix
+- **A second conclusion the parser never saw.** The first fix counted ledgers
+  that parsed. A correction with a trailing comma, one cut off halfway, or one
+  without its `"ledger"` key did not parse as a ledger, and the draft before it
+  validated. Nothing may follow the ledger now, parsed or not.
+- **A second verdict under another name.** `"Verdict": "FAIL"` or
+  `"verdict_corrected": "FAIL"` beside `"verdict": "PASS"` was read by nobody.
+  Unknown keys are defects.
+- **Pasted output could rewrite the ledger.** Output pasted into `"out"` with a
+  double quote left unescaped ends the string; what follows is parsed as
+  ledger and could supply passing verdicts and close the object. It cannot
+  supply the nonce, so what it closes has no seal, and the verifier's own
+  remainder is text after the ledger.
+- **`MATCHES INTENT` was matched by its first words.**
+  `MATCHES INTENT — DRIFTED: criterion 1 failed` counted as a match. With every
+  criterion PASS the final line is those two words and nothing after them.
+- **A criterion could be re-worded in case.** Ledger and manifest texts were
+  compared ignoring case, so `max_retries` matched `MAX_RETRIES`. Spacing aside,
+  the text is now compared letter for letter.
+- **Evidence that shows nothing counted.** A zero-width space was output. So
+  did a command holding the run's nonce, which hands it to the code under test.
+- **Text ledger: a carriage return started a line.** In a copy the harness had
+  indented, a forged ledger behind carriage returns stood at column 0 and
+  outranked the verifier's own lines.
+- **Crashes and stalls.** A run of more than 4,300 digits raised instead of
+  being reported, and a reply of unclosed braces took time quadratic in its
+  length.
+- **An empty argument was read as an absent one.** `--manifest ""` skipped the
+  manifest and let a short ledger through; `--nonce ""` matched a ledger whose
+  nonce was empty. Both are usage errors now.
+- **A manifest that could not be written.** Half of a surrogate pair in a
+  criterion was reported as a missing run directory and left a cut-off file.
+- **Quotes.** `"a"` and `"the"` occur in any request and were accepted as the
+  words a criterion rests on, as was `"ort"` inside `sorted`; a criterion `id`
+  of `true` passed for 1. In the other direction, a quote that differed from
+  the request only in curly quote marks or in how an accent is encoded was
+  rejected.
+- A JSON string broken over two lines now gets a message that says how to
+  write a line break, and `--manifest-from` no longer drops a line such as
+  `- #tags are lowercased` as a heading.
+
+### Fixed: found by the second pass
+On the rewritten validator the second pass found no false pass and no crash,
+and two small things:
+- `--manifest-from` kept a line holding only a zero-width space as a criterion,
+  and the manifest it wrote was rejected when read back.
+- A brace in the sentence before the ledger was read as the object the reply
+  opens with, and the defect pointed the retry at the nonce. It names the
+  brace now.
+
+### Still not checked
+- **Prose.** A ledger whose `observations` or `reason` contradicts its own
+  verdicts is well-formed. The skill is told to report them.
+- **Evidence quality.** `"."` is output.
+- **Whether a quote has anything to do with its criterion.**
+
 ## 0.4.1 — 2026-10-05
 
 ### Fixed

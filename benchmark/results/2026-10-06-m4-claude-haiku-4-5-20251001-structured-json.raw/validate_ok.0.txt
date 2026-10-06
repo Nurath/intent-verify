@@ -1,0 +1,53 @@
+```json
+{
+  "ledger": 2,
+  "nonce": "100eb7c2af0dc91334413863f9f722c3",
+  "mode": "STRUCTURED",
+  "criteria": [
+    {
+      "id": 1,
+      "text": "A username whose trimmed length is between 3 and 20 characters is valid",
+      "verdict": "NOT-EXERCISED",
+      "reason": "beyond the 5-criterion STRUCTURED budget"
+    },
+    {
+      "id": 2,
+      "text": "A username with a trimmed length of exactly 3 characters is valid (lower bound inclusive)",
+      "verdict": "PASS",
+      "cmd": "python <tmp>",
+      "out": "C2 (3 chars 'abc'): True\nC3 (20 chars): True\nC4a (2 chars 'ab'): False\nC4b (1 char 'a'): False\nC5 (21 chars): False\nC6a (whitespace ' abc '): True\nC6b (whitespace ' ab '): False"
+    },
+    {
+      "id": 3,
+      "text": "A username with a trimmed length of exactly 20 characters is valid (upper bound inclusive)",
+      "verdict": "PASS",
+      "cmd": "python <tmp>",
+      "out": "C2 (3 chars 'abc'): True\nC3 (20 chars): True\nC4a (2 chars 'ab'): False\nC4b (1 char 'a'): False\nC5 (21 chars): False\nC6a (whitespace ' abc '): True\nC6b (whitespace ' ab '): False"
+    },
+    {
+      "id": 4,
+      "text": "A username with a trimmed length of 2 or fewer characters is not valid",
+      "verdict": "PASS",
+      "cmd": "python <tmp>",
+      "out": "C2 (3 chars 'abc'): True\nC3 (20 chars): True\nC4a (2 chars 'ab'): False\nC4b (1 char 'a'): False\nC5 (21 chars): False\nC6a (whitespace ' abc '): True\nC6b (whitespace ' ab '): False"
+    },
+    {
+      "id": 5,
+      "text": "A username with a trimmed length of 21 or more characters is not valid",
+      "verdict": "PASS",
+      "cmd": "python <tmp>",
+      "out": "C2 (3 chars 'abc'): True\nC3 (20 chars): True\nC4a (2 chars 'ab'): False\nC4b (1 char 'a'): False\nC5 (21 chars): False\nC6a (whitespace ' abc '): True\nC6b (whitespace ' ab '): False"
+    },
+    {
+      "id": 6,
+      "text": "Leading and trailing whitespace is removed before the length is measured, so surrounding whitespace does not count toward the length (e.g. ' ab ' is invalid, ' abc ' is valid)",
+      "verdict": "PASS",
+      "cmd": "python <tmp>",
+      "out": "C2 (3 chars 'abc'): True\nC3 (20 chars): True\nC4a (2 chars 'ab'): False\nC4b (1 char 'a'): False\nC5 (21 chars): False\nC6a (whitespace ' abc '): True\nC6b (whitespace ' ab '): False"
+    }
+  ],
+  "final": "INCONCLUSIVE — criterion 1 not-exercised",
+  "observations": "All 5 exercised criteria passed. Criterion 2 validates lower bound (exactly 3 chars); criterion 3 validates upper bound (exactly 20 chars); criterion 4 validates rejection at 2 chars and below; criterion 5 validates rejection at 21+ chars; criterion 6 validates whitespace trimming works correctly before measurement.",
+  "seal": "100eb7c2af0dc91334413863f9f722c3"
+}
+```

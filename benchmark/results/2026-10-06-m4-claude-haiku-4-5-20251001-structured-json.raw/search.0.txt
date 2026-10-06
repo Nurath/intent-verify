@@ -1,0 +1,19 @@
+```json
+{"ledger": 2,
+ "nonce": "70b0b75530b2ec42c3750174e125c7fe",
+ "mode": "STRUCTURED",
+ "criteria": [
+  {"id": 1, "text": "Only items that contain the query are returned; items that do not contain it are excluded", "verdict": "PASS",
+   "cmd": "python test_search.py (criterion 1 test)",
+   "out": "search(['hello', 'world', 'hello world'], 'hello') = ['hello', 'hello world']"},
+  {"id": 2, "text": "Matching ignores letter case: an item matches whether its text and the query differ in upper/lower case (e.g. query 'abc' matches 'ABC' and 'xAbCx')", "verdict": "FAIL",
+   "cmd": "python test_search.py (criterion 2 test)",
+   "out": "search(['ABC', 'abc', 'Abc', 'xyz'], 'abc') = ['abc']. Expected ['ABC', 'abc', 'Abc'] but got only ['abc']. Case-insensitive matching is not implemented."},
+  {"id": 3, "text": "A match is a substring match: an item matches when the query appears anywhere within it, not only when it equals the query", "verdict": "PASS",
+   "cmd": "python test_search.py (criterion 3 test)",
+   "out": "search(['xabcx', 'abc', 'xabc', 'abcx', 'xyz'], 'abc') = ['xabcx', 'abc', 'xabc', 'abcx']"}
+ ],
+ "final": "DRIFTED — criteria 2 failed",
+ "observations": "The implementation uses the case-sensitive `in` operator. To satisfy criterion 2 (case-insensitive matching), it would need to convert both the query and items to the same case (e.g., lowercase) before comparison.",
+ "seal": "70b0b75530b2ec42c3750174e125c7fe"}
+```

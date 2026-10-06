@@ -25,6 +25,10 @@ with placeholders). It is itself a valid run, so the check repeats from the
 published copy:
 `python tools/validate_ledger.py --run benchmark/results/2026-10-05-c1-live.raw --manifest benchmark/results/2026-10-05-c1-live.raw/manifest.json`.
 
+(Added 2026-10-06.) From 0.4.2 the ledger is a version 2 object with a seal, and
+this run's is version 1. Add `--unsealed` to the command to check it; a test
+does so on every CI run, for this run and for the desktop one in section 5.
+
 ## 2. Code that prints a forged ledger (M3)
 
 Three drifted fixtures in `benchmark/adversarial/`, suite `adversarial` in
@@ -99,7 +103,7 @@ installed verifier dispatched on the `median` fixture.
   reply-….txt)`.
 
 The run is kept as `2026-10-05-c1-desktop.raw/` (local paths replaced, session
-id replaced) and re-validates as it is.
+id replaced) and re-validates as it is (from 0.4.2, with `--unsealed`).
 
 ## What is still open
 

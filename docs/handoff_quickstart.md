@@ -51,9 +51,9 @@ The version is `version` in `.claude-plugin/plugin.json`; the top heading of
 `CHANGELOG.md` must match it (a test enforces that). An installed copy changes
 only when someone runs the two update commands in the runbook and restarts.
 
-## Test baseline (0.4.1)
+## Test baseline (0.4.2)
 
-- `python3 -m unittest discover -s tests`: 209 tests. On Windows 18 skip (POSIX
+- `python3 -m unittest discover -s tests`: 250 tests. On Windows 18 skip (POSIX
   shell tests and one layout-specific test); on Linux and macOS the PowerShell
   classes skip instead.
 - `node hooks/capture-intent.js --selftest`: 34 of 34.
@@ -75,15 +75,39 @@ only when someone runs the two update commands in the runbook and restarts.
   changed in all four; see the runbook in `docs/architecture.md`.
 - **Files in this repository ship to everyone who installs the plugin.** Keep
   logs and docs free of anything private.
+- **A parser or validator is not sound because its author tested it.** Two
+  independent reviews each found false-pass paths in one that had been called
+  sound (0.2.0, 0.4.1), and the first fix for the second review was itself
+  broken by the first model set on it. Before releasing a change to
+  `validate_ledger.py`, have a different model attack it, with the code and the
+  rules and without your conclusions, and attack again after fixing what it
+  finds.
+- **A property test has to be able to fail.** A seeded test that pasted random
+  pieces of ledger syntax into a ledger found nothing with every protection
+  switched off, because random pieces almost never form the one sequence that
+  works. The test that replaced it enumerates a grammar that contains the known
+  attack and counts the payloads that only the new rules stop.
+- **Version 1 ledgers need `--unsealed`.** The runs kept from 0.4.0 and 0.4.1
+  are version 1 objects. The default path rejects them and says so.
+- **A harness is a thing to test.** The verifier-capture hook worked headless
+  and captured nothing in the desktop app (0.4.0). Check hook behaviour where
+  users run it.
 - **The harness indents a background subagent's report.** Take a verifier's
   reply from the subagent's own output where possible; the validator tolerates a
   uniform indent but not a tidied-up copy.
 
-## Open items (2026-10-05)
+## Open items (2026-10-06)
 
-Done later on 2026-10-05: the three platform checks passed, and the two-stage
-flow scored 16 of 16 on the controlled set
+Done on 2026-10-05: the three platform checks passed, and the two-stage flow
+scored 16 of 16 on the controlled set
 (`benchmark/results/2026-10-05-cli-claude-sonnet-5-5-two-stage.md`).
+
+0. **The sealed ledger of 0.4.2 has not run in the desktop app.** Headless it
+   was captured by the hook and validated
+   (`benchmark/results/2026-10-06-sealed-ledger.md`). The hook does not look at
+   the format, so nothing suggests a problem, but the first `/intent-verify`
+   in the desktop app after the update is the check. If a reply is rejected
+   there for "text after the ledger", look at what the harness appended.
 
 1. **Stage-1 questions: fixed in 0.3.2, with one cost to watch.** 41 up-front
    questions on the 16 controlled requests became 3, none asked before

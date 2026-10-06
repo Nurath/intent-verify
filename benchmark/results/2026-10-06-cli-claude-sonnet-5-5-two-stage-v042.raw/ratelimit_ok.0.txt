@@ -1,0 +1,13 @@
+{"ledger": 2,
+ "nonce": "b4945258361d23422d5ad2e697252b78",
+ "mode": "FULL",
+ "criteria": [
+  {"id": 1, "text": "From a single IP, the first 5 login attempts within a one-minute period are processed normally (not rejected by the rate limit)", "verdict": "PASS", "cmd": "python t.py (time.time mocked; imports ratelimit_ok; calls allow_login('A') 5 times)", "out": "A first5 [True, True, True, True, True]"},
+  {"id": 2, "text": "From a single IP, a 6th login attempt within the same minute is rejected by the rate limit rather than processed as a normal login", "verdict": "PASS", "cmd": "python t.py (6th allow_login('A') at the same time; again at +30s)", "out": "A 6th False\nA at +30s False"},
+  {"id": 3, "text": "Once the minute window has passed, an IP that was previously blocked can attempt to log in again", "verdict": "PASS", "cmd": "python t.py (advance mocked clock to +61s, call allow_login('A'))", "out": "A at +61s True"},
+  {"id": 4, "text": "When one IP has exhausted its 5 attempts, a login attempt from a different IP in the same minute is still processed normally", "verdict": "PASS", "cmd": "python t.py (after A blocked, call allow_login('B') 5 times, then a 6th)", "out": "B while A blocked [True, True, True, True, True] B6 False"},
+  {"id": 5, "text": "Attempts from one IP do not count toward the limit of another IP", "verdict": "PASS", "cmd": "python t.py (after A and B exhausted, call allow_login('C'))", "out": "C fresh True; B got all 5 attempts allowed even though A had 6 attempts"}
+ ],
+ "final": "MATCHES INTENT",
+ "observations": "Time was mocked by overriding time.time to control the clock. The window is sliding: A was still blocked at +30s and allowed again at +61s. Rejected attempts are not recorded, so they do not extend the block. The module-level dict is not thread-safe and is never cleaned of idle IPs, but the request did not ask about either.",
+ "seal": "b4945258361d23422d5ad2e697252b78"}

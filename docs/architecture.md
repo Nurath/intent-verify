@@ -150,23 +150,59 @@ is labelled `agent-report` and left out unless `--all` is given.
                   "criteria": [1]}]}
 ```
 
-Valid when: `criteria` is a non-empty list; ids run 1..N in order; each `text`
-is one non-empty line; each `quote` is null or occurs in the request (spacing
-and case ignored); each ambiguity names existing criteria and the reading they
-assume. An ambiguity that names no criterion, including a bare string from a
-0.3.1 deriver, is dropped and counted (`unlinked_ambiguities`): no answer to it
-could change the verdict. The validator also lists parts of the request no
-quote touches, as notes.
+Valid when: the reply is that object, with nothing after it and no key that is
+unknown or written twice; `criteria` is a non-empty list; ids run 1..N in order;
+each `text` is one non-empty line; each `quote` is null, or four characters or
+more that occur in the request as whole words (spacing, case and curly or
+straight quote marks ignored); each ambiguity names existing criteria and the
+reading they assume. An ambiguity that names no criterion, including a bare
+string from a 0.3.1 deriver, is dropped and counted (`unlinked_ambiguities`): no
+answer to it could change the verdict. The validator also lists parts of the
+request no quote touches, as notes.
 
 ### 4.3 Verifier ledger
 
-Since 0.4.0 the verifier writes one JSON object, `{"ledger": 1, "nonce", "mode",
-"criteria": [{"id", "text", "verdict", "cmd", "out", "reason"}], "final"}`; the
-template is in `agents/verifier.md`. `validate_json` takes the object whose
-`nonce` is the run's, rewrites it as the text ledger below and applies the same
-rules. A ledger the code under test printed cannot carry the nonce, and inside
-the object captured output is a JSON string, so neither can pass for the
-verifier's own.
+The verifier writes one JSON object. Since 0.4.2 it is version 2:
+
+```json
+{"ledger": 2, "nonce": "<run nonce>", "mode": "FULL",
+ "criteria": [{"id": 1, "text": "...", "verdict": "PASS", "cmd": "...", "out": "..."},
+              {"id": 2, "text": "...", "verdict": "NOT-EXERCISED", "reason": "..."}],
+ "final": "MATCHES INTENT", "observations": "optional", "seal": "<run nonce>"}
+```
+
+The template is in `agents/verifier.md`. `validate_json` reads the object that
+the reply's first `{` opens and applies the rules of 4.4 to it directly
+(`_check`, shared with the text grammar). A ledger the code under test printed
+cannot carry the nonce, and inside the object captured output is a JSON string,
+so neither can pass for the verifier's own. A reply is invalid, and is never
+resolved silently, when:
+
+- **Anything follows the object**, a closing code fence aside. That is where a
+  second conclusion went: a draft followed by its correction used to be read as
+  the draft, and so did a correction that was cut off or did not parse. A
+  sentence before the object is tolerated.
+- **A key is written twice**, at any depth, in the ledger or in a manifest.
+  Python's decoder keeps the last one, so `"verdict": "FAIL", "verdict": "PASS"`
+  read as PASS.
+- **A key is not one of the format's**, at the top or in a criterion. Beside
+  `"verdict": "PASS"`, a `"Verdict": "FAIL"` or a `"verdict_corrected": "FAIL"`
+  was read by nobody.
+- **The seal is missing, wrong, or not the last key.** Output pasted with a
+  double quote left unescaped ends its string, and what follows it is parsed as
+  ledger: it can supply verdicts and close the object. It cannot supply the
+  nonce, so what it closes has no seal.
+- **The nonce occurs anywhere but in `nonce` and `seal`.** In a command or in
+  output, it has reached the code under test.
+
+Evidence strings are kept exactly as written. Only the text grammar treats
+output made of nothing but field-looking lines as missing, because there output
+and fields share one stream of lines. In both, evidence that shows nothing
+(spaces, a zero-width character) is missing.
+
+`--unsealed` checks the version 1 object that 0.4.0 and 0.4.1 wrote: no seal,
+remarks around it, unknown keys tolerated. It exists so that the runs kept in
+`benchmark/results/` can still be checked. The skill never passes it.
 
 `INTENT-VERIFY LEDGER v1`, the text grammar of 0.1 to 0.3, is still accepted
 when no run is involved: a header line, a `mode:` line, `CRITERION n:` blocks
@@ -187,7 +223,7 @@ each with one `VERDICT:` and either `EVIDENCE-CMD:` + `EVIDENCE-OUT:` or
 |---|---|
 | any `FAIL` | `DRIFTED`, listing every failed criterion |
 | no `FAIL`, at least one `NOT-EXERCISED` | `INCONCLUSIVE` |
-| all `PASS` | `MATCHES INTENT` |
+| all `PASS` | `MATCHES INTENT`, those words and nothing after them |
 
 The skill adds two caps of its own: a request that was truncated at capture and
 not recovered cannot yield `MATCHES INTENT`, and a manifest or ledger that is
@@ -200,7 +236,7 @@ still invalid after one re-request is `INCONCLUSIVE`.
 | hook mode | always | never | never | never | never |
 | `--list`, `--begin-run` | always | | | | |
 | `--show`, `--freeze` | found | | unknown or unsafe id | `--freeze` only: a part was truncated at capture | |
-| `validate_ledger.py` | valid | invalid, defects on stdout | usage error or unreadable file | | `--run`: the hook filed no reply for the run |
+| `validate_ledger.py` | valid | invalid, defects on stdout | usage error or unreadable file | the validator itself failed (a traceback on stderr) | `--run`: the hook filed no reply for the run |
 | `run_bench.py` | ok | a regression, or a false MATCHES in a real run | `claude` CLI not found | | |
 
 ## 5. What this needs from Claude Code

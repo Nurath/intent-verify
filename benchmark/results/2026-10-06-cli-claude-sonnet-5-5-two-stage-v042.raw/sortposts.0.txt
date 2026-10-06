@@ -1,0 +1,10 @@
+{"ledger": 2,
+ "nonce": "bed790e7fabfddd1e27541970891ddeb",
+ "mode": "FULL",
+ "criteria": [
+  {"id": 1, "text": "Posts are returned/displayed ordered by their date, with the most recent date first and the oldest last", "verdict": "FAIL", "cmd": "cd benchmark/impl && python -c \"import sortposts; p=[{'id':1,'date':'2024-01-05'},{'id':2,'date':'2025-03-01'},{'id':3,'date':'2023-07-09'},{'id':4,'date':'2025-03-01'}]; print(sortposts.sort_posts(p))\"", "out": "[{'id': 3, 'date': '2023-07-09'}, {'id': 1, 'date': '2024-01-05'}, {'id': 2, 'date': '2025-03-01'}, {'id': 4, 'date': '2025-03-01'}]"},
+  {"id": 2, "text": "Sorting does not drop, duplicate, or alter any posts; the same set of posts is present before and after sorting", "verdict": "PASS", "cmd": "cd benchmark/impl && python -c \"import sortposts,copy; p=[{'id':1,'date':'2024-01-05'},{'id':2,'date':'2025-03-01'},{'id':3,'date':'2023-07-09'},{'id':4,'date':'2025-03-01'}]; o=copy.deepcopy(p); r=sortposts.sort_posts(p); print(p==o, sorted(x['id'] for x in r)==[1,2,3,4], len(r))\"", "out": "True True 4"}
+ ],
+ "final": "DRIFTED — criteria 1 failed",
+ "observations": "sort_posts uses sorted() with no reverse=True, so it sorts oldest first (ascending). That is the opposite of the requested newest first. The docstring says only 'Sort posts by date', which omits the direction. The input list is not mutated, and no posts are dropped or duplicated.",
+ "seal": "bed790e7fabfddd1e27541970891ddeb"}

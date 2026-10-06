@@ -1,0 +1,9 @@
+{"manifest": 1,
+ "criteria": [
+  {"id": 1, "text": "The result of rounding a price has exactly 2 decimal places of precision (e.g. 3.14159 becomes 3.14, and 5 becomes 5.00 or an equal value of 5)", "quote": "Round a price to 2 decimal places"},
+  {"id": 2, "text": "A price whose third decimal digit is 5 with nothing after it, i.e. exactly halfway between two cents, rounds up to the higher value (e.g. 1.005 gives 1.01, 2.675 gives 2.68, 0.125 gives 0.13)", "quote": "rounding half up"},
+  {"id": 3, "text": "A price that is less than halfway between two cents rounds down (e.g. 1.004 gives 1.00, 2.674 gives 2.67)", "quote": "Round a price to 2 decimal places"},
+  {"id": 4, "text": "A price more than halfway between two cents rounds up (e.g. 1.006 gives 1.01)", "quote": "Round a price to 2 decimal places"},
+  {"id": 5, "text": "A price that already has 2 or fewer decimal places is returned with its value unchanged (e.g. 4.50 stays 4.50, 7 stays 7.00)", "quote": null}
+ ],
+ "ambiguities": []}

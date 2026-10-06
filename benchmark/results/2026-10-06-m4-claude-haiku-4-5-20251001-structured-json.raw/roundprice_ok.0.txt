@@ -1,0 +1,22 @@
+```json
+{"ledger": 2,
+ "nonce": "d720441951f5f8ee9bb908862052623d",
+ "mode": "STRUCTURED",
+ "criteria": [
+  {"id": 1, "text": "The result of rounding a price has at most 2 decimal places (e.g. 1.234 becomes 1.23).", "verdict": "PASS",
+   "cmd": "python -c \"from roundprice_ok import round_price; print('round_price(1.234):', round_price(1.234)); print('round_price(5.6789):', round_price(5.6789))\"",
+   "out": "round_price(1.234): 1.23\nround_price(5.6789): 5.68"},
+  {"id": 2, "text": "A price exactly halfway at the third decimal rounds up (e.g. 1.005 becomes 1.01 and 2.675 becomes 2.68, not the binary-float results 1.00 and 2.67).", "verdict": "PASS",
+   "cmd": "python -c \"from roundprice_ok import round_price; print('round_price(1.005):', round_price(1.005)); print('round_price(2.675):', round_price(2.675))\"",
+   "out": "round_price(1.005): 1.01\nround_price(2.675): 2.68"},
+  {"id": 3, "text": "A price already at 2 or fewer decimal places is returned with the same value (e.g. 4.50 stays 4.50, 3 stays 3.00).", "verdict": "PASS",
+   "cmd": "python -c \"from roundprice_ok import round_price; print('round_price(4.50):', round_price(4.50)); print('round_price(3):', round_price(3))\"",
+   "out": "round_price(4.50): 4.5\nround_price(3): 3.0"},
+  {"id": 4, "text": "A price below the halfway point rounds down and a price above it rounds up (e.g. 1.994 becomes 1.99, 1.996 becomes 2.00).", "verdict": "PASS",
+   "cmd": "python -c \"from roundprice_ok import round_price; print('round_price(1.994):', round_price(1.994)); print('round_price(1.996):', round_price(1.996))\"",
+   "out": "round_price(1.994): 1.99\nround_price(1.996): 2.0"}
+ ],
+ "final": "MATCHES INTENT",
+ "observations": "The function uses Decimal with ROUND_HALF_UP to ensure correct rounding behavior. Returned floats display without trailing zeros (4.5 instead of 4.50), but numeric values are identical to the manifest expectations.",
+ "seal": "d720441951f5f8ee9bb908862052623d"}
+```

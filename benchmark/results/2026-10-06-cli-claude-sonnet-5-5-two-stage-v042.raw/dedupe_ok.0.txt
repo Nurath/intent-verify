@@ -1,0 +1,11 @@
+{"ledger": 2,
+ "nonce": "ce1894774fbd59d083ff0cf70d914f17",
+ "mode": "FULL",
+ "criteria": [
+  {"id": 1, "text": "The resulting list contains no email address more than once.", "verdict": "PASS", "cmd": "python -c \"from dedupe_ok import dedupe; i=['b@x.com','a@x.com','b@x.com','c@x.com','a@x.com','d@x.com']; r=dedupe(i); print(r); print(len(r)==len(set(r)))\"", "out": "['b@x.com', 'a@x.com', 'c@x.com', 'd@x.com']\nTrue"},
+  {"id": 2, "text": "The remaining emails appear in the same relative order as in the original list.", "verdict": "PASS", "cmd": "python -c \"from dedupe_ok import dedupe; i=['b@x.com','a@x.com','b@x.com','c@x.com','a@x.com','d@x.com']; r=dedupe(i); print(r==sorted(set(i),key=i.index))\"", "out": "True (result ['b@x.com', 'a@x.com', 'c@x.com', 'd@x.com'] is in first-seen order; input was deliberately not alphabetical)"},
+  {"id": 3, "text": "Every distinct email in the original list still appears in the result (only repeats are removed, nothing unique is dropped).", "verdict": "PASS", "cmd": "python -c \"from dedupe_ok import dedupe; i=['b@x.com','a@x.com','b@x.com','c@x.com','a@x.com','d@x.com']; r=dedupe(i); print(set(r)==set(i)); print(dedupe([]),dedupe(['a']))\"", "out": "True\n[] ['a']"}
+ ],
+ "final": "MATCHES INTENT",
+ "observations": "python3 was not installed, so python was used. Comparison is exact-string, so case variants such as A@x.com and a@x.com are treated as distinct. The request did not mention case-insensitivity, so this is an observation, not a failure.",
+ "seal": "ce1894774fbd59d083ff0cf70d914f17"}

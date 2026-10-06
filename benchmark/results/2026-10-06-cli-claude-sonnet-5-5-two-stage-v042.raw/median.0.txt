@@ -1,0 +1,12 @@
+{"ledger": 2,
+ "nonce": "ccca7843d7beb3bf8ed7678f5dddf8a7",
+ "mode": "FULL",
+ "criteria": [
+  {"id": 1, "text": "A function named middle exists and takes a single list of numbers, nums, as its argument", "verdict": "PASS", "cmd": "python -c \"import inspect; from median import middle; print(inspect.signature(middle))\"", "out": "(nums)"},
+  {"id": 2, "text": "For a list with an odd number of elements, middle returns the middle value of the list when sorted", "verdict": "FAIL", "cmd": "python -c \"from median import middle; print(middle([1,2,10]))\"", "out": "4.333333333333333 (expected 2; the function returns the mean)"},
+  {"id": 3, "text": "For a list with an even number of elements, middle returns the mean of the two middle values of the list when sorted", "verdict": "FAIL", "cmd": "python -c \"from median import middle; print(middle([1,2,3,4]))\"", "out": "2.5 (matches only by coincidence, because the mean equals the median for this symmetric list; the function computes sum/len, not the median. Mean-versus-median is separated by the odd-length case [1,2,10], which gives 4.33 instead of 2.)"},
+  {"id": 4, "text": "The result is the same whatever order the elements of nums are in (an unsorted list gives the same median as its sorted version)", "verdict": "PASS", "cmd": "python -c \"from median import middle; print(middle([3,1,2]), middle([1,2,3])); print(middle([10,1,2]), middle([1,2,10]))\"", "out": "2.0 2.0\n4.333333333333333 4.333333333333333"}
+ ],
+ "final": "DRIFTED — criteria 2, 3 failed",
+ "observations": "The implementation returns the arithmetic mean (sum(nums)/len(nums)), not the median. Criterion 4 passes only because the mean is order-independent. Criterion 3 is marked FAIL because the function does not implement the even-length median rule, even though [1,2,3,4] happened to give 2.5. It also raises ZeroDivisionError on an empty list, which I did not run.",
+ "seal": "ccca7843d7beb3bf8ed7678f5dddf8a7"}

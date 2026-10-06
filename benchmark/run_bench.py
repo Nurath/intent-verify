@@ -334,16 +334,16 @@ def run_cli_verifier(case, model, timeout, defects=None, previous=None, manifest
 
 
 def as_json(text, nonce):
-    """A text ledger rewritten as the JSON ledger the verifier writes since
-    0.4.0, for simulated verifiers. Text that holds no ledger is returned as is."""
+    """A text ledger rewritten as the sealed JSON ledger the verifier writes, for
+    simulated verifiers. Text that holds no ledger is returned as is."""
     ledger, _ = validate_ledger.parse(text)
     if ledger is None:
         return text
     crits = [{k: v for k, v in (("id", c["n"]), ("text", c["text"]), ("verdict", c["verdict"]),
                                 ("cmd", c["cmd"]), ("out", c["out"]), ("reason", c["reason"])) if v is not None}
              for c in ledger["criteria"]]
-    return json.dumps({"ledger": 1, "nonce": nonce, "mode": ledger["mode"], "criteria": crits,
-                       "final": ledger["final"]}, ensure_ascii=False)
+    return json.dumps({"ledger": 2, "nonce": nonce, "mode": ledger["mode"], "criteria": crits,
+                       "final": ledger["final"], "seal": nonce}, ensure_ascii=False)
 
 
 def derive_manifest(case, model, timeout):

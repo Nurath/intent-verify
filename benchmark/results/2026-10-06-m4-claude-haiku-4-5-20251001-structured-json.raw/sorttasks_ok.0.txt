@@ -1,0 +1,18 @@
+```json
+{"ledger": 2,
+ "nonce": "5bef2c4ec8f67132b4e5dda07848e93f",
+ "mode": "STRUCTURED",
+ "criteria": [
+  {"id": 1, "text": "Tasks are ordered by priority, with higher-priority tasks appearing before lower-priority ones", "verdict": "PASS",
+   "cmd": "python test_sorttasks.py (Test 1 section)",
+   "out": "Input: [{'priority': 1, 'due': '2026-10-10', 'name': 'low'}, {'priority': 3, 'due': '2026-10-01', 'name': 'high'}, {'priority': 2, 'due': '2026-10-05', 'name': 'medium'}]\nOutput: [{'priority': 3, 'due': '2026-10-01', 'name': 'high'}, {'priority': 2, 'due': '2026-10-05', 'name': 'medium'}, {'priority': 1, 'due': '2026-10-10', 'name': 'low'}]\nPriorities in order: [3, 2, 1]\nCriterion 1 (priorities [3, 2, 1]): PASS"},
+  {"id": 2, "text": "Among tasks with equal priority, the task with the earlier due date appears first", "verdict": "PASS",
+   "cmd": "python test_sorttasks.py (Test 2 section)",
+   "out": "Input: [{'priority': 2, 'due': '2026-10-15', 'name': 'task_a'}, {'priority': 2, 'due': '2026-10-05', 'name': 'task_b'}, {'priority': 2, 'due': '2026-10-20', 'name': 'task_c'}, {'priority': 3, 'due': '2026-10-01', 'name': 'task_d'}]\nOutput: [{'priority': 3, 'due': '2026-10-01', 'name': 'task_d'}, {'priority': 2, 'due': '2026-10-05', 'name': 'task_b'}, {'priority': 2, 'due': '2026-10-15', 'name': 'task_a'}, {'priority': 2, 'due': '2026-10-20', 'name': 'task_c'}]\nDue dates for priority=2: ['2026-10-05', '2026-10-15', '2026-10-20']\nCriterion 2 (due dates in order for tied priority): PASS"},
+  {"id": 3, "text": "Sorting does not drop or duplicate any tasks; the same set of tasks is returned", "verdict": "PASS",
+   "cmd": "python test_sorttasks.py (Test 3 section)",
+   "out": "Input count: 4\nOutput count: 4\nInput ids: [1, 2, 3, 4]\nOutput ids: [1, 2, 3, 4]\nCriterion 3 (same set returned): PASS"}
+ ],
+ "final": "MATCHES INTENT",
+ "seal": "5bef2c4ec8f67132b4e5dda07848e93f"}
+```

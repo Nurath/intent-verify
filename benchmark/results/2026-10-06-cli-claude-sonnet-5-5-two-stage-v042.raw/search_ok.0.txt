@@ -1,0 +1,11 @@
+{"ledger": 2,
+ "nonce": "e8335adaacaaf691438a46eea7d4a0c3",
+ "mode": "FULL",
+ "criteria": [
+  {"id": 1, "text": "Only items that contain the query are returned; items that do not contain the query are excluded", "verdict": "PASS", "cmd": "python3 -c \"from search_ok import search; items=['Apple','banana','Pineapple','GRAPE','cherry','APPLE pie','xAPPLEx']; print(search(items,'apple')); print(search(items,'zzz'))\"", "out": "['Apple', 'Pineapple', 'APPLE pie', 'xAPPLEx']\n[]"},
+  {"id": 2, "text": "Matching ignores letter case: an item matches when it contains the query regardless of differences in upper/lower case between the item and the query", "verdict": "PASS", "cmd": "python3 -c \"from search_ok import search; items=['Apple','banana','Pineapple','GRAPE','cherry','APPLE pie','xAPPLEx']; print(search(items,'apple')); print(search(items,'APPLE'))\"", "out": "['Apple', 'Pineapple', 'APPLE pie', 'xAPPLEx']\n['Apple', 'Pineapple', 'APPLE pie', 'xAPPLEx']"},
+  {"id": 3, "text": "An item that contains the query as a substring anywhere within it (not only at the start or as a whole item) is included", "verdict": "PASS", "cmd": "python3 -c \"from search_ok import search; items=['Apple','banana','Pineapple','GRAPE','cherry','APPLE pie','xAPPLEx']; print(search(items,'ana')); print(search(items,'pie'))\"", "out": "['banana']\n['APPLE pie']"}
+ ],
+ "final": "MATCHES INTENT",
+ "observations": "The commands above were run in one session. The ledger lists the shared item list and the python3 prefix in each cmd; the actual run used a single python invocation, with python3 (or python as a fallback) selected by a shell check. Inputs were not tested for non-string items or an empty query. An empty query would match every item, which is standard substring behavior.",
+ "seal": "e8335adaacaaf691438a46eea7d4a0c3"}
