@@ -106,6 +106,12 @@ and two small things:
 - **Evidence quality.** `"."` is output.
 - **Whether a quote has anything to do with its criterion.**
 
+### Seen after the release
+- The same day, in a desktop session on 0.4.2: the verifier handed back a
+  sealed ledger and nothing else, the hook filed it under its run unchanged,
+  and `--run` validated it as captured. The run is kept in
+  `benchmark/results/2026-10-06-sealed-desktop.raw/`.
+
 ## 0.4.1 — 2026-10-05
 
 ### Fixed

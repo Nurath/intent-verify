@@ -181,8 +181,9 @@ still produce it. On the 16 controlled cases Sonnet 5.5 reached the expected
 verdict 16 of 16, and on the three fixtures that print forged verdicts 3 of 3,
 every ledger valid on the first reply. Haiku 4.5 in STRUCTURED mode wrote a
 valid sealed ledger 16 of 16 times. A live headless run was captured by the
-hook and validated from that copy. Replaying the 124 ledgers recorded before
-the change reproduces every verdict.
+hook and validated from that copy, and after the release so was one in the
+desktop app. Replaying the 124 ledgers recorded before the change reproduces
+every verdict.
 [`benchmark/results/2026-10-06-sealed-ledger.md`](benchmark/results/2026-10-06-sealed-ledger.md).
 
 What this does not show is that two-stage beats single-stage: single-stage was
@@ -500,7 +501,8 @@ to be the discriminators.
   verifier's reply is kept by the plugin's `SubagentStop` hook and bound to its
   run by a nonce. That has been seen once in a headless session and, from
   0.4.1, once in the Windows desktop app; 0.4.0 captured nothing in the desktop
-  app, where a subagent hands its report back through a tool call. Whenever the
+  app, where a subagent hands its report back through a tool call. With the
+  sealed ledger of 0.4.2 it has been seen once more in each. Whenever the
   hook files nothing (an older Claude Code, one of the alternate hooks, a
   harness that delivers reports some other way), the session relays the reply
   itself and the report has to say so. A verifier that put the nonce into a

@@ -102,12 +102,11 @@ Done on 2026-10-05: the three platform checks passed, and the two-stage flow
 scored 16 of 16 on the controlled set
 (`benchmark/results/2026-10-05-cli-claude-sonnet-5-5-two-stage.md`).
 
-0. **The sealed ledger of 0.4.2 has not run in the desktop app.** Headless it
-   was captured by the hook and validated
-   (`benchmark/results/2026-10-06-sealed-ledger.md`). The hook does not look at
-   the format, so nothing suggests a problem, but the first `/intent-verify`
-   in the desktop app after the update is the check. If a reply is rejected
-   there for "text after the ledger", look at what the harness appended.
+Done on 2026-10-06, after the 0.4.2 release: the sealed ledger was captured by
+the hook and validated in the desktop app as well as headless
+(`benchmark/results/2026-10-06-sealed-ledger.md`). If a reply is ever rejected
+for "text after the ledger", look at what the harness appended to the
+hand-back before suspecting the verifier.
 
 1. **Stage-1 questions: fixed in 0.3.2, with one cost to watch.** 41 up-front
    questions on the 16 controlled requests became 3, none asked before
