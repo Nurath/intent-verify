@@ -97,16 +97,17 @@ Record: `benchmark/results/2026-10-06-faster-and-ask-first.md`.
   twice after misses on these requests, so this is a fit to them: the first
   version marked one of them in 2 runs of 3 and two of the benchmark's own
   requests that state a rule as a fact.
-- **This release's own request,** which the rules were not tuned on: four
-  parts, one of them a question back in place of a choice, then a plain
-  choice. Not marked in 3 of 3 runs, as it should not be. Stage 1 took 16 to
-  18 s and about 8,000 tokens; the same model took 307 s and 50,000 tokens on
-  it in a maximum-effort desktop session with the agent of 0.4.2.
+- **This release's own request,** which the rules were not tuned on: a
+  paragraph of context and three parts, with a question back in place of one
+  choice and then a plain choice. Not marked in 3 of 3 runs, as it should not
+  be. Stage 1 took 16 to 18 s and about 8,000 tokens; the same model took 307 s
+  and 50,000 tokens on it in a maximum-effort desktop session with the unpinned
+  agent of the installed release.
 - **The two additions, attacked by another model.** Nothing a program prints
   could start a line of the printed ledger or pass for one of the validator's
   (12,876 systematic and 9,000 random replies), and the rule for the marked
-  ambiguity held in 471 cases. It found five things
-  around them, all fixed and pinned by tests: the conclusion on the `VALID:`
+  ambiguity held in 471 cases. It found five things around them, all fixed
+  and pinned by tests: the conclusion on the `VALID:`
   line was printed as written, so escape codes in it could redraw the line as
   a match on a terminal; `--check-manifest` printed questions the same way; a
   question that shows nothing was accepted; a pile of combining marks was
@@ -120,7 +121,7 @@ Record: `benchmark/results/2026-10-06-faster-and-ask-first.md`.
   skill's text and the validator's behaviour, since no session was run.
 
 ### Not changed
-- The ledger format, the hook and the verifier's instructions.
+- The ledger format, what the hook captures, and the verifier's instructions.
 - A request that asks for a change but is unclear about which one. That is an
   ordinary ambiguity, settled after the verdict.
 
