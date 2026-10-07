@@ -1,5 +1,130 @@
 # Changelog
 
+## 0.5.0 — 2026-10-07
+
+The plugin's first use on real work, the same day as 0.4.2, went as designed:
+the sealed ledger was captured and valid on the first reply. It also took
+fourteen minutes, reported its result in one line, and verified the change
+under a reading of the request that the user might not have meant. This
+release is about those three things.
+
+### Added
+- **One question can be asked before anything is verified.** The criteria agent
+  may mark one ambiguity `"whether": true`: on its other reading the request did
+  not ask for a change at all (a question, a request for an explanation, a
+  choice not yet made). The validator prints it as `ASK FIRST:` and the skill
+  puts it to the user before the verifier runs. If the answer is that no change
+  was asked, the run ends as `DRIFTED` and the verifier's minutes are not
+  spent. If nobody can answer, the verdict line carries the reading it rests
+  on. Every other ambiguity is still settled after the verdict, and only when
+  it decides one. At most one may be marked: 0.3.1 asked 41 questions up front
+  on 16 one-line requests.
+- **The validator prints the ledger.** After `VALID`, it prints each criterion
+  with its verdict, the command and what it showed, then the verifier's
+  observations. The skill shows that block as it is, in place of a sentence
+  such as "passed all 4 criteria". Each value is one line: a line break becomes
+  `⏎` and a character without a glyph becomes a space, so nothing a program
+  printed can start a line of the report. A command is shown up to 200
+  characters and its output up to 300, with the full length stated where one
+  is cut. The observations are shown up to 6,000, because a caveat to a verdict
+  goes there: the first real ledger of this release wrote 4,536.
+- `benchmark/ask_first.py` measures whether the mark is used where it should
+  be, on real models.
+
+### Changed
+- **The agents pin their own model and effort.** They used to inherit the
+  session's, and the skill sent the criteria agent to whatever model the
+  selector picked. Now the criteria agent runs on Sonnet at high effort, and the
+  verifier at high effort on the model picked for the run. The benchmark never
+  ran at maximum effort; a session set to it did.
+- **The selector prefers the fastest timed model.** Among the candidates that
+  differ from the implementer and clear the capability floor, it takes the
+  fastest one this plugin's benchmark has timed (`verify_seconds` in the
+  registry), and the most capable only for a complex change or with
+  `--prefer capable`. On the one task where both were run, the most capable
+  model and the fastest returned the same verdict; what differed was the wait.
+  A different vendor family still comes before speed.
+- **One selector call.** The registry knows Opus 5.5 and Sonnet 5.5 (scores read
+  from the index on 2026-10-06), Fable 5.1 (not on the index: tier assumed from
+  its predecessor, no score) and the bare names Claude Code uses. The first
+  real run needed three calls to get an answer.
+- **A model without a score can be given a place.** A complex change goes to
+  the most capable candidate, and Fable 5.1 has no score to rank by, so a
+  complex change written by Opus went to Sonnet all the same. A registry row
+  may now name the listed model it ranks just above (`ranks_above`). Fable 5.1
+  is placed above Sonnet 5.5 and below Opus 5.5, where its predecessor stood on
+  the index, and the selector's warning says when a pick rests on that
+  assumption. No score is invented for it.
+- The listing that starts every run names the Python command that works on
+  the machine, so a session on a stock Windows no longer loses a call to
+  `python3`.
+- The benchmark runs every call at `--effort high`, the level the agents pin.
+
+### Fixed
+- **A candidate the registry does not list was taken for another vendor's
+  model.** With `--assume-tier` it was preferred over every listed model of the
+  implementer's family, and the reason said a different family had been
+  preferred. Unknown is no longer different.
+
+### Measured
+Record: `benchmark/results/2026-10-06-faster-and-ask-first.md`.
+
+- **Time and cost, one task, before and after.** A session on Opus 5.5 at
+  maximum effort dispatched each agent once the way 0.4.3 ran it (both on the
+  most capable model, at the session's effort) and once with this release. The
+  criteria agent went from 104 s and $0.40 to 14 s and $0.014, the verifier
+  from 176 s and $0.68 to 27 s and $0.044. Same verdict, the reply captured by
+  the hook both times. One run each, on a single small module.
+- **The effort pin by itself.** Two copies of the plugin that differ in the
+  `effort: high` line of the criteria agent, same model, same request, same
+  maximum-effort session: 437 output tokens and $0.013 with the line, 15,863
+  and $0.16 without. So Claude Code 2.1.292 honours the field for a plugin's
+  agent, and effort accounts for an order of magnitude of stage 1 without any
+  change of model.
+- **Verdicts at the pinned effort, with the new rules for the criteria agent.**
+  The controlled set: 16 of 16. The fixtures that print forged verdicts: 3 of
+  3. Every ledger valid on the first reply, and no question before verifying on
+  any of the 19. A verification took 12.5 s at the median (11.6 s at the CLI's
+  default effort in 0.4.2's run) and stage 1 took 6.8 s (4.0 s): for a session
+  that was not set above the default, the pin makes the agents a little slower,
+  not faster.
+- **Is the question asked where it should be?** Stage 1 alone, three runs of
+  each of 17 requests written for this release and one of each of the
+  benchmark's 26. Marked in 21 of 21 runs where the words may not ask for a
+  change; in 0 of 27 where a change is asked for as a question, a wish or a
+  stated rule; in 0 of 26 on the benchmark's own; in 1 of 3 on a request a
+  careful reader could take either way (not scored). The rules were revised
+  twice after misses on these requests, so this is a fit to them: the first
+  version marked one of them in 2 runs of 3 and two of the benchmark's own
+  requests that state a rule as a fact.
+- **This release's own request,** which the rules were not tuned on: a
+  paragraph of context and three parts, with a question back in place of one
+  choice and then a plain choice. Not marked in 3 of 3 runs, as it should not
+  be. Stage 1 took 16 to 18 s and about 8,000 tokens; the same model took 307 s
+  and 50,000 tokens on it in a maximum-effort desktop session with the unpinned
+  agent of the installed release.
+- **The two additions, attacked by another model.** Nothing a program prints
+  could start a line of the printed ledger or pass for one of the validator's
+  (12,876 systematic and 9,000 random replies), and the rule for the marked
+  ambiguity held in 471 cases. It found five things around them, all fixed
+  and pinned by tests: the conclusion on the `VALID:`
+  line was printed as written, so escape codes in it could redraw the line as
+  a match on a terminal; `--check-manifest` printed questions the same way; a
+  question that shows nothing was accepted; a pile of combining marks was
+  printed whole; and a value of megabytes was flattened whole to show 300
+  characters of it.
+- **The release, checked against its own request** with the installed 0.4.3,
+  twice: 15 criteria, `MATCHES INTENT` both times, each ledger captured by the
+  hook. The first round's observations are where the ranking rule and the
+  6,000-character limit come from. Both verifiers also say what the verdict
+  rests on: the criteria about what a session does were checked against the
+  skill's text and the validator's behaviour, since no session was run.
+
+### Not changed
+- The ledger format, what the hook captures, and the verifier's instructions.
+- A request that asks for a change but is unclear about which one. That is an
+  ordinary ambiguity, settled after the verdict.
+
 ## 0.4.3 — 2026-10-06
 
 A third independent review, of 0.4.2, confirmed the three findings of the

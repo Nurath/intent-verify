@@ -10,8 +10,8 @@ import select_verifier as sv
 REG, INDEX = sv.load_registry(os.path.join(BASE, "models", "registry.json"))
 
 
-def pick(implementer, candidates, complexity="standard", assume=None):
-    return sv.select(implementer, candidates, complexity, REG, INDEX, assume)
+def pick(implementer, candidates, complexity="standard", assume=None, prefer=None):
+    return sv.select(implementer, candidates, complexity, REG, INDEX, assume, prefer)
 
 
 class TestSelectVerifier(unittest.TestCase):
@@ -66,6 +66,112 @@ class TestSelectVerifier(unittest.TestCase):
         r = pick("claude-opus-4-8", ["claude-sonnet-5"])
         self.assertEqual(r["verifier"], "claude-sonnet-5")
         self.assertTrue(any("family" in w for w in r["warnings"]))
+
+
+class TestCurrentModelsAndSpeed(unittest.TestCase):
+    """0.5.0. In the plugin's first real run the session needed three calls to
+    get a selection (the registry did not know the current model names), and
+    the most capable candidate then verified for nine minutes."""
+
+    def test_claude_codes_own_names_resolve_in_one_call(self):
+        for name, model in (("sonnet", "claude-sonnet-5-5"), ("claude-sonnet-5-5", "claude-sonnet-5-5"),
+                            ("opus", "claude-opus-5-5"), ("Opus 5.5", "claude-opus-5-5"), ("fable", "claude-fable-5-1"),
+                            ("claude-fable-5-1", "claude-fable-5-1"), ("haiku", "claude-haiku-4-5"),
+                            ("claude-haiku-4-5-20251001", "claude-haiku-4-5")):
+            self.assertEqual((sv.resolve(name, INDEX) or {}).get("id"), model, name)
+        r = pick("claude-opus-5-5", ["sonnet", "opus", "fable", "haiku"])
+        self.assertEqual(r["warnings"], ["no different-family candidate was eligible; verifier shares the implementer's "
+                                         "family (cross-model lever weakened)"])
+
+    def test_the_fastest_timed_model_that_clears_the_floor_is_chosen(self):
+        r = pick("claude-opus-5-5", ["sonnet", "opus", "fable", "haiku"])
+        self.assertEqual((r["verifier"], r["mode"], r["tier"]), ("claude-sonnet-5-5", "FULL", "T1"))
+        timed = sv.resolve("sonnet", INDEX)["verify_seconds"]
+        self.assertIn("fastest eligible candidate the benchmark has timed (%.1f s" % timed, r["reason"])
+        self.assertEqual(pick("claude-fable-5-1", ["sonnet", "opus"])["verifier"], "claude-sonnet-5-5")
+
+    def test_cheaper_per_token_is_not_faster(self):
+        """Haiku in STRUCTURED mode took 40 s a verification against Sonnet's 12, at the same cost."""
+        r = pick("claude-opus-5-5", ["haiku", "sonnet"], complexity="simple")
+        self.assertEqual((r["verifier"], r["mode"]), ("claude-sonnet-5-5", "FULL"))
+        self.assertEqual(pick("claude-sonnet-5-5", ["haiku"], complexity="simple")["mode"], "STRUCTURED")
+
+    def test_a_complex_change_goes_to_the_most_capable(self):
+        self.assertEqual(pick("claude-fable-5-1", ["sonnet", "opus"], complexity="complex")["verifier"], "claude-opus-5-5")
+        self.assertIn("highest-capability", pick("claude-fable-5-1", ["sonnet", "opus"], complexity="complex")["reason"])
+
+    def test_the_preference_can_be_set_either_way(self):
+        self.assertEqual(pick("claude-fable-5-1", ["sonnet", "opus"], prefer="capable")["verifier"], "claude-opus-5-5")
+        self.assertEqual(pick("claude-fable-5-1", ["sonnet", "opus"], complexity="complex", prefer="fast")["verifier"],
+                         "claude-sonnet-5-5")
+
+    def test_a_different_family_still_comes_before_speed(self):
+        self.assertEqual(pick("claude-opus-5-5", ["sonnet", "gpt-5.4"])["verifier"], "gpt-5.4")
+
+    def test_untimed_candidates_are_ranked_by_capability(self):
+        r = pick("claude-sonnet-5-5", ["fable", "opus"])
+        self.assertEqual(r["verifier"], "claude-opus-5-5")
+        self.assertIn("highest-capability", r["reason"])
+
+    def test_the_command_line_takes_the_preference(self):
+        import subprocess
+        tool = os.path.join(BASE, "tools", "select_verifier.py")
+        args = [sys.executable, tool, "--implementer", "claude-fable-5-1", "--candidates", "sonnet", "opus", "fable", "haiku"]
+        fast = json.loads(subprocess.run(args, capture_output=True, text=True, timeout=30).stdout)
+        capable = json.loads(subprocess.run(args + ["--prefer", "capable"], capture_output=True, text=True, timeout=30).stdout)
+        self.assertEqual((fast["verifier"], capable["verifier"]), ("claude-sonnet-5-5", "claude-opus-5-5"))
+
+    def test_a_model_the_index_does_not_list_is_not_called_the_most_capable(self):
+        """A model known only by an assumed tier has no score to rank by, and no
+        place is invented for it."""
+        r = pick("claude-opus-5-5", ["sonnet", "claude-next-9"], assume="T1", prefer="capable")
+        self.assertEqual(r["verifier"], "claude-sonnet-5-5")
+        self.assertEqual([e["score"] for e in r["ranked"] if e["id"] == "claude-next-9"], [None])
+
+    def test_a_complex_change_by_opus_goes_to_fable_and_says_on_what_ground(self):
+        """Found by running the release on itself. The option the maintainer chose
+        read "Sonnet instead of Fable when Opus wrote the change ... Complex
+        changes still require the top tier". Fable 5.1 has no score, so a complex
+        change written by Opus went to Sonnet all the same, and asking for the
+        most capable model changed nothing in the commonest case. Its registry
+        row now places it where its predecessor stood: above Sonnet, below Opus."""
+        r = pick("claude-opus-5-5", ["sonnet", "opus", "fable", "haiku"], complexity="complex")
+        self.assertEqual((r["verifier"], r["mode"], r["tier"]), ("claude-fable-5-1", "FULL", "T1"))
+        self.assertIn("highest-capability", r["reason"])
+        self.assertTrue(any("no published score" in w and "ranked above claude-sonnet-5-5 by the registry's assumption" in w
+                            for w in r["warnings"]), r["warnings"])
+        fable = [e for e in r["ranked"] if e["id"] == "claude-fable-5-1"][0]
+        self.assertEqual((fable["score"], fable["ranks_above"]), (None, "claude-sonnet-5-5"), "no score is invented for it")
+        self.assertEqual(pick("claude-opus-5-5", ["sonnet", "opus", "fable", "haiku"], prefer="capable")["verifier"],
+                         "claude-fable-5-1")
+
+    def test_the_assumed_place_is_below_a_higher_score_and_never_the_fast_pick(self):
+        self.assertEqual(pick("claude-sonnet-5-5", ["fable", "opus"], complexity="complex")["verifier"], "claude-opus-5-5")
+        for complexity in ("simple", "standard"):
+            self.assertEqual(pick("claude-opus-5-5", ["sonnet", "opus", "fable", "haiku"], complexity=complexity)["verifier"],
+                             "claude-sonnet-5-5", complexity)
+        self.assertEqual(pick("claude-opus-5-5", ["sonnet", "opus", "fable", "haiku"], complexity="complex",
+                              prefer="fast")["verifier"], "claude-sonnet-5-5")
+        self.assertEqual(pick("gpt-5.6-sol", ["sonnet", "opus", "fable"], complexity="complex")["verifier"], "claude-opus-5-5")
+
+    def test_a_place_above_a_model_the_registry_does_not_score_is_no_place(self):
+        index = dict(INDEX)
+        index["x-new"] = {"id": "x-new", "family": "claude", "aa_intelligence": None, "tier": "T1", "ranks_above": "nobody"}
+        r = sv.select("claude-opus-5-5", ["sonnet", "x-new"], "complex", REG, index)
+        self.assertEqual(r["verifier"], "claude-sonnet-5-5")
+
+    def test_an_unlisted_candidate_is_not_taken_for_another_vendor(self):
+        """Its family is unknown, and unknown was counted as different. With
+        --assume-tier it was preferred over every listed model of the
+        implementer's family, and the reason said a different family had been
+        preferred. Found when a test of the ranking named a model nobody lists."""
+        for prefer in ("fast", "capable"):
+            r = pick("claude-opus-5-5", ["claude-next-9", "sonnet"], assume="T1", prefer=prefer)
+            self.assertEqual(r["verifier"], "claude-sonnet-5-5", prefer)
+        alone = pick("claude-opus-5-5", ["claude-next-9"], assume="T1")
+        self.assertEqual(alone["verifier"], "claude-next-9")
+        self.assertIn("(same/unknown family)", alone["reason"])
+        self.assertEqual(pick("claude-opus-5-5", ["claude-next-9", "sonnet", "gpt-5.4"], assume="T1")["verifier"], "gpt-5.4")
 
 
 if __name__ == "__main__":

@@ -82,6 +82,48 @@ class TestSkillText(unittest.TestCase):
         self.assertIn("FAILED or was NOT-EXERCISED", report)
         self.assertIn("One clarification only", report)
 
+    def test_one_question_is_asked_first_and_it_can_end_the_run(self):
+        """0.5.0. The first real run verified for nine minutes under the reading
+        that a sentence was a decision; on the other reading the user had asked
+        for an explanation and there was nothing to verify."""
+        step2 = self.SKILL[self.SKILL.index("**Fix the criteria (stage 1).**"):self.SKILL.index("**Select the verifier model**")]
+        flat = " ".join(step2.split())
+        for phrase in ("**An `ASK FIRST:` line** is the one question put to the user before anything is verified",
+                       "Ask it now, before step 3", "`DRIFTED — the request did not ask for this change`",
+                       "do not dispatch the verifier", "`MATCHES INTENT, if <the reading assumed>`"):
+            self.assertIn(phrase, flat)
+        self.assertLess(step2.index("ASK FIRST:"), step2.index("Do not stop to ask"), "the exception is stated before the rule")
+
+    def test_the_report_shows_the_ledger_and_not_a_count_of_passes(self):
+        """0.5.0. The first real run reported "passed all 4 criteria" and showed none."""
+        report = " ".join(self.SKILL[self.SKILL.index("**Report the ledger**"):].split())
+        self.assertIn("show the user the block from the `LEDGER` line to the end, exactly as it is", report)
+        self.assertIn("Do not summarise it", report)
+        step6 = self.SKILL[self.SKILL.index("**Validate the ledger before trusting it.**"):self.SKILL.index("**Report the ledger**")]
+        self.assertIn("prints the ledger itself", step6)
+
+    def test_the_session_does_not_choose_what_the_agents_pin(self):
+        """0.5.0. The skill used to send the criteria agent to the verifier's
+        model, and both agents ran at the session's effort: 2 min 44 s and 9 min
+        in a session at maximum effort."""
+        step2 = " ".join(self.SKILL[self.SKILL.index("**Fix the criteria (stage 1).**"):self.SKILL.index("**Select the verifier model**")].split())
+        self.assertIn("Do not pick a model or an effort for it", step2)
+        self.assertNotIn("on a model chosen as in step 3", step2)
+        step4 = " ".join(self.SKILL[self.SKILL.index("**Dispatch the verifier (stage 2).**"):].split())
+        self.assertIn("on the selected model and with no effort of your own", step4)
+        criteria, verifier = frontmatter("agents", "criteria.md"), frontmatter("agents", "verifier.md")
+        self.assertEqual((criteria["model"].strip(), criteria["effort"].strip()), ("sonnet", "high"))
+        self.assertEqual(verifier["effort"].strip(), "high")
+        self.assertNotIn("model", verifier, "the verifier's model is chosen for each run")
+
+    def test_the_selector_is_one_call_with_the_names_the_session_knows(self):
+        step3 = self.SKILL[self.SKILL.index("**Select the verifier model**"):self.SKILL.index("**Dispatch the verifier (stage 2).**")]
+        commands = [l.strip() for l in step3.splitlines() if "select_verifier.py" in l]
+        self.assertEqual(len(commands), 1)
+        self.assertIn("--implementer <model> --candidates sonnet opus fable haiku --complexity", commands[0])
+        self.assertIn("`# python:`", self.SKILL[:self.SKILL.index("**Freeze intent.**")])
+        self.assertIn("function pythonCommand(", read("hooks", "capture-intent.js"))
+
 
 class TestPluginFiles(unittest.TestCase):
     READS_OR_RUNS = {"Read", "Grep", "Glob", "Bash", "PowerShell", "Edit", "Write", "NotebookEdit", "WebFetch",

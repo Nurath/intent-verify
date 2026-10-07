@@ -1,0 +1,11 @@
+{"ledger": 2,
+"nonce": "780a45ca5ed521a91395127207de8187",
+"mode": "FULL",
+"criteria": [
+{"id": 1, "text": "Posts are ordered by their date, so a post with a later date appears before a post with an earlier date.", "verdict": "FAIL", "cmd": "python -I -c \"from sortposts import sort_posts; posts=[{'id':1,'date':'2024-01-05'},{'id':2,'date':'2025-03-01'},{'id':3,'date':'2023-12-31'},{'id':4,'date':'2025-03-01'}]; print([(p['id'],p['date']) for p in sort_posts(posts)])\"", "out": "[(3, '2023-12-31'), (1, '2024-01-05'), (2, '2025-03-01'), (4, '2025-03-01')]"},
+{"id": 2, "text": "The ordering is newest first (descending by date), not oldest first.", "verdict": "FAIL", "cmd": "same command as criterion 1", "out": "[(3, '2023-12-31'), (1, '2024-01-05'), (2, '2025-03-01'), (4, '2025-03-01')] -- oldest first (ascending); the code calls sorted() with no reverse=True"},
+{"id": 3, "text": "Sorting does not drop or duplicate any posts: the same set of posts appears, only reordered.", "verdict": "PASS", "cmd": "python -I -c \"from sortposts import sort_posts; posts=[{'id':1,'date':'2024-01-05'},{'id':2,'date':'2025-03-01'},{'id':3,'date':'2023-12-31'},{'id':4,'date':'2025-03-01'}]; r=sort_posts(posts); print(sorted(p['id'] for p in r)==sorted(p['id'] for p in posts), len(r))\"", "out": "True 4"}
+],
+"final": "DRIFTED — criteria 1, 2 failed",
+"observations": "The implementation sorts ascending (oldest first), the opposite of the requested newest first. The fix is reverse=True. Dates were ISO strings, so lexical order matches chronological order. Equal dates kept their original relative order (ids 2 then 4).",
+"seal": "780a45ca5ed521a91395127207de8187"}

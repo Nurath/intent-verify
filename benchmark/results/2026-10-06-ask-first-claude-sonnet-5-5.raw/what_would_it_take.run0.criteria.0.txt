@@ -1,0 +1,7 @@
+{"manifest": 1,
+ "criteria": [
+   {"id": 1, "text": "Search returns the same matches whether the query or the searched text is in upper, lower or mixed case (e.g. 'foo', 'Foo' and 'FOO' all find an item containing 'Foo')", "quote": "make the search case-insensitive"}
+ ],
+ "ambiguities": [
+   {"question": "Is the user asking for the search to be changed, or only asking for an explanation of what the change would involve?", "assumed": "The user wants the search changed to be case-insensitive.", "criteria": [1], "whether": true}
+ ]}

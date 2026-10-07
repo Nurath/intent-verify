@@ -1,0 +1,7 @@
+{"manifest": 1,
+ "criteria": [
+   {"id": 1, "text": "Telephony call duration is billed in whole minutes, never a fractional number of minutes", "quote": "Telephony bills per whole minute"},
+   {"id": 2, "text": "A call with a partial minute is rounded up to the next whole minute, never down or to nearest", "quote": "rounding partial minutes up"},
+   {"id": 3, "text": "A 61-second call bills as 2 minutes", "quote": "61 seconds bills as 2 minutes"}
+ ],
+ "ambiguities": []}

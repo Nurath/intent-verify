@@ -1,0 +1,7 @@
+{"manifest": 1,
+ "criteria": [
+   {"id": 1, "text": "Tasks are returned ordered by priority, with the highest-priority tasks first and the lowest last", "quote": "Sort tasks by priority, highest first"},
+   {"id": 2, "text": "Among tasks that have the same priority, the task with the earlier due date comes before the one with the later due date", "quote": "break ties by earliest due date"},
+   {"id": 3, "text": "The sorted result contains every task exactly once, with none dropped or duplicated", "quote": null}
+ ],
+ "ambiguities": []}

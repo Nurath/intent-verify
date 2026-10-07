@@ -1,0 +1,8 @@
+{"manifest": 1,
+ "criteria": [
+   {"id": 1, "text": "A function named middle can be called with a single list argument, as middle(nums)", "quote": "middle(nums)"},
+   {"id": 2, "text": "For a list with an odd number of elements, middle returns the element in the center when the values are sorted", "quote": "returns the median of a list"},
+   {"id": 3, "text": "For a list with an even number of elements, middle returns the mean of the two center values when the values are sorted", "quote": "returns the median of a list"},
+   {"id": 4, "text": "The result does not depend on the order of the input list; an unsorted list gives the same median as its sorted form", "quote": "returns the median of a list"}
+ ],
+ "ambiguities": []}

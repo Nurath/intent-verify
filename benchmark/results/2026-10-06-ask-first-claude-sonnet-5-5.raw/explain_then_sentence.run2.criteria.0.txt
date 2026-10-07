@@ -1,0 +1,9 @@
+{"manifest": 1,
+ "criteria": [
+  {"id": 1, "text": "When the export would write or has written an empty file, the user is shown a warning about it instead of it passing silently", "quote": "warn the user"},
+  {"id": 2, "text": "After the warning, the user is offered a choice of what to do next, and the export follows the choice they make rather than acting automatically", "quote": "they can choose what to do"},
+  {"id": 3, "text": "An export that produces a non-empty file completes as before, without the warning or the choice", "quote": null}
+ ],
+ "ambiguities": [
+  {"question": "Is 'warn the user and they can choose what to do' a request to build a warning-and-choice behavior into the export, or a reply to 'explain the problem first' that asks to be told about the problem so the user can pick a fix (retry or lock) themselves?", "assumed": "It asks for the export to warn the user at run time and let them choose what to do", "criteria": [1, 2, 3], "whether": true}
+ ]}

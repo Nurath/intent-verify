@@ -1,0 +1,8 @@
+{"manifest": 1,
+ "criteria": [
+   {"id": 1, "text": "Producing the report page no longer loads every user before filtering; the filter is applied so that only the users that match are loaded.", "quote": "Can that be avoided?"},
+   {"id": 2, "text": "The report page still shows the same filtered set of users it showed before the change.", "quote": null}
+ ],
+ "ambiguities": [
+   {"question": "Did the user ask for the report page to be changed, or only for an explanation of why it loads every user before filtering and whether that could be avoided?", "assumed": "The user wants the report page changed so it no longer loads every user before filtering.", "criteria": [1, 2], "whether": true}
+ ]}

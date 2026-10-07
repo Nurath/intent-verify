@@ -1,0 +1,9 @@
+{"manifest": 1,
+ "criteria": [
+   {"id": 1, "text": "A price is rounded to the nearest value with 2 decimal places (e.g. 3.14159 gives 3.14, and 2.994 gives 2.99).", "quote": "Round a price to 2 decimal places"},
+   {"id": 2, "text": "A price exactly halfway between two 2-decimal values rounds up to the higher one (e.g. 0.125 gives 0.13, and 2.675 gives 2.68).", "quote": "rounding half up"},
+   {"id": 3, "text": "A price that already has 2 or fewer decimal places is returned with the same value (e.g. 4.5 stays 4.50, and 10 stays 10.00).", "quote": null}
+ ],
+ "ambiguities": [
+   {"question": "Is a tie judged on the decimal value as written (1.005 is a tie and gives 1.01), or on the binary floating-point value (1.005 is stored slightly below the tie and gives 1.00)?", "assumed": "The decimal value as written, so 1.005 gives 1.01.", "criteria": [2]}
+ ]}

@@ -13,12 +13,12 @@ made and what was left out), `docs/MODEL-COMPAT.md` (verifier tiers).
 | Part | File | Runs as | Job |
 |---|---|---|---|
 | Capture hook | `hooks/capture-intent.js`, registered by `hooks/hooks.json` | `node`, started by Claude Code on `UserPromptSubmit`, on `PostToolUse` for `AskUserQuestion`, and on `SubagentStop` for `intent-verify:intent-verifier` | Append one entry to the session's ledger, or file the verifier's reply under its run. Never prints, never exits non-zero. |
-| Reader | the same file: `--list`, `--show`, `--freeze`, `--begin-run` | `node`, run from a shell by the orchestrating session | List a session's entries; write chosen entries to one request file; start a verification run. |
+| Reader | the same file: `--list`, `--show`, `--freeze`, `--begin-run` | `node`, run from a shell by the orchestrating session | List a session's entries, and say which command runs Python here; write chosen entries to one request file; start a verification run. |
 | Skill | `skills/intent-verify/SKILL.md` | instructions to the orchestrating session | The procedure in section 2. |
-| Criteria agent | `agents/criteria.md` (`intent-criteria`) | subagent with no tool that reads files or runs commands | Request text in, criterion manifest out. |
-| Verifier agent | `agents/verifier.md` (`intent-verifier`) | subagent with `Read, Grep, Glob, Bash` | Request, manifest, run nonce and code in; a JSON ledger with evidence, carrying the nonce, out. |
-| Validator | `tools/validate_ledger.py` | `python`, run by the orchestrating session | Check a manifest against the request; check the captured ledger (`--run`) against a manifest. |
-| Selector | `tools/select_verifier.py`, `models/registry.json` | `python` | Pick the verifier's model, tier and protocol. |
+| Criteria agent | `agents/criteria.md` (`intent-criteria`) | subagent with no tool that reads files or runs commands, pinned to Sonnet at high effort | Request text in, criterion manifest out. |
+| Verifier agent | `agents/verifier.md` (`intent-verifier`) | subagent with `Read, Grep, Glob, Bash`, at high effort, on the model the selector picks for the run | Request, manifest, run nonce and code in; a JSON ledger with evidence, carrying the nonce, out. |
+| Validator | `tools/validate_ledger.py` | `python`, run by the orchestrating session | Check a manifest against the request; check the captured ledger (`--run`) against a manifest, and print it. |
+| Selector | `tools/select_verifier.py`, `models/registry.json` | `python` | Pick the verifier's model, tier and protocol: a different model that clears the floor, and among those the fastest one the benchmark has timed, or the most capable for a complex change. |
 | Benchmark | `benchmark/run_bench.py`, `oracle.py`, `cases.json` | `python` | Mock profiles offline; real models through the `claude` CLI. |
 | Alternate hooks | `hooks/capture-intent.py`, `.ps1`, `.sh` | wired by hand where Node is missing | Record prompts in the 0.2 in-project layout. Not used by the plugin. |
 
@@ -160,6 +160,15 @@ string from a 0.3.1 deriver, is dropped and counted (`unlinked_ambiguities`): no
 answer to it could change the verdict. The validator also lists parts of the
 request no quote touches, as notes.
 
+At most one ambiguity may carry `"whether": true`. It says that on the other
+reading the request asked for no change at all: a question, a request for an
+explanation, a choice not yet made. The validator prints it as `ASK FIRST:`
+and the skill puts it to the user before the verifier is dispatched. If the
+user says no change was asked, the run ends there as `DRIFTED`; if nobody can
+answer, the verdict line carries the reading. It must name criteria, and a
+second one is a defect: 0.3.1 put 41 questions to the user before checking 16
+one-line requests.
+
 ### 4.3 Verifier ledger
 
 The verifier writes one JSON object. Since 0.4.2 it is version 2:
@@ -197,6 +206,26 @@ resolved silently, when:
   all; in the ledger's strings as they decode (`\u0061` is an `a`) it occurs
   only as those two values; and those two are written out character for
   character. In a command or in output, it has reached the code under test.
+
+A valid ledger is printed after the `VALID` line, so that a report can show it
+without anyone retelling it:
+
+```
+LEDGER
+  1 FAIL  <criterion>
+      ran: <command>
+      saw: <output>
+  2 NOT-EXERCISED  <criterion>
+      why: <reason>
+OBSERVATIONS: <the verifier's remarks>
+```
+
+Each value is one line. A command is cut at 200 characters and its output at
+300, and a cut value ends with its full length. The observations are cut at
+6,000: a caveat to a verdict goes there, and the first real ledger of 0.5.0
+wrote 4,536. Every kind of line break becomes `⏎` and a character without a glyph
+becomes a space, so nothing a program printed can start a line of the report
+and pass for one of the validator's.
 
 Evidence strings are kept exactly as written. Only the text grammar treats
 output made of nothing but field-looking lines as missing, because there output
@@ -254,6 +283,8 @@ still invalid after one re-request is `INCONCLUSIVE`.
 | `PostToolUse` fires for `AskUserQuestion` with the answer | `decision` entries | yes (2.1.289, desktop app) |
 | `SubagentStop` fires for a plugin's agent, foreground and background, with `last_assistant_message` equal to its final message; the matcher is the plugin-qualified name | capturing the verifier's reply | headless: yes (2.1.289, probe and a live verification). Desktop app: yes from 0.4.1 (one verification); a subagent there ends with a `SubagentHandback` tool call and no final text, so the hook reads the subagent's transcript (`agent_transcript_path`, or `<session>/subagents/agent-<id>.jsonl`) |
 | `omitClaudeMd` in agent frontmatter | keeps project instructions out of the criteria agent | documented (needs 2.1.271+) |
+| `model` in a plugin agent's frontmatter | the criteria agent runs on Sonnet whatever the session runs on | yes (2.1.292, headless): a session on Opus, the agent's usage billed to Sonnet. A model named in the Agent call overrides it, which is how the verifier gets the selector's choice |
+| `effort` in a plugin agent's frontmatter | both agents run at high effort whatever the session's | yes (2.1.292, headless): two copies of the plugin differing in that one line, dispatched from a session at maximum effort, 437 output tokens with it and 15,863 without. The documentation says the `CLAUDE_CODE_EFFORT_LEVEL` environment variable still overrides it. Not checked in the desktop app |
 
 The record of what was and was not checked is
 `benchmark/results/2026-10-05-platform-spikes.md`. A field Claude Code does not

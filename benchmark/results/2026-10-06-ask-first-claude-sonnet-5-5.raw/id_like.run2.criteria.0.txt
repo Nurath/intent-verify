@@ -1,0 +1,7 @@
+{"manifest": 1,
+ "criteria": [
+  {"id": 1, "text": "The report page applies its filter as part of the database query, so the database decides which users match.", "quote": "filter in the database"},
+  {"id": 2, "text": "The report page no longer loads every user into the application before filtering; only users matching the filter are fetched.", "quote": "instead of loading every user first"},
+  {"id": 3, "text": "The report page still shows the same set of users for a given filter as it did before the change.", "quote": null}
+ ],
+ "ambiguities": []}

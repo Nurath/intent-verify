@@ -186,6 +186,34 @@ desktop app. Replaying the 124 ledgers recorded before the change reproduces
 every verdict.
 [`benchmark/results/2026-10-06-sealed-ledger.md`](benchmark/results/2026-10-06-sealed-ledger.md).
 
+**0.5.0, one question first, and minutes less.** The first use on real work
+took fourteen minutes, reported its result in one line, and verified under a
+reading of the request the user might not have meant. Three things were
+measured for the release that answers it.
+
+- **Time and cost.** One task, the session on Opus 5.5 at maximum effort, each
+  agent dispatched once the way 0.4.3 ran it and once by this release.
+  Dispatching the two agents and getting their replies took 281 s before and
+  40 s after; the agents' own model cost went from $1.08 to $0.06. The verdict
+  was the same (`DRIFTED`, the same criterion failing, the reply captured by
+  the hook). That is one run each on the smallest kind of task,
+  and it is the three changes together: "before" also ran on a more capable
+  model. The effort pin by itself, with the model and the request held the
+  same, was the difference between 437 output tokens and 15,863 on stage 1.
+- **Verdicts.** The controlled set again, at the effort the agents now pin and
+  with the new rules for the criteria agent: 16 of 16, and 3 of 3 on the
+  fixtures that print forged verdicts, every ledger valid on the first reply,
+  and no question before verifying on any of the 19.
+- **The question.** Stage 1 alone, 78 calls. Where the words may not ask for a
+  change at all, the question was marked in 21 of 21 runs; where a change is
+  asked for as a question, a wish or a stated rule, in 0 of 27; on the
+  benchmark's own 26 requests, in 0 of 26. The requests of the first two groups
+  were written for this release by the author of the rules, and the rules were
+  revised twice after misses on them, so that is a fit and not a held-out
+  score.
+
+[`benchmark/results/2026-10-06-faster-and-ask-first.md`](benchmark/results/2026-10-06-faster-and-ask-first.md).
+
 What this does not show is that two-stage beats single-stage: single-stage was
 also 16 of 16 in July, so the set is at its ceiling for both. It shows that 0.3
 keeps that result while adding the mechanical coverage check. Report and every
@@ -231,15 +259,18 @@ Invoke `intent-verify` after an agent completes a non-trivial change, or say
    rather than guessed at. With no ledger it asks you to paste the request.
 2. **Gets the criteria fixed.** If you already have acceptance criteria, those
    are used. Otherwise the criteria agent derives them from the request alone;
-   each one has to quote the words it rests on, and the quote is checked. Where
-   the request can be read two ways, you are asked, once.
+   each one has to quote the words it rests on, and the quote is checked. If
+   the words may not ask for a change at all (a question, a request for an
+   explanation), you are asked that before anything is verified. Other points
+   with two readings are settled after the verdict, and only if one decides it.
 3. **Dispatches the verifier** on a different model, with the request, the
-   criteria and the code.
+   criteria and the code: the fastest model the benchmark has timed that clears
+   the bar for the change.
 4. **Validates the ledger mechanically** — the copy a hook captured from the
    verifier, bound to the run by a nonce the code under test cannot know and
    sealed with it; evidence for every PASS, a consistent verdict, every
-   criterion from step 2 present, nothing said after it — and returns it with a
-   verdict:
+   criterion from step 2 present, nothing said after it — and returns it, printed
+   criterion by criterion, with a verdict:
    `MATCHES INTENT` / `DRIFTED` / `INCONCLUSIVE` (when the change couldn't
    honestly be exercised, or the request itself was incomplete — never
    laundered into a pass).
@@ -411,6 +442,8 @@ benchmark/
   cases.md / cases.json      every case documented / machine-readable
   oracle.py                  real discriminating executions for the 16 controlled cases
   run_bench.py               runnable harness: --mode mock (orchestration) / cli (real models)
+  ask_first.py               stage 1 alone: is the question before verifying asked where it should be
+  ask_first_cases.json       its requests, each with what a careful reader would do
   impl/                      "confidently wrong" + correct fixtures (rounds 1-3)
   field/ field-recall/       rounds 4-5 — real cost.py implementations
   results/                   dated records of every run, with raw replies where kept
@@ -442,6 +475,12 @@ python3 benchmark/run_bench.py --mode cli --verifier claude-opus-4-8
 # The same, two-stage: criteria first, from the request alone and with every
 # tool disabled, then a verifier held to them.
 python3 benchmark/run_bench.py --mode cli --verifier claude-opus-4-8 --two-stage
+```
+
+```bash
+# Stage 1 alone: is the one question that is asked before verifying marked
+# where the request may not ask for a change, and only there?
+python3 benchmark/ask_first.py --model claude-sonnet-5-5 --repeat 3
 ```
 
 cli mode grants the verifier `Bash,Read,Grep,Glob` (it must run the fixtures to
@@ -476,11 +515,36 @@ to be the discriminators.
 - **The two-stage flow is measured once.** 16 cases, one run each, one model for
   both stages, on fixtures where single-stage was already perfect. It matched
   July's result; it has not been shown to beat it.
-- **Fewer questions has a price.** 0.3.2 asks nothing before verifying, and a
-  question comes afterwards only for a reading the criteria agent recorded. When
-  it misses the real second reading, the verdict arrives without one: in the
-  field set that was one false `DRIFTED` in 7. The evidence in the ledger shows
-  what the code does, so you can still tell, but the tool does not ask.
+- **Fewer questions has a price.** Since 0.3.2 nothing is asked before
+  verifying, with one exception from 0.5.0: whether the request asked for a
+  change at all. Any other question comes afterwards, and only for a reading
+  the criteria agent recorded. When it misses the real second reading, the
+  verdict arrives without one: in the field set that was one false `DRIFTED` in
+  7. The evidence in the ledger shows what the code does, so you can still
+  tell, but the tool does not ask.
+- **The ask-first question depends on a model's reading of the request.** The
+  criteria agent decides whether to mark it. On the requests written for this
+  release it did so in 21 of 21 runs where the words may not ask for a change
+  and in none of 53 where they plainly do, but its rules were tuned on those
+  requests, and the same request does not always get the same answer: one went
+  from 1 run in 3 to 3 in 3 with a sentence added for it, and one that a
+  careful reader could take either way was marked in 1 run of 3. A miss costs
+  what it cost before 0.5.0: the change is verified under the reading in which
+  it was asked for. A false mark costs one question.
+- **Faster means a less capable verifier by default.** From 0.5.0 the selector
+  takes the fastest timed model that clears the floor, which among Claude
+  models is Sonnet 5.5, the one the benchmark scored. A stronger model may
+  catch what it misses on hard changes; nothing here measures that. Say
+  `--prefer capable`, or call the change complex, to get the most capable one.
+  For a change written by Opus 5.5 that is Fable 5.1, which has no published
+  score: the registry places it above Sonnet 5.5 because its predecessor stood
+  there, and the selector says so when it picks it.
+- **The effort pin is a floor as well as a ceiling, and was seen working
+  headless only.** Two copies of the plugin that differ in that one line were an
+  order of magnitude apart in a session at maximum effort. A session set below
+  high now gets agents a little slower than before. The pin was not checked in
+  the desktop app, and Claude Code's documentation says the
+  `CLAUDE_CODE_EFFORT_LEVEL` environment variable overrides it.
 - **The platform behaviour 0.3 relies on was seen once, on one machine:** the
   criteria agent launching without file access, a `decision` recorded from an
   answered question, and the data directory filled into the skill's commands,
@@ -571,6 +635,9 @@ to be the discriminators.
       object
 - [x] **v0.4.3** — a third review: the nonce is found outside its two places
       in whatever JSON spelling or letter case it is written
+- [x] **v0.5.0** — after the first real use: one question before verifying
+      when the request may not ask for a change, the ledger printed in the
+      report, and the agents pinned so a run takes minutes less
 - [ ] Field recall on real *under-specified* tasks with a known intended answer
 - [ ] Registry refresh (the snapshot predates current models)
 
@@ -622,6 +689,14 @@ keeps the nonce out of commands and output read the reply as written, and a
 JSON escape for a single character hid the nonce from it. A model set on the
 fix showed that counting was the weakness: one count over the whole reply
 could be balanced. The nonce is now located, not counted.
+
+v0.5.0 comes from the first use on real work. It took fourteen minutes because
+both agents inherited the session's maximum effort and the selector picked the
+most capable model; they now pin their own, and the selector takes the fastest
+model the benchmark has timed. It reported "passed all 4 criteria" without
+showing them; the validator now prints the ledger. And it verified under a
+reading in which a sentence was the user's decision, when the other reading was
+that no change had been asked for yet; that one question is now asked first.
 
 ## License
 

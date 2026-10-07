@@ -1,0 +1,8 @@
+{"manifest": 1,
+ "criteria": [
+   {"id": 1, "text": "The flaky login test no longer fails intermittently; it passes consistently across repeated runs", "quote": "fix it"},
+   {"id": 2, "text": "The reply names the specific line of code that races, causing the login test to be flaky", "quote": "tell me which line races"}
+ ],
+ "ambiguities": [
+   {"question": "Did the user ask for the flaky test to be fixed now, or only for an explanation of the race, with the choice of fix left until after they have heard it?", "assumed": "The user wants the test fixed, and the explanation of the racing line is part of that work", "criteria": [1, 2], "whether": true}
+ ]}

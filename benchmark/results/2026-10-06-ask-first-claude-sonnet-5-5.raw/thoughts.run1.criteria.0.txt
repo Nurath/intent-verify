@@ -1,0 +1,9 @@
+{"manifest": 1,
+ "criteria": [
+  {"id": 1, "text": "The function formerly named get_user is now named fetch_user.", "quote": "renaming get_user to fetch_user"},
+  {"id": 2, "text": "No reference to the identifier get_user remains anywhere in the project (definitions, call sites, imports, tests, docs).", "quote": "everywhere"},
+  {"id": 3, "text": "Every place that used get_user now uses fetch_user, and the code behaves as it did before the rename.", "quote": null}
+ ],
+ "ambiguities": [
+  {"question": "Is the user asking for the rename to be carried out, or only asking for an opinion on whether to do it?", "assumed": "The user wants the rename carried out across the project.", "criteria": [1, 2, 3], "whether": true}
+ ]}

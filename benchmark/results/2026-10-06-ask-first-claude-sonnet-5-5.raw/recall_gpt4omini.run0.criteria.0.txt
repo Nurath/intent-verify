@@ -1,0 +1,8 @@
+{"manifest": 1,
+ "criteria": [
+   {"id": 1, "text": "The gpt-4o-mini model is available (can be looked up/selected by that name) where models and their rates are defined.", "quote": "Add the gpt-4o-mini model"},
+   {"id": 2, "text": "gpt-4o-mini has its own rates, defined separately from those of any other model.", "quote": "with its own rates"},
+   {"id": 3, "text": "Plain gpt-4o still resolves to exactly the same rates it had before the change.", "quote": "plain gpt-4o must keep its existing rates"},
+   {"id": 4, "text": "Looking up gpt-4o-mini does not return gpt-4o's rates, and looking up gpt-4o does not return gpt-4o-mini's rates (the longer name is not swallowed by the shorter name's entry or prefix match).", "quote": null}
+ ],
+ "ambiguities": []}

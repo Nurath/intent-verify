@@ -1,0 +1,11 @@
+{"manifest": 1,
+ "criteria": [
+   {"id": 1, "text": "The first 5 login attempts from one IP within a minute are processed normally and are not rate-limited", "quote": "5 attempts per minute per IP"},
+   {"id": 2, "text": "A 6th login attempt from the same IP within the same minute is rejected by the rate limit instead of being processed as a normal login", "quote": "5 attempts per minute per IP"},
+   {"id": 3, "text": "Once an IP has used up its 5 attempts, login attempts from a different IP in the same minute are still processed normally", "quote": "different IPs are tracked independently"},
+   {"id": 4, "text": "Attempts from one IP do not count toward the limit of any other IP, so each IP can make its own 5 attempts per minute", "quote": "different IPs are tracked independently"},
+   {"id": 5, "text": "After the one-minute limit period has passed, an IP that was rate-limited can attempt to log in again", "quote": null}
+ ],
+ "ambiguities": [
+   {"question": "Do all login attempts count toward the 5 per minute, or only failed ones?", "assumed": "Every login attempt counts, whether it succeeds or fails", "criteria": [1, 2]}
+ ]}

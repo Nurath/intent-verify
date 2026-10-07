@@ -35,6 +35,7 @@ to its run by a nonce, not one the implementing session relayed. The verdict is
 | Manifest and ledger validation | `tools/validate_ledger.py` |
 | Verifier model policy | `tools/select_verifier.py`, `models/registry.json`, `docs/MODEL-COMPAT.md` |
 | The benchmark and every recorded run | `benchmark/`, `benchmark/results/` |
+| Whether the question before verifying is asked where it should be | `benchmark/ask_first.py`, `benchmark/ask_first_cases.json` |
 | Tests, including the ones on prose and config | `tests/` |
 
 ## What is released — check, do not trust this file
@@ -51,12 +52,12 @@ The version is `version` in `.claude-plugin/plugin.json`; the top heading of
 `CHANGELOG.md` must match it (a test enforces that). An installed copy changes
 only when someone runs the two update commands in the runbook and restarts.
 
-## Test baseline (0.4.3)
+## Test baseline (0.5.0)
 
-- `python3 -m unittest discover -s tests`: 254 tests. On Windows 18 skip (POSIX
+- `python3 -m unittest discover -s tests`: 290 tests. On Windows 18 skip (POSIX
   shell tests and one layout-specific test); on Linux and macOS the PowerShell
   classes skip instead.
-- `node hooks/capture-intent.js --selftest`: 34 of 34.
+- `node hooks/capture-intent.js --selftest`: 35 of 35.
 - `python3 benchmark/run_bench.py --mode mock --no-write`: exit 0.
 - CI: four checks (`ubuntu-latest`, `macos-latest`, `windows (powershell)`,
   `windows (pwsh)`), all required to be green before a merge.
@@ -95,6 +96,18 @@ only when someone runs the two update commands in the runbook and restarts.
   the two could be balanced: an escape took an occurrence out of one place and
   a copy elsewhere put it back. A rule about where something may be has to
   look at each place separately.
+- **The agents pin their own model and effort** (0.5.0). A session's own
+  setting no longer makes them faster or slower, and the skill must not pass a
+  model to the criteria agent. The benchmark harness passes `--effort high` to
+  match. Seen working headless only; the documentation says the
+  `CLAUDE_CODE_EFFORT_LEVEL` environment variable still overrides the pin.
+- **A label written after seeing the answer is not a measurement.** The first
+  ask-first run missed one of six cases, and the case turned out to be
+  mislabelled; a second run of the same request then gave the other answer.
+  Cases a careful reader could take either way are now labelled so and not
+  scored, and every case is run three times. And rules revised after misses
+  on a set are fitted to that set: keep requests they never saw, and write
+  down the expected answer before running them.
 - **Version 1 ledgers need `--unsealed`.** The runs kept from 0.4.0 and 0.4.1
   are version 1 objects. The default path rejects them and says so.
 - **A harness is a thing to test.** The verifier-capture hook worked headless
@@ -104,14 +117,9 @@ only when someone runs the two update commands in the runbook and restarts.
   reply from the subagent's own output where possible; the validator tolerates a
   uniform indent but not a tidied-up copy.
 
-## Open items (2026-10-06)
+## Open items (2026-10-07)
 
-Done on 2026-10-05: the three platform checks passed, and the two-stage flow
-scored 16 of 16 on the controlled set
-(`benchmark/results/2026-10-05-cli-claude-sonnet-5-5-two-stage.md`).
-
-Done on 2026-10-06, after the 0.4.2 release: the sealed ledger was captured by
-the hook and validated in the desktop app as well as headless
+Done: the sealed ledger captured and validated headless and in the desktop app
 (`benchmark/results/2026-10-06-sealed-ledger.md`). If a reply is ever rejected
 for "text after the ledger", look at what the harness appended to the
 hand-back before suspecting the verifier.
@@ -137,9 +145,28 @@ hand-back before suspecting the verifier.
 3. **Cross-model ablation** not run. On the controlled set the drift is planted
    and both arms would likely sit at the ceiling. A fair test needs drift a
    model produced itself, which is the field-recall work.
-4. **`models/registry.json` predates the current models.** The selector
-   excludes unknown models unless `--assume-tier` is passed.
+4. **`models/registry.json` knows the current Claude models from 0.5.0.** Fable
+   5.1 has an assumed tier, no score, and `ranks_above` Sonnet 5.5 for complex
+   changes: drop that field when the index lists it. The other vendors' rows
+   are still the August snapshot, and only Sonnet 5.5 and Haiku 4.5 are timed.
 5. **The alternate hooks** still use the in-project layout. Port them or retire
    them; today they cannot serve the skill without Node either way.
 6. **The verifier's command budget** ("about 15") is exceeded in practice.
    Pick a number from the recorded runs and enforce it with `maxTurns`.
+7. **The question before verifying (0.5.0) is measured on requests written
+   here**, 17 of them, plus one real one
+   (`benchmark/results/2026-10-06-faster-and-ask-first.md`). In real runs,
+   note when it is asked and what the answer was. If it is asked about plain
+   requests, the rules in `agents/criteria.md` need a case, not a rewrite.
+8. **Speed (0.5.0) is measured on one small task.** Not measured: a real run
+   end to end, the pin in the desktop app, whether `high` is the right
+   effort (the CLI's default gave the same 19 verdicts), and what a stronger
+   verifier catches that Sonnet does not. Not built, by the maintainer's
+   choice: the verifier skipping CLAUDE.md.
+9. **A request whose subject is in the assistant's previous message** ("ok
+   lets work on it") cannot be frozen from the user's prompts alone. The
+   0.5.0 check of itself added that paragraph by hand, labelled. The skill
+   does not say what to do; the hook does not capture assistant text.
+10. **The printed ledger shows the start of a long output only.** The last line
+    of a test log, where the result is, can be cut. Candidate: head and tail.
+    It touches the filter every printed value goes through, so attack it.

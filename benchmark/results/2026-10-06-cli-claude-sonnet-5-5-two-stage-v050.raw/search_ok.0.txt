@@ -1,0 +1,12 @@
+{"ledger": 2,
+ "nonce": "1b15f88d6df24d313d2a149f265ed6de",
+ "mode": "FULL",
+ "criteria": [
+  {"id": 1, "text": "Every item that contains the query as a substring is kept in the result", "verdict": "PASS", "cmd": "python t.py  # search(['Foo','FOO','foo','Bar','xfOoy','baz','','Foo Bar','ab'],'foo')", "out": "1 ['Foo', 'FOO', 'foo', 'xfOoy', 'Foo Bar']"},
+  {"id": 2, "text": "Items that do not contain the query are not in the result", "verdict": "PASS", "cmd": "python t.py  # search(['Hello World','hello','HELLO','world','Help'],'zzz'); and 'hELLo' on the same list", "out": "4 []\n3 ['Hello World', 'hello', 'HELLO']  (world and Help excluded)"},
+  {"id": 3, "text": "Matching ignores letter case: an item matches whether its case differs from the query's or not (e.g. query 'foo' matches 'FOO' and 'Foo', and query 'FOO' matches 'foo')", "verdict": "PASS", "cmd": "python t.py  # search(items,'foo') and search(items,'FOO')", "out": "1 ['Foo', 'FOO', 'foo', 'xfOoy', 'Foo Bar']\n2 ['Foo', 'FOO', 'foo', 'xfOoy', 'Foo Bar']"},
+  {"id": 4, "text": "Items kept in the result are returned unchanged (original text and case preserved)", "verdict": "PASS", "cmd": "python t.py  # search(['MiXeD cAsE','other'],'mixed')", "out": "6 ['MiXeD cAsE'] True"}
+ ],
+ "final": "MATCHES INTENT",
+ "observations": "An empty query returns all items, which is consistent with substring semantics. Only ASCII-case inputs were tested. The code uses str.lower(), not casefold.",
+ "seal": "1b15f88d6df24d313d2a149f265ed6de"}

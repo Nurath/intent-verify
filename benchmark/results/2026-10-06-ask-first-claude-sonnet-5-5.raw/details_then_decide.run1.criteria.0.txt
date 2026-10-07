@@ -1,0 +1,10 @@
+{"manifest": 1,
+ "criteria": [
+  {"id": 1, "text": "An explanation of what is going wrong, meaning why the nightly export sometimes writes an empty file, is given", "quote": "first explain what is going wrong"},
+  {"id": 2, "text": "When an export run fails by producing an empty file, the details of that failed export are made available", "quote": "give the details of the failed export"},
+  {"id": 3, "text": "The export does not apply either of the offered fixes on its own (an automatic retry of the write, or a file lock); what to do about a failed export is left to the operator", "quote": "the operator can decide"}
+ ],
+ "ambiguities": [
+  {"question": "Did the user ask for the export to be changed, or only for an explanation and a report of the failure details for the operator to act on?", "assumed": "The user asked for a change: the export surfaces the failed-export details and the cause is explained, with no fix applied automatically", "criteria": [1, 2, 3], "whether": true},
+  {"question": "Are the failed-export details given to the operator by the export itself (for example in its output or log), or only in the assistant's written reply to the user?", "assumed": "The export itself makes the details available to the operator when it fails", "criteria": [2]}
+ ]}

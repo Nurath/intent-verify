@@ -1,0 +1,9 @@
+{"manifest": 1,
+ "criteria": [
+  {"id": 1, "text": "The function formerly named get_user is now named fetch_user, and fetch_user can be called where get_user was called before", "quote": "renaming get_user to fetch_user"},
+  {"id": 2, "text": "No references to the name get_user remain anywhere: not in its definition, call sites, imports, tests or documentation", "quote": "everywhere"},
+  {"id": 3, "text": "Behavior is unchanged: fetch_user takes the same arguments and returns the same results that get_user did", "quote": null}
+ ],
+ "ambiguities": [
+  {"question": "Is the user asking for the rename to be carried out, or only asking for an opinion on a rename they are still considering?", "assumed": "The user wants the rename carried out across the codebase", "criteria": [1, 2, 3], "whether": true}
+ ]}

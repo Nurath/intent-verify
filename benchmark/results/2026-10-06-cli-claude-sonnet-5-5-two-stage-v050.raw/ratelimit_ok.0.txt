@@ -1,0 +1,13 @@
+{"ledger": 2,
+ "nonce": "cb7bfe3f2531032000027d079a8d7949",
+ "mode": "FULL",
+ "criteria": [
+  {"id": 1, "text": "The first 5 login attempts from one IP within a minute are processed normally and are not rate-limited", "verdict": "PASS", "cmd": "python t.py  (loads ratelimit_ok.py, patches time.time to a fake clock; [m.allow_login('1.1.1.1') for _ in range(5)])", "out": "C1 first5 A: [True, True, True, True, True]"},
+  {"id": 2, "text": "A 6th login attempt from the same IP within the same minute is rejected by the rate limit instead of being processed as a normal login", "verdict": "PASS", "cmd": "python t.py  (6th and 7th allow_login('1.1.1.1') at the same fake time)", "out": "C2 6th A: False 7th: False"},
+  {"id": 3, "text": "Once an IP has used up its 5 attempts, login attempts from a different IP in the same minute are still processed normally", "verdict": "PASS", "cmd": "python t.py  (allow_login('2.2.2.2') after 1.1.1.1 had exhausted its 5)", "out": "C3 B first after A exhausted: True"},
+  {"id": 4, "text": "Attempts from one IP do not count toward the limit of any other IP, so each IP can make its own 5 attempts per minute", "verdict": "PASS", "cmd": "python t.py  (5 attempts from 2.2.2.2 and from 3.3.3.3 after 1.1.1.1 exhausted, then a 6th from each)", "out": "C4 B 5 total: [True, True, True, True, True] B 6th: False\nC4b C independent 5: [True, True, True, True, True] False"},
+  {"id": 5, "text": "After the one-minute limit period has passed, an IP that was rate-limited can attempt to log in again", "verdict": "PASS", "cmd": "python t.py  (advance fake clock +59s then +2s more, call allow_login('1.1.1.1'); then 5 more calls)", "out": "t+59 A: False\nt+61 A: True\nC5 t+61 A after 5 more: [True, True, True, True, False]"}
+ ],
+ "final": "MATCHES INTENT",
+ "observations": "python3 was not installed here, so the script ran with python (the command shown). time.time was monkeypatched to a fake clock to test the window deterministically. Not tested: thread safety, and memory growth from IPs that never return (entries are never purged). The request did not ask for either.",
+ "seal": "cb7bfe3f2531032000027d079a8d7949"}

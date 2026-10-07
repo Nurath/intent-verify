@@ -1,0 +1,6 @@
+{"manifest": 1,
+ "criteria": [
+   {"id": 1, "text": "A price with more than 2 decimal places comes back rounded to 2 decimal places (1.234 gives 1.23, 1.236 gives 1.24)", "quote": "Round a price to 2 decimal places"},
+   {"id": 2, "text": "A price exactly halfway between two 2-decimal values rounds up to the higher one, read as the decimal value written (1.005 gives 1.01, 2.675 gives 2.68, 0.125 gives 0.13)", "quote": "rounding half up"}
+ ],
+ "ambiguities": []}

@@ -1,0 +1,8 @@
+{"manifest": 1,
+ "criteria": [
+  {"id": 1, "text": "A price is rounded to the nearest hundredth, so a value that is not on a halfway point comes out with 2 decimal places (1.234 gives 1.23, 1.236 gives 1.24)", "quote": "Round a price to 2 decimal places"},
+  {"id": 2, "text": "A price whose third decimal digit is exactly 5 with nothing after it is rounded up (1.005 gives 1.01, 2.345 gives 2.35, 0.125 gives 0.13)", "quote": "rounding half up"}
+ ],
+ "ambiguities": [
+  {"question": "Is a halfway case judged on the decimal value as written (1.005) or on the binary floating-point value the language stores, which for 1.005 is slightly below the halfway point?", "assumed": "The decimal value as written, so 1.005 gives 1.01", "criteria": [2]}
+ ]}
