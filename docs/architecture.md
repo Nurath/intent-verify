@@ -227,6 +227,12 @@ wrote 4,536. Every kind of line break becomes `⏎` and a character without a gl
 becomes a space, so nothing a program printed can start a line of the report
 and pass for one of the validator's.
 
+The same filter covers the rest of what a reply can make the validator print
+(0.5.1): a criterion's quote is shown up to 300 characters, a defect line up to
+800, the ids of an ambiguity up to thirty, and at most fifty defect lines are
+printed, followed by how many more there are. The manifest file keeps every
+value whole.
+
 Evidence strings are kept exactly as written. Only the text grammar treats
 output made of nothing but field-looking lines as missing, because there output
 and fields share one stream of lines. In both, evidence that shows nothing

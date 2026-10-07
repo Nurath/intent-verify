@@ -87,6 +87,15 @@ scores over time, or the tiers stop being comparable. Models not in the
 snapshot: either add them with a score from the source, or pass
 `--assume-tier` explicitly. `select_verifier.py` deliberately refuses to guess.
 
+0.5.0 broke that rule: it added the current Claude models with scores from a
+newer version of the index, and the ranking then compared 58 on the new
+version with 60.7 on the old. Since 0.5.1 a row added that way must say so.
+The registry lists its `scales`, newest first; a row carries the `scale` its
+score was read on, and a row without one is on the oldest. The selector
+compares two scores only within a scale. Across scales it compares tiers,
+puts the newer scale first within a tier, and warns that it did; the gap to
+the implementer is then not measured, and `weak-verifier` goes by tiers.
+
 ## Measuring this (instead of asserting it)
 
 `benchmark/run_bench.py --mode mock` simulates the tier failure modes above

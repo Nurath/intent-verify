@@ -1,5 +1,89 @@
 # Changelog
 
+## 0.5.1 — 2026-10-07
+
+A review of 0.5.0 by another vendor's model, the fifth of this plugin, the day
+it was released. It confirmed the earlier findings as fixed, replayed the 19
+new verifier replies and the 77 ask-first manifests to the published numbers,
+and reported two findings. Both reproduced, and each reached a step further
+than the review's fixture.
+
+### Fixed
+- **Scores from different versions of the index are no longer compared.**
+  0.5.0 added the current Claude models with scores read from a newer version
+  of the index than the rest of the registry, and said in their note to compare
+  tiers with the older rows, not scores. The ranking compared the numbers all
+  the same: for a complex change `claude-opus-5` (60.7 on the old index) was
+  picked over `claude-opus-5-5` (58 on the new one), and the gap to the
+  implementer was subtracted across versions too. The registry now lists its
+  `scales`, newest first, and a row says which one its score is on. Candidates
+  with a score still come before those known only by an assumed tier; they are
+  then ordered by tier, by scale and by score, so two numbers meet only when
+  they are from the same version, and a warning says when the newer version
+  decided. Across versions the gap is reported as not measured, and
+  `weak-verifier` is given when the verifier is two or more tiers below the
+  implementer. That tier rule now applies whenever there are not two scores on
+  one version to subtract: Opus 5.5 with Haiku 4.5, T1 to T3, used to get no
+  warning because Haiku has no score. A score on a scale the registry does not
+  list is not used to rank, and the output says so.
+- **Everything the validator prints is filtered and bounded.** 0.5.0 put the
+  ledger, the questions and the notes through one filter. A criterion's quote
+  was still printed with `repr()`, and so was whatever a `DEFECT:` line quotes
+  from the reply. No line break or escape code got through, but length and
+  combining marks did: a 20,006-character quote made a 20,037-character line,
+  and 5,000 accents were printed as 5,000. The quote is now shown up to 300
+  characters with its full length stated, every defect line up to 800, and
+  neither with more than two combining marks in a row. The manifest file keeps
+  the quote whole.
+- **And the rest of what a reply can make it print.** Found by setting another
+  model on those two fixes:
+  - The filter counted marks by combining class. 1,567 printable marks have
+    class 0 (an enclosing circle, a variation selector, a Thai vowel sign) and
+    went through in piles of 795. It counts every mark now, and prints a blank
+    glyph as a space.
+  - The ids an ambiguity names were printed as given. One id repeated a
+    million times is a valid list, and made a line of three million
+    characters. Thirty are shown, with the count.
+  - A reply with a million defects printed a million lines. Fifty are printed,
+    then how many more.
+  - A defect about numbering printed every number; cut at 800 characters, the
+    wrong one could be past the cut. For a long list it names the entry.
+  - `--run` printed the names of files beside the run as they were, and a
+    `run.json` nested too deep to read was a traceback, not a usage error.
+
+### Checked
+- 315 unit tests (were 290). The new ones fail without the change they pin,
+  apart from the controls: an ordinary quote, a short defect, and rankings
+  within one version, which read as before.
+- The review's fixtures: the selector case now picks `claude-opus-5-5` and
+  says why; the two manifests print lines of 366 and 87 characters.
+- All 180 recorded verdicts replay unchanged. No prompt changed, so no model
+  run was repeated.
+- **Another model was set on the two fixes before this release**, with the
+  code, the rules and no conclusions. What held: 40,500 generated manifests
+  and ledgers gave the same exit code and the same written manifest as 0.5.0,
+  with no crash; shifting every score of one index version by a constant
+  never changed a pick in 2.6 million selections; no pick depended on the
+  order of the candidates except on exact ties, in 1.08 million. What it
+  found is the third item above and the tier rule in the first. Its probes
+  and fuzzers were run again on the released code.
+
+### Known, and left
+- A quote of 10 MB takes 12 to 34 seconds to check against the request. Older
+  than this release, and not from printing.
+- A defect line cut at 800 characters can lose the end of a criterion text
+  longer than that. The manifest has it whole.
+- Two candidates that tie exactly (same tier, no score, or equal scores) are
+  taken in the order listed. Among candidates with no score the higher tier
+  now comes first; it used to be whichever was listed first.
+
+### Not changed
+- Verdicts, the ledger and manifest formats, the prompts. One exit code: a
+  `run.json` that cannot be read is 2, as other unusable run directories are,
+  where it was 3.
+- Within one version of the index the ranking of scored models is what it
+  was.
+
 ## 0.5.0 — 2026-10-07
 
 The plugin's first use on real work, the same day as 0.4.2, went as designed:

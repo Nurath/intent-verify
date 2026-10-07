@@ -124,6 +124,7 @@ REPORT_FINAL, REPORT_CMD, REPORT_OUT, REPORT_NOTE = 120, 200, 300, 800  # charac
 # and 4,536 characters of them; the limit for other notes cut both, the second
 # one in the middle of the caveat that mattered.
 REPORT_OBSERVATIONS = 6000
+DEFECTS_SHOWN, IDS_SHOWN = 50, 30  # lines of defects printed; ids of one ambiguity printed
 MAX_FAILED_SCANS = 200
 # capture-intent.js --begin-run makes 32 characters; the M4 runs of 2026-10-05 used 16.
 NONCE = re.compile(r"[0-9a-f]{16,64}\Z")
@@ -262,7 +263,12 @@ def _check(ledger, manifest, names, text_grammar):
     # criterion was indistinguishable from a requirement nobody checked.
     nums = [c["n"] for c in crits]
     if nums != list(range(1, len(nums) + 1)):
-        defects.append(f"criteria must be numbered 1..N in order with no gaps or repeats, found {nums}")
+        # A long list is not printed whole: the line is cut where the report
+        # cuts every line, and the entry that is wrong may be past the cut.
+        first = next(i for i, n in enumerate(nums, 1) if n != i)
+        defects.append("criteria must be numbered 1..N in order with no gaps or repeats, "
+                       + (f"found {nums}" if len(nums) <= 20 else
+                          f"and entry {first} of {len(nums)} is numbered {nums[first - 1]}"))
 
     # The manifest was fixed before the code was read. Each of its criteria must
     # come back under the same number, word for word; what the verifier adds
@@ -591,9 +597,11 @@ def _one_line(value, limit):
     flat = " \u23ce ".join(" ".join(part.split()) for part in head.splitlines() if part.strip())
     shown, stacked = [], 0
     for ch in flat:
-        stacked = stacked + 1 if unicodedata.combining(ch) else 0
+        # Every mark, not only those with a combining class: an enclosing
+        # circle or a variation selector has class 0 and stacks like the rest.
+        stacked = stacked + 1 if unicodedata.category(ch)[0] == "M" else 0
         if stacked <= 2:  # a pile of combining marks is drawn over the lines around it
-            shown.append(ch if ch.isprintable() else " ")
+            shown.append(ch if ch.isprintable() and ch not in _BLANK_GLYPHS else " ")
     flat = "".join(shown)
     if len(flat) > limit or len(head) < len(value):
         return f"{flat[:limit]} \u2026 [cut: {len(value)} characters in all]"
@@ -771,8 +779,14 @@ def _read(path):
 
 
 def _report(defects):
-    for d in defects:
-        print(f"DEFECT: {d}")
+    # A defect quotes what it found, and what it found is the reply's. Every
+    # line goes through the filter of the report: repr() had kept line breaks
+    # and escape codes out, and let a 20,000-character quote or a pile of
+    # combining marks through whole.
+    for d in defects[:DEFECTS_SHOWN]:
+        print("DEFECT: " + _one_line(d, REPORT_NOTE))
+    if len(defects) > DEFECTS_SHOWN:
+        print(f"DEFECT: ... and {len(defects) - DEFECTS_SHOWN} more")
     print(f"INVALID ({len(defects)} defect(s))")
     return 1
 
@@ -783,10 +797,15 @@ def _emit_manifest(manifest, notes, out):
     data = json.dumps(manifest, ensure_ascii=False, indent=2) + "\n"
     print(f"VALID: {len(manifest['criteria'])} criteria")
     for c in manifest["criteria"]:
-        print(f"  {c['id']}. {_one_line(c['text'], REPORT_NOTE)}  " + (f"[quote: {c['quote']!r}]" if c["quote"] else "[no quote]"))
+        # The manifest file keeps the quote whole; this line shows the start of it.
+        print(f"  {c['id']}. {_one_line(c['text'], REPORT_NOTE)}  "
+              + (f"[quote: {_one_line(c['quote'], REPORT_OUT)!r}]" if c["quote"] else "[no quote]"))
     for a in manifest["ambiguities"]:
         label = "ASK FIRST" if a.get("whether") else "AMBIGUITY"
-        print(f"{label}: {_one_line(a['question'], REPORT_NOTE)} — criteria {', '.join(map(str, a['criteria']))} "
+        # The ids are the reply's as well: a list may repeat one a million times.
+        ids = ", ".join(map(str, a["criteria"][:IDS_SHOWN])) + (
+            f" … [{len(a['criteria'])} in all]" if len(a["criteria"]) > IDS_SHOWN else "")
+        print(f"{label}: {_one_line(a['question'], REPORT_NOTE)} — criteria {ids} "
               f"assume: {_one_line(a['assumed'], REPORT_NOTE)}")
     if manifest.get("unlinked_ambiguities"):
         print(f"DROPPED: {manifest['unlinked_ambiguities']} ambiguity question(s) that no criterion depends on; "
@@ -862,23 +881,27 @@ def main(argv):
         if a.manifest is not None:
             manifest, defects, _notes = check_manifest(_read(a.manifest))
             if defects:
-                print(f"validate_ledger.py: {a.manifest} is not a valid manifest: {defects[0]}", file=sys.stderr)
+                print(f"validate_ledger.py: {a.manifest} is not a valid manifest: {_one_line(defects[0], REPORT_NOTE)}",
+                      file=sys.stderr)
                 return 2
         source = None
         if a.run is not None:
             try:
                 nonce, reply = captured_reply(a.run)
-            except (KeyError, TypeError, ValueError) as e:
-                print(f"validate_ledger.py: {a.run} is not a run directory (no usable run.json): {e}", file=sys.stderr)
+            except (KeyError, TypeError, ValueError, RecursionError) as e:
+                print(f"validate_ledger.py: {a.run} is not a run directory (no usable run.json): "
+                      f"{_one_line(str(e), REPORT_OUT)}", file=sys.stderr)
                 return 2
             if reply is None:
-                traces = hook_traces(a.run)
+                # The hook names these files itself. Anything else that can write
+                # beside the run could name one anything.
+                traces = [_one_line(n, REPORT_FINAL) for n in hook_traces(a.run)]
                 why = (f"The hook ran since this run began ({', '.join(traces[:3])} in _unmatched), "
                        "but nothing it saw carried this run's nonce." if traces else
                        "There is no sign that the hook ran.")
                 print(f"NO REPLY CAPTURED: the SubagentStop hook filed nothing under {a.run}. {why}")
                 return 4
-            text, source = _read(reply), f"captured by the hook: {os.path.basename(reply)}"
+            text, source = _read(reply), f"captured by the hook: {_one_line(os.path.basename(reply), REPORT_FINAL)}"
         else:
             text, nonce = _read(a.ledger), a.nonce
             if nonce is not None:
