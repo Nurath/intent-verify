@@ -94,8 +94,8 @@ Two things follow. The verdicts are unchanged with the new rules for the
 criteria agent, and none of the 19 requests got a question before verifying.
 And the pin is a ceiling and a floor, not a speed-up for everyone: a session
 that was not set above the default now gets agents that are a little slower,
-and on the controlled set 15% dearer, than before. The registry's `verify_seconds` for Sonnet
-5.5 is the 12.5 s measured here.
+and on the controlled set 15% dearer, than before. The registry's
+`verify_seconds` for Sonnet 5.5 is the 12.5 s measured here.
 
 ### The request this release was built from
 
@@ -104,7 +104,7 @@ context and three parts, 3,446 characters. It was put through stage 1 twice.
 
 | | model | effort | seconds | tokens | criteria |
 |---|---|---|---|---|---|
-| the agent of 0.4.2, dispatched in a desktop session at maximum effort | Sonnet 5.5 | inherited: maximum | 307 | 50,293 | 15 |
+| the unpinned agent of the installed release, dispatched in a desktop session at maximum effort | Sonnet 5.5 | inherited: maximum | 307 | 50,293 | 15 |
 | this release's rules, `claude -p --safe-mode --effort high`, three runs | Sonnet 5.5 | high | 16 to 18 | 7,698 to 8,181 | 9 to 11 |
 
 The two rows are not one experiment: the first ran inside the desktop app with
@@ -195,8 +195,12 @@ What it found, all fixed and each pinned by a test:
 | 4 | Combining marks were printed however many there were; a pile of them is drawn over the neighbouring lines | two at most |
 | 5 | A value of megabytes was flattened whole in order to show 300 characters of it | only the start is worked on: 9 MB in 0.16 s |
 
-Its reproductions and both of its fuzzers were run again on the final code: the
-reproductions are all neutralised and the fuzzers report no problem.
+Its reproductions and both of its fuzzers were run again after those fixes: the
+reproductions are all neutralised and the fuzzers report no problem. They were
+not run on the tree that was released. The three changes of section 4 came
+later, and by then the probes had been lost with the temporary directory they
+were in. Those changes are a limit, a ranking rule and a family rule; the
+filter every printed value goes through is as the probes left it.
 
 ## 4. The release, checked against its own request
 
