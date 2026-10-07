@@ -1,5 +1,42 @@
 # Changelog
 
+## 0.5.2 — 2026-10-07
+
+A sixth review, of 0.5.1, the same day. It confirmed both findings of the
+fifth as fixed and reported one more, which reproduced. It is older than
+0.5.1 and 0.5.0, and 0.5.1 had walked past it.
+
+### Fixed
+- **A value made only of invisible marks no longer counts as evidence.** A
+  `PASS` needs a command and an output that show something. The test for that
+  took every character Python calls printable for visible, apart from seven
+  listed fillers. U+034F COMBINING GRAPHEME JOINER is printable and draws
+  nothing, so a ledger whose command and output were that one character
+  validated as `MATCHES INTENT`. So did one made of variation selectors, of
+  the Mongolian ones, of the Khitan filler or of the musical null notehead:
+  2,499 marks counted as visible by themselves. The test now asks whether a
+  character puts something on the page: a combining mark does not, since it
+  needs a letter to sit on, and that one rule covers every invisible mark
+  without a list of them. It applies wherever a value has to show something:
+  the command, the output, the reason for `NOT-EXERCISED`, the conclusion, a
+  criterion's text and quote, a question and its assumed reading. Text with a
+  mark in it is text as before.
+
+  0.5.1 had fixed the filter for what is printed so that it treats these
+  characters as marks, and had not looked at the test for blankness beside it.
+
+### Checked
+- 322 unit tests (were 315). Two of the new ones do not come from the
+  code: every code point Unicode lists as default-ignorable must be blank, and
+  no combining mark may count as visible alone.
+- The review's fixtures: the ledger with invisible evidence exits 1, as its
+  controls with a space and a zero-width space always did.
+- All 180 recorded verdicts replay unchanged, and all 194 stored stage-1
+  replies are judged as they were: no reply a real model wrote changes.
+
+### Not changed
+- The formats and the prompts. No model run was repeated.
+
 ## 0.5.1 — 2026-10-07
 
 A review of 0.5.0 by another vendor's model, the fifth of this plugin, the day

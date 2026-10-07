@@ -52,9 +52,9 @@ The version is `version` in `.claude-plugin/plugin.json`; the top heading of
 `CHANGELOG.md` must match it (a test enforces that). An installed copy changes
 only when someone runs the two update commands in the runbook and restarts.
 
-## Test baseline (0.5.1)
+## Test baseline (0.5.2)
 
-- `python3 -m unittest discover -s tests`: 315 tests. On Windows 18 skip (POSIX
+- `python3 -m unittest discover -s tests`: 322 tests. On Windows 18 skip (POSIX
   shell tests and one layout-specific test); on Linux and macOS the PowerShell
   classes skip instead.
 - `node hooks/capture-intent.js --selftest`: 35 of 35.
@@ -92,10 +92,9 @@ only when someone runs the two update commands in the runbook and restarts.
   decoded.** The nonce rule counted the nonce in the raw text, and a JSON
   escape for one character hid it (0.4.3). When a rule is about content, apply
   it to the decoded values too.
-- **Locate, do not count.** The first fix for that added a second count, and
-  the two could be balanced: an escape took an occurrence out of one place and
-  a copy elsewhere put it back. A rule about where something may be has to
-  look at each place separately.
+- **Locate, do not count.** Two counts can be balanced: an escape takes an
+  occurrence out of one place and a copy puts it back elsewhere. A rule about
+  where something may be has to look at each place separately.
 - **The agents pin their own model and effort** (0.5.0). A session's own
   setting no longer makes them faster or slower, and the skill must not pass a
   model to the criteria agent. The benchmark harness passes `--effort high` to
@@ -108,6 +107,9 @@ only when someone runs the two update commands in the runbook and restarts.
   scored, and every case is run three times. And rules revised after misses
   on a set are fitted to that set: keep requests they never saw, and write
   down the expected answer before running them.
+- **When one rule is fixed, look at the rule beside it.** 0.5.1 taught the
+  print filter about marks with no glyph and left `_blank`, three lines above
+  it, calling the same character evidence (0.5.2).
 - **Version 1 ledgers need `--unsealed`.** The runs kept from 0.4.0 and 0.4.1
   are version 1 objects. The default path rejects them and says so.
 - **A harness is a thing to test.** The verifier-capture hook worked headless

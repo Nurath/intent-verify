@@ -236,7 +236,9 @@ value whole.
 Evidence strings are kept exactly as written. Only the text grammar treats
 output made of nothing but field-looking lines as missing, because there output
 and fields share one stream of lines. In both, evidence that shows nothing
-(spaces, a zero-width character) is missing.
+is missing: spaces, a zero-width character, a blank glyph, or nothing but
+combining marks, which need a letter to sit on (0.5.2). The same test decides
+every value that has to show something, in the ledger and in the manifest.
 
 `--unsealed` checks the version 1 object that 0.4.0 and 0.4.1 wrote: no seal,
 remarks around it, unknown keys tolerated. It exists so that the runs kept in
