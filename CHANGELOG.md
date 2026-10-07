@@ -17,8 +17,9 @@ than the review's fixture.
   picked over `claude-opus-5-5` (58 on the new one), and the gap to the
   implementer was subtracted across versions too. The registry now lists its
   `scales`, newest first, and a row says which one its score is on. Candidates
-  are ordered by tier, then by scale, then by score, so two numbers meet only
-  when they are from the same version; a warning says when the newer version
+  with a score still come before those known only by an assumed tier; they are
+  then ordered by tier, by scale and by score, so two numbers meet only when
+  they are from the same version, and a warning says when the newer version
   decided. Across versions the gap is reported as not measured, and
   `weak-verifier` is given when the verifier is two or more tiers below the
   implementer. That tier rule now applies whenever there are not two scores on
