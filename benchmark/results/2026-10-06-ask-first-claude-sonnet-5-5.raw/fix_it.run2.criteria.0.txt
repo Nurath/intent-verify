@@ -1,0 +1,7 @@
+{"manifest": 1,
+ "criteria": [
+   {"id": 1, "text": "When the data contains a blank row, the totals come out correct instead of wrong", "quote": "The totals are wrong when a row is blank"},
+   {"id": 2, "text": "A blank row adds nothing to the totals: the totals with a blank row present equal the totals for the same data without it", "quote": "The totals are wrong when a row is blank"},
+   {"id": 3, "text": "Totals for data with no blank rows are unchanged by the fix", "quote": null}
+ ],
+ "ambiguities": []}

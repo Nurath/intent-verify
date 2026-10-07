@@ -1,0 +1,9 @@
+{"manifest": 1,
+ "criteria": [
+  {"id": 1, "text": "A username whose length after trimming surrounding whitespace is between 3 and 20 characters inclusive is valid (e.g. 'abc' and a 20-character name are valid)", "quote": "A username is valid if it is 3 to 20 characters"},
+  {"id": 2, "text": "A username whose trimmed length is fewer than 3 characters is not valid (e.g. 'ab')", "quote": "3 to 20 characters"},
+  {"id": 3, "text": "A username whose trimmed length is more than 20 characters is not valid (e.g. a 21-character name)", "quote": "3 to 20 characters"},
+  {"id": 4, "text": "Surrounding whitespace is removed before the length is measured: '  abc  ' is valid, and '  ab  ' is not valid even though its untrimmed length is 6", "quote": "trimming surrounding whitespace first"},
+  {"id": 5, "text": "Padding whitespace does not count toward the upper limit: a 20-character name with surrounding spaces is valid", "quote": "trimming surrounding whitespace first"}
+ ],
+ "ambiguities": []}

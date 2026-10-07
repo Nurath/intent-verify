@@ -1,0 +1,17 @@
+{"ledger": 2,
+ "nonce": "877b3169b3d9b91fad8067918e43f2f2",
+ "mode": "FULL",
+ "criteria": [
+  {"id": 1, "text": "No email address appears more than once in the resulting list", "verdict": "PASS",
+   "cmd": "cd benchmark/impl/omitted-intent && PYTHONHASHSEED=1 python -c \"from dedupe import dedupe; emails=['zed@x.com','amy@x.com','zed@x.com','bob@x.com','amy@x.com','carl@x.com','bob@x.com','dan@x.com']; r=dedupe(emails); print(r); print('dups:', len(r)!=len(set(r)))\"  (also run with seeds 2 and 3)",
+   "out": "['zed@x.com', 'dan@x.com', 'amy@x.com', 'carl@x.com', 'bob@x.com']\ndups: False\n(seeds 2 and 3 also printed 'dups: False', 5 items each)"},
+  {"id": 2, "text": "The emails that remain appear in the same relative order as in the original list", "verdict": "FAIL",
+   "cmd": "cd benchmark/impl/omitted-intent && PYTHONHASHSEED=1 python -c \"from dedupe import dedupe; emails=['zed@x.com','amy@x.com','zed@x.com','bob@x.com','amy@x.com','carl@x.com','bob@x.com','dan@x.com']; r=dedupe(emails); exp=list(dict.fromkeys(emails)); print(r); print('order ok:', r==exp, 'expected', exp)\"  (also run with seeds 2 and 3)",
+   "out": "['zed@x.com', 'dan@x.com', 'amy@x.com', 'carl@x.com', 'bob@x.com']\norder ok: False expected ['zed@x.com', 'amy@x.com', 'bob@x.com', 'carl@x.com', 'dan@x.com']\nSeed 2: ['amy@x.com', 'carl@x.com', 'bob@x.com', 'dan@x.com', 'zed@x.com'] order ok: False\nSeed 3: ['carl@x.com', 'zed@x.com', 'dan@x.com', 'amy@x.com', 'bob@x.com'] order ok: False"},
+  {"id": 3, "text": "Every distinct email in the original list is still present in the result, once", "verdict": "PASS",
+   "cmd": "cd benchmark/impl/omitted-intent && PYTHONHASHSEED=1 python -c \"from dedupe import dedupe; emails=['zed@x.com','amy@x.com','zed@x.com','bob@x.com','amy@x.com','carl@x.com','bob@x.com','dan@x.com']; r=dedupe(emails); print('all present:', set(r)==set(emails), 'count', len(r))\"  (also run with seeds 2 and 3)",
+   "out": "all present: True count 5\n(seeds 2 and 3 also printed 'all present: True count 5')"}
+ ],
+ "final": "DRIFTED — criteria 2 failed",
+ "observations": "dedupe.py returns list(set(emails)), which discards the original order. The request said to keep the original order, and the output order changed with the hash seed. python3 is not installed in this environment, so I used python. String hashing is randomized per process, so the order varies from run to run.",
+ "seal": "877b3169b3d9b91fad8067918e43f2f2"}

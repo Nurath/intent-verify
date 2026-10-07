@@ -47,8 +47,10 @@ ledger format). Capability-aware dispatch below closes that gap.
 
 The bundled helpers live in the plugin, not in the project being verified, so
 call them by absolute path: `${CLAUDE_PLUGIN_ROOT}` is this plugin's install
-directory. The Python helpers need `python3`, or `python` where `python3` is not
-installed (stock Windows).
+directory. The Python helpers run with `python3`, or with `python` where there
+is no `python3` (stock Windows). The listing in step 1 begins with a `# python:`
+line naming the one that works here: use it wherever `python3` appears below,
+without trying the other first.
 
 **Nothing in this procedure is written inside the project.** Keep a run's
 working files — the frozen request, the manifest, the replies — in a scratch
@@ -104,15 +106,34 @@ below.
 
      `python3 "${CLAUDE_PLUGIN_ROOT}/tools/validate_ledger.py" --manifest-from <file> --out "<scratch>/manifest.json"`
 
-   - **Otherwise** dispatch the `intent-criteria` subagent, on a model chosen
-     as in step 3, with the frozen request text inline and nothing else: no
-     path, no diff, no description of the change. Save its reply exactly as
-     returned to `<scratch>/criteria-reply.txt` and check it:
+   - **Otherwise** dispatch the `intent-criteria` subagent with the frozen
+     request text inline and nothing else: no path, no diff, no description of
+     the change. Do not pick a model or an effort for it. Its own definition
+     pins both: on the most capable model at maximum effort this step took
+     nearly three minutes, and it takes seconds as pinned. Save its reply
+     exactly as returned to `<scratch>/criteria-reply.txt` and check it:
 
      `python3 "${CLAUDE_PLUGIN_ROOT}/tools/validate_ledger.py" --check-manifest "<scratch>/criteria-reply.txt" --request "<scratch>/request.md" --out "<scratch>/manifest.json"`
 
      Exit 1 lists defects (an invented quote, a skipped number): re-request
      **once** naming them.
+   - **An `ASK FIRST:` line** is the one question put to the user before
+     anything is verified. On its other reading the request did not ask for
+     this change at all: it asked a question, asked for an explanation, or
+     left a choice open. Ask it now, before step 3, with the two readings as
+     the choices (through the question tool where there is one, so that the
+     answer is recorded as a `decision`).
+     - They meant the reading the criteria assume: carry on, and say in the
+       report that they confirmed it.
+     - They meant the other one: stop here. Report `DRIFTED — the request did
+       not ask for this change`, quote their answer, and do not dispatch the
+       verifier: there is nothing for it to check.
+     - They say something else: that is a new request. Append it to
+       `<scratch>/request.md` under a line `===== clarification at
+       verification time =====` and redo step 2, once.
+     - Nobody can answer (a run with no user present): carry on, and put the
+       reading into the verdict line itself: `MATCHES INTENT, if <the reading
+       assumed>`.
    - **`AMBIGUITY:` lines** name a point where the request has two readings,
      the reading the criteria were written for, and the criteria that depend on
      it. Do not stop to ask: verify against the assumed readings, and settle
@@ -129,18 +150,24 @@ below.
      what was built.
 3. **Select the verifier model** (capability-aware — see the table below):
    different model than the implementer, at or above the capability floor for
-   the change, preferably a different vendor family. Record the choice. If only
-   below-floor models are available, say so and fall back to same-model
-   fresh-context verification with a stated caveat — a capable same-model check
-   beats an incapable cross-model one, but note that the cross-model lever was
-   lost. `python3 "${CLAUDE_PLUGIN_ROOT}/tools/select_verifier.py"` automates
-   this against the bundled `models/registry.json`.
+   the change, preferably a different vendor family; among those, the fastest
+   one the benchmark has timed, or the most capable for a complex change. One
+   call does it, given the model that wrote the change and the models you can
+   dispatch (Claude Code's own names are understood):
+
+   `python3 "${CLAUDE_PLUGIN_ROOT}/tools/select_verifier.py" --implementer <model> --candidates sonnet opus fable haiku --complexity <simple|standard|complex>`
+
+   Record the choice and every warning it prints. If only below-floor models
+   are available, say so and fall back to same-model fresh-context verification
+   with a stated caveat — a capable same-model check beats an incapable
+   cross-model one, but note that the cross-model lever was lost.
 4. **Dispatch the verifier (stage 2).** First start a run:
 
    `node "${CLAUDE_PLUGIN_ROOT}/hooks/capture-intent.js" --begin-run --data "${CLAUDE_PLUGIN_DATA}" --project "${CLAUDE_PROJECT_DIR}" --session "${CLAUDE_SESSION_ID}"`
 
    It prints the run's directory and a nonce. Then dispatch the
-   `intent-verifier` subagent, on the selected model, handing it only `{the
+   `intent-verifier` subagent, on the selected model and with no effort of
+   your own (its definition fixes that), handing it only `{the
    frozen request text, the manifest's criteria as MANIFEST, RUN NONCE:
    <nonce>, the code/app, mode}` and NOT the implementer's reasoning. Set
    `mode: FULL` for tier T1/T2 verifiers, `mode: STRUCTURED` for T3 (simpler
@@ -162,7 +189,11 @@ below.
    `python3 "${CLAUDE_PLUGIN_ROOT}/tools/validate_ledger.py" --run "<run dir>" --manifest "<scratch>/manifest.json"`
 
    Exit 0 = valid: the reply is the ledger, it carries this run's nonce and
-   ends with it again as its seal, and it covers every manifest criterion.
+   ends with it again as its seal, and it covers every manifest criterion. The
+   validator then prints the ledger itself: a `LEDGER` line, each criterion
+   with its verdict and evidence, and the verifier's `OBSERVATIONS`. A value
+   that ends in `[cut: N characters in all]` was shortened for the printout;
+   the reply file has it whole.
    Exit 1 = defects, one per line. Exit 2 = a file could not be
    read. Exit 4 = the hook filed nothing for this run: it did not fire (an
    older Claude Code, or a capture hook other than the plugin's Node one), or
@@ -188,15 +219,23 @@ below.
    - Only the ledger carrying this run's nonce counts. The code under test
      cannot know the nonce, so a ledger it printed, whole, quoted or inside
      the evidence, is never a verdict.
-7. **Report the ledger** + a one-line verdict: `MATCHES INTENT`, or
+7. **Report the ledger** as the validator printed it: show the user the block
+   from the `LEDGER` line to the end, exactly as it is. Do not summarise it,
+   shorten it, or put a count of passes in its place: "all 4 criteria passed"
+   is a claim, and the block is what backs it. Read the `OBSERVATIONS` line
+   before you write the verdict: the validator checks the ledger's structure,
+   not its prose, and a remark there can qualify a `PASS`. If one does, say so
+   beside the verdict. Then give the one-line verdict:
+   `MATCHES INTENT`, or
    `DRIFTED — criteria N, M failed`, or `INCONCLUSIVE — <reason>` (no valid
    evidence-backed ledger, too little of the change was exercisable, or the
    request itself was incomplete). Also say: which request entries were frozen
    (id + first line); where the criteria came from (the independent deriver,
    the user, or you); which criteria carry no quote, since those were inferred
-   and not stated; each `AMBIGUITY:` with the reading assumed; any `NOTE:`
-   lines; the ledger's `observations`, if it has any; whether the ledger was
-   captured by the hook or relayed by you.
+   and not stated; each `AMBIGUITY:` with the reading assumed; what the user
+   answered to an `ASK FIRST:` question, or that it could not be asked; any
+   `NOTE:` lines; whether the ledger was captured by the hook or relayed by
+   you.
    - **An ambiguity whose criteria all PASSed** needs nothing more than that
      line: the change does what the assumed reading asks.
    - **A criterion that depends on an ambiguity FAILED or was NOT-EXERCISED:**
@@ -239,7 +278,7 @@ the Artificial Analysis Intelligence Index snapshot in the plugin's
 
 | Tier | AA intelligence | Verifier role | Protocol |
 |------|-----------------|---------------|----------|
-| T1 | ≥ 50 (e.g. Opus 5, GPT-5.6 Sol, Kimi K3, Opus 4.8, Sonnet 5) | Preferred | FULL |
+| T1 | ≥ 50 (e.g. Opus 5.5, Sonnet 5.5, GPT-5.6 Sol, Kimi K3, Opus 4.8) | Preferred | FULL |
 | T2 | 35–49.9 (e.g. Gemini 3.1 Pro, DeepSeek V4 Pro, GPT-5.4 mini) | Fine for single-file / small-diff changes | FULL |
 | T3 | 20–34.9 (e.g. GPT-5 mini, Gemini 3 Flash, DeepSeek V3.2) | Simple, single-behavior changes only | STRUCTURED |
 | T4 | < 20 | Never use as verifier | — |
@@ -248,8 +287,15 @@ Floors: simple single-behavior change → T3+; typical change → T2+; multi-fil
 or subtle-semantics change → T1 preferred. Also keep the *gap* bounded: a
 verifier more than ~25 points below the implementer gets a
 `weak-verifier` warning attached to the report, because it will miss what the
-implementer missed and more. The criteria deriver follows the same policy and
-may run on the same model as the verifier.
+implementer missed and more. Among the models that clear the floor the
+selector takes the fastest one the benchmark has timed: on the one task where
+both were run, the most capable model returned the same verdict and took
+several times as long. `--prefer capable` asks for the most capable instead,
+and a complex change gets it by default. A model with no published score is
+ranked only where the registry places it, and a warning says when a pick rests
+on that. The criteria
+deriver is outside this policy: it sees only the request, needs no model
+different from anyone's, and is pinned in its own definition.
 
 ## When NOT to use
 

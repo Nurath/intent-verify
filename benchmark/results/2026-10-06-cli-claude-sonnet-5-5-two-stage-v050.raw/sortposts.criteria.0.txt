@@ -1,0 +1,7 @@
+{"manifest": 1,
+ "criteria": [
+   {"id": 1, "text": "Posts are ordered by their date, so a post with a later date appears before a post with an earlier date.", "quote": "Sort posts by date"},
+   {"id": 2, "text": "The ordering is newest first (descending by date), not oldest first.", "quote": "newest first"},
+   {"id": 3, "text": "Sorting does not drop or duplicate any posts: the same set of posts appears, only reordered.", "quote": null}
+ ],
+ "ambiguities": []}

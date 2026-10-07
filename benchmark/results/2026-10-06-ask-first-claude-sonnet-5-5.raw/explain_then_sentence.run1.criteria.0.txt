@@ -1,0 +1,7 @@
+{"manifest": 1,
+ "criteria": [
+  {"id": 1, "text": "When an export ends up writing an empty file, the user is shown a warning that says so", "quote": "warn the user"},
+  {"id": 2, "text": "After the warning, the user decides what happens next; the export does not automatically pick a remedy (such as retrying or locking) on their behalf", "quote": "they can choose what to do"},
+  {"id": 3, "text": "An export that writes a non-empty file does not show the empty-file warning", "quote": null}
+ ],
+ "ambiguities": []}

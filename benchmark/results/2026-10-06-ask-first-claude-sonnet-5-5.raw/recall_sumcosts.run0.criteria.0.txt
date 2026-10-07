@@ -1,0 +1,8 @@
+{"manifest": 1,
+ "criteria": [
+  {"id": 1, "text": "A function named sum_costs exists and can be called with a list of calls", "quote": "Add a sum_costs() aggregator"},
+  {"id": 2, "text": "For a non-empty list of calls, the result contains a total for each of the 5 cost fields, and each total is the sum of that field across all the calls", "quote": "sums the 5 cost fields across calls"},
+  {"id": 3, "text": "The returned totals are rounded rather than returned as raw unrounded sums", "quote": "rounds"},
+  {"id": 4, "text": "For an empty list, sum_costs returns a zero value for each of the 5 cost fields", "quote": "returns zeros for an empty list"}
+ ],
+ "ambiguities": []}

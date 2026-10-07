@@ -1,0 +1,8 @@
+{"manifest": 1,
+ "criteria": [
+   {"id": 1, "text": "Exchange rates are cached: a second lookup made within an hour of the first is served from the cache without fetching the rates again", "quote": "caching the exchange rates"},
+   {"id": 2, "text": "A cached exchange rate expires after one hour: a lookup made more than an hour after it was fetched fetches fresh rates", "quote": "for an hour"}
+ ],
+ "ambiguities": [
+   {"question": "Was this a request to add one-hour caching of exchange rates, or a question asking for an opinion on whether caching would be worthwhile?", "assumed": "The user wants the one-hour cache implemented", "criteria": [1, 2], "whether": true}
+ ]}

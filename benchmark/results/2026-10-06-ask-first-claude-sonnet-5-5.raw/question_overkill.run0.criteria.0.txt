@@ -1,0 +1,8 @@
+{"manifest": 1,
+ "criteria": [
+   {"id": 1, "text": "Blank rows in the input are skipped by the importer and produce no imported record", "quote": "skip blank rows"},
+   {"id": 2, "text": "Totals computed from imported data are the same with or without blank rows in the input", "quote": "Blank rows break the totals"}
+ ],
+ "ambiguities": [
+   {"question": "Was a change requested at all? \"Should the importer skip blank rows, or is that overkill?\" can be read as asking for an opinion on whether to do it, with the user still deciding.", "assumed": "The user wants the importer changed to skip blank rows, since they say blank rows break the totals.", "criteria": [1, 2], "whether": true}
+ ]}

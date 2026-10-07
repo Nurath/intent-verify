@@ -1,0 +1,322 @@
+{
+ "median": [
+  {
+   "stage": 1,
+   "session": "5e05c268-3e06-4065-b1b8-5e3ba9971b46",
+   "subtype": "success",
+   "turns": 1,
+   "seconds": 8.98,
+   "cost_usd": 0.0185566,
+   "tokens": 5022
+  },
+  {
+   "stage": 2,
+   "session": "eaa9a385-19a1-42bc-9a21-a0939669d95f",
+   "subtype": "success",
+   "turns": 3,
+   "seconds": 14.313,
+   "cost_usd": 0.17736480000000002,
+   "tokens": 112468
+  }
+ ],
+ "ratelimit": [
+  {
+   "stage": 1,
+   "session": "fb95adbb-56c4-4ac3-bf63-47ca093543fd",
+   "subtype": "success",
+   "turns": 1,
+   "seconds": 8.546,
+   "cost_usd": 0.0215766,
+   "tokens": 5333
+  },
+  {
+   "stage": 2,
+   "session": "d1a62ca7-8bcb-40ce-8998-d997e07e60da",
+   "subtype": "success",
+   "turns": 2,
+   "seconds": 12.691,
+   "cost_usd": 0.0660216,
+   "tokens": 76064
+  }
+ ],
+ "sortposts": [
+  {
+   "stage": 1,
+   "session": "28918dc4-137d-4a75-a3c1-c0fd8f004302",
+   "subtype": "success",
+   "turns": 1,
+   "seconds": 3.891,
+   "cost_usd": 0.0136826,
+   "tokens": 4531
+  },
+  {
+   "stage": 2,
+   "session": "7017446a-1c76-453c-8bed-875fd6c70983",
+   "subtype": "success",
+   "turns": 2,
+   "seconds": 11.977,
+   "cost_usd": 0.0604394,
+   "tokens": 74968
+  }
+ ],
+ "dedupe": [
+  {
+   "stage": 1,
+   "session": "3303d24e-d69a-4e2c-af1b-4f54d8de3129",
+   "subtype": "success",
+   "turns": 1,
+   "seconds": 6.567,
+   "cost_usd": 0.0181586,
+   "tokens": 4984
+  },
+  {
+   "stage": 2,
+   "session": "40d3b049-a09b-40f4-acd6-b5f0a06eba41",
+   "subtype": "success",
+   "turns": 3,
+   "seconds": 17.577,
+   "cost_usd": 0.0789298,
+   "tokens": 113799
+  }
+ ],
+ "search": [
+  {
+   "stage": 1,
+   "session": "fb4be823-3e30-4dd0-9e42-e2e584ebc570",
+   "subtype": "success",
+   "turns": 1,
+   "seconds": 5.599,
+   "cost_usd": 0.0172106,
+   "tokens": 4888
+  },
+  {
+   "stage": 2,
+   "session": "ef7362f6-6da5-468d-82e4-824cbebb0b5d",
+   "subtype": "success",
+   "turns": 2,
+   "seconds": 11.934,
+   "cost_usd": 0.0612334,
+   "tokens": 75072
+  }
+ ],
+ "roundprice": [
+  {
+   "stage": 1,
+   "session": "6e66be90-1107-42cb-bb29-7523d9d7037c",
+   "subtype": "success",
+   "turns": 1,
+   "seconds": 11.037,
+   "cost_usd": 0.022666600000000002,
+   "tokens": 5433
+  },
+  {
+   "stage": 2,
+   "session": "81f1519c-1b73-4995-bd83-432b1270c8c0",
+   "subtype": "success",
+   "turns": 2,
+   "seconds": 8.563,
+   "cost_usd": 0.056946,
+   "tokens": 74598
+  }
+ ],
+ "validate": [
+  {
+   "stage": 1,
+   "session": "d81efec5-e83e-4a5f-b94c-32509bb11211",
+   "subtype": "success",
+   "turns": 1,
+   "seconds": 7.517,
+   "cost_usd": 0.020744600000000002,
+   "tokens": 5248
+  },
+  {
+   "stage": 2,
+   "session": "cd187bec-4ac4-4745-9032-b5913bff829e",
+   "subtype": "success",
+   "turns": 3,
+   "seconds": 17.224,
+   "cost_usd": 0.0766638,
+   "tokens": 113652
+  }
+ ],
+ "sorttasks": [
+  {
+   "stage": 1,
+   "session": "236c929e-52ce-4743-ab64-53a67698d60c",
+   "subtype": "success",
+   "turns": 1,
+   "seconds": 6.385,
+   "cost_usd": 0.0169286,
+   "tokens": 4861
+  },
+  {
+   "stage": 2,
+   "session": "48722d1b-34e9-420a-8b79-b6930b94244a",
+   "subtype": "success",
+   "turns": 2,
+   "seconds": 12.403,
+   "cost_usd": 0.0647644,
+   "tokens": 75689
+  }
+ ],
+ "median_ok": [
+  {
+   "stage": 1,
+   "session": "fe6fc8b3-b768-48ee-b870-e3c309327d0e",
+   "subtype": "success",
+   "turns": 1,
+   "seconds": 8.945,
+   "cost_usd": 0.018076599999999998,
+   "tokens": 4974
+  },
+  {
+   "stage": 2,
+   "session": "5e0d6a9e-29e1-48f8-8cfe-ac7976a515f6",
+   "subtype": "success",
+   "turns": 2,
+   "seconds": 12.988,
+   "cost_usd": 0.060409199999999996,
+   "tokens": 75123
+  }
+ ],
+ "ratelimit_ok": [
+  {
+   "stage": 1,
+   "session": "2e02ea4e-274d-45a7-ac71-be1249f9afaf",
+   "subtype": "success",
+   "turns": 1,
+   "seconds": 8.078,
+   "cost_usd": 0.0210466,
+   "tokens": 5280
+  },
+  {
+   "stage": 2,
+   "session": "c14dc379-4ada-4d37-bbc7-91c09c2c2ebd",
+   "subtype": "success",
+   "turns": 2,
+   "seconds": 13.599,
+   "cost_usd": 0.06893679999999999,
+   "tokens": 76439
+  }
+ ],
+ "sortposts_ok": [
+  {
+   "stage": 1,
+   "session": "6cb69f7c-e2c3-4504-80b1-2c86a1ed6b95",
+   "subtype": "success",
+   "turns": 1,
+   "seconds": 7.038,
+   "cost_usd": 0.0159786,
+   "tokens": 4763
+  },
+  {
+   "stage": 2,
+   "session": "a412d869-a4fb-4b7b-8385-98387c497a01",
+   "subtype": "success",
+   "turns": 3,
+   "seconds": 11.813,
+   "cost_usd": 0.0695878,
+   "tokens": 112263
+  }
+ ],
+ "dedupe_ok": [
+  {
+   "stage": 1,
+   "session": "4c758579-7cab-4b8d-aeac-5584692df2d5",
+   "subtype": "success",
+   "turns": 1,
+   "seconds": 5.355,
+   "cost_usd": 0.0163806,
+   "tokens": 4805
+  },
+  {
+   "stage": 2,
+   "session": "3efe58ce-9fe9-4a22-995c-ded606afdd9d",
+   "subtype": "success",
+   "turns": 2,
+   "seconds": 12.073,
+   "cost_usd": 0.05973300000000001,
+   "tokens": 74937
+  }
+ ],
+ "search_ok": [
+  {
+   "stage": 1,
+   "session": "7bcac7d6-fee5-4e9e-b60e-ab4e4bd3a939",
+   "subtype": "success",
+   "turns": 1,
+   "seconds": 4.628,
+   "cost_usd": 0.014506600000000001,
+   "tokens": 4620
+  },
+  {
+   "stage": 2,
+   "session": "cda39f35-5f4f-4fa3-aed9-a0eb449cfccc",
+   "subtype": "success",
+   "turns": 2,
+   "seconds": 11.263,
+   "cost_usd": 0.0641942,
+   "tokens": 75659
+  }
+ ],
+ "roundprice_ok": [
+  {
+   "stage": 1,
+   "session": "82c87c10-5fdf-488b-9b0b-2706c0561062",
+   "subtype": "success",
+   "turns": 1,
+   "seconds": 7.515,
+   "cost_usd": 0.020196600000000002,
+   "tokens": 5186
+  },
+  {
+   "stage": 2,
+   "session": "845c1111-65f0-4193-ad1f-17b702e913ae",
+   "subtype": "success",
+   "turns": 3,
+   "seconds": 23.34,
+   "cost_usd": 0.073004,
+   "tokens": 113214
+  }
+ ],
+ "validate_ok": [
+  {
+   "stage": 1,
+   "session": "7c897642-6c87-42da-8ab4-436d28504ca6",
+   "subtype": "success",
+   "turns": 1,
+   "seconds": 5.727,
+   "cost_usd": 0.0180306,
+   "tokens": 4976
+  },
+  {
+   "stage": 2,
+   "session": "355c9934-eeec-4cf1-a5fe-ca722696ade6",
+   "subtype": "success",
+   "turns": 2,
+   "seconds": 10.405,
+   "cost_usd": 0.062456,
+   "tokens": 75441
+  }
+ ],
+ "sorttasks_ok": [
+  {
+   "stage": 1,
+   "session": "ed127558-4c7e-4aec-988e-f78229dd8345",
+   "subtype": "success",
+   "turns": 1,
+   "seconds": 5.016,
+   "cost_usd": 0.0168426,
+   "tokens": 4853
+  },
+  {
+   "stage": 2,
+   "session": "aa83f523-01e2-476f-b68b-4b632cbacf6d",
+   "subtype": "success",
+   "turns": 3,
+   "seconds": 12.675,
+   "cost_usd": 0.07347640000000001,
+   "tokens": 113115
+  }
+ ]
+}

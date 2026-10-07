@@ -1,0 +1,7 @@
+{"manifest": 1,
+ "criteria": [
+  {"id": 1, "text": "A search query matches items regardless of letter case: the same query in lower, upper, or mixed case returns the same results", "quote": "make the search case-insensitive"},
+  {"id": 2, "text": "Searching with a query whose case differs from the stored text (e.g. 'apple' against 'Apple') still finds that item", "quote": "make the search case-insensitive"},
+  {"id": 3, "text": "Searches that matched before the change (same-case queries) still return their previous matches", "quote": null}
+ ],
+ "ambiguities": []}

@@ -1,0 +1,9 @@
+{"manifest": 1,
+ "criteria": [
+  {"id": 1, "text": "The first 5 login attempts from one IP within a minute are handled normally, not blocked by the rate limit", "quote": "5 attempts per minute"},
+  {"id": 2, "text": "A 6th login attempt from the same IP within the same minute is rejected by the rate limit rather than processed as a normal login attempt", "quote": "Rate-limit login to 5 attempts per minute"},
+  {"id": 3, "text": "Once an IP has used up its 5 attempts, login attempts from a different IP in the same minute are still allowed", "quote": "different IPs are tracked independently"},
+  {"id": 4, "text": "Attempts from one IP do not count toward the limit of any other IP, so each IP gets its own 5 attempts per minute", "quote": "different IPs are tracked independently"},
+  {"id": 5, "text": "The limit is a rate, so an IP that was blocked can attempt to log in again after the minute has passed", "quote": "per minute"}
+ ],
+ "ambiguities": []}

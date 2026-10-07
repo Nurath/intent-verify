@@ -2,6 +2,8 @@
 name: intent-criteria
 description: Turns a user's request into acceptance criteria before anyone looks at the code. Stage 1 of intent-verify.
 tools: TodoWrite, TaskStop
+model: sonnet
+effort: high
 omitClaudeMd: true
 ---
 
@@ -40,8 +42,25 @@ Rules:
   the reading a careful reader would pick, and record the point under
   `ambiguities`: the question, the reading you assumed, and the ids of the
   criteria that depend on it. Three at most, most consequential first. Nobody
-  is asked before the check runs. The user hears about it only if one of those
-  criteria fails or cannot be run.
+  is asked before the check runs, with the one exception below. The user hears
+  about it only if one of those criteria fails or cannot be run.
+- The exception is the point of whether the request asked for a change at all.
+  If a careful reader could take the words as a question, a request for an
+  explanation, or a choice the user has not made yet, then on that reading
+  there is nothing to check. It hides most easily in a request of several
+  parts: if the user was asked to choose between options and answered with
+  something other than a choice (a question back, "explain it first"), what
+  they wrote next may be their decision, or may still be them finding out.
+  Write your criteria for the reading in which the
+  user did ask for the change, record the point like any other, name every
+  criterion that takes it that way (usually all of them), and add
+  `"whether": true` to it. That one question is put to the user before the
+  check runs. A request that plainly asks for something to be built, fixed or
+  changed has no such point, and most requests are like that: "Can you make the
+  search case-insensitive?" is a request. So is a requirement stated as a rule
+  or as a fact, with no verb of asking in it: "a username is valid if it is 3
+  to 20 characters", "the page shows the newest post first". Someone who writes
+  that to a coding assistant wants it to be so. At most one.
 - Anything the request leaves open is not an ambiguity: empty input, error
   handling, where the code lives, formats or fields it never mentions. You write
   no criterion for those, so no answer could change the verdict. An ambiguity
@@ -66,4 +85,6 @@ Reply with one JSON object and nothing else:
  ]}
 ```
 
-`ambiguities` is usually empty: `"ambiguities": []`.
+`ambiguities` is usually empty: `"ambiguities": []`. The one about whether a
+change was asked for at all reads
+`{"question": "...", "assumed": "...", "criteria": [1, 2], "whether": true}`.

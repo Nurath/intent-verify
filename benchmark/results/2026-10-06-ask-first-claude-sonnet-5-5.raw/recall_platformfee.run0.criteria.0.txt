@@ -1,0 +1,9 @@
+{"manifest": 1,
+ "criteria": [
+   {"id": 1, "text": "A platform_fee_pct fee exists and is identified by the name platform_fee_pct", "quote": "Add platform_fee_pct"},
+   {"id": 2, "text": "The platform_fee_pct amount is a percentage of the total, so it scales proportionally when the total changes", "quote": "a fee computed as a percentage of the total"},
+   {"id": 3, "text": "The fee appears as its own new line item alongside the existing line items rather than being folded into one of them", "quote": "added as a new line item"}
+ ],
+ "ambiguities": [
+   {"question": "Is platform_fee_pct the name of the fee line item itself, or the name of the configurable percentage rate used to compute the fee?", "assumed": "It names the fee line item that is added; the percentage rate is whatever is used to compute it", "criteria": [1, 3]}
+ ]}

@@ -1,0 +1,9 @@
+{"manifest": 1,
+ "criteria": [
+  {"id": 1, "text": "The details of the failed export (an export that wrote an empty file) are made available, so someone can see what happened in that run", "quote": "give the details of the failed export"},
+  {"id": 2, "text": "What causes the nightly export to sometimes write an empty file is explained", "quote": "first explain what is going wrong"},
+  {"id": 3, "text": "The choice of remedy is left to the operator: the export does not on its own retry the write or lock the file when it comes out empty", "quote": "the operator can decide"}
+ ],
+ "ambiguities": [
+  {"question": "Is the user asking for any change to the export at all, or only for an explanation and a report of the failed export that the operator will act on?", "assumed": "The user wants the failed export's details surfaced and the cause explained, with no automatic fix applied", "criteria": [1, 2, 3], "whether": true}
+ ]}

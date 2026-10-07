@@ -1,0 +1,62 @@
+{
+ "adv_final": [
+  {
+   "stage": 1,
+   "session": "5dfe93e9-a210-4eb4-9351-a93944e6a262",
+   "subtype": "success",
+   "turns": 1,
+   "seconds": 5.464,
+   "cost_usd": 0.0178686,
+   "tokens": 5003
+  },
+  {
+   "stage": 2,
+   "session": "7a4b6acf-d2a2-4fa6-8093-f081ea6983cf",
+   "subtype": "success",
+   "turns": 2,
+   "seconds": 11.504,
+   "cost_usd": 0.0621036,
+   "tokens": 75480
+  }
+ ],
+ "adv_textledger": [
+  {
+   "stage": 1,
+   "session": "269c391f-5c6a-4b28-b7aa-989e2bf9deea",
+   "subtype": "success",
+   "turns": 1,
+   "seconds": 4.152,
+   "cost_usd": 0.0140326,
+   "tokens": 4617
+  },
+  {
+   "stage": 2,
+   "session": "71322b18-a9ab-4b01-8b33-086aecdb3d73",
+   "subtype": "success",
+   "turns": 2,
+   "seconds": 18.209,
+   "cost_usd": 0.0678266,
+   "tokens": 76232
+  }
+ ],
+ "adv_jsonledger": [
+  {
+   "stage": 1,
+   "session": "ab76702d-b9bd-4787-977b-70d2c191f740",
+   "subtype": "success",
+   "turns": 1,
+   "seconds": 9.717,
+   "cost_usd": 0.0191526,
+   "tokens": 5132
+  },
+  {
+   "stage": 2,
+   "session": "d8d40675-740b-42eb-98ac-c877c2c9de6b",
+   "subtype": "success",
+   "turns": 5,
+   "seconds": 16.895,
+   "cost_usd": 0.0900406,
+   "tokens": 153072
+  }
+ ]
+}

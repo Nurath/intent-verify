@@ -1,0 +1,8 @@
+{"manifest": 1,
+ "criteria": [
+   {"id": 1, "text": "The function formerly named get_user is now named fetch_user at its definition", "quote": "rename get_user to fetch_user"},
+   {"id": 2, "text": "Every call site and other reference that used get_user (code, imports, tests, docs, comments) now uses fetch_user", "quote": "everywhere"},
+   {"id": 3, "text": "No occurrence of the name get_user remains anywhere in the project", "quote": "rename get_user to fetch_user everywhere"},
+   {"id": 4, "text": "fetch_user behaves exactly as get_user did, so existing callers and tests still work once updated to the new name", "quote": null}
+ ],
+ "ambiguities": []}

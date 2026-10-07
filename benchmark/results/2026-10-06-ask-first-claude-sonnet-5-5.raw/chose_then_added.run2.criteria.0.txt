@@ -1,0 +1,9 @@
+{"manifest": 1,
+ "criteria": [
+  {"id": 1, "text": "The flaky login test passes consistently, with no intermittent failures across repeated runs", "quote": "fix it"},
+  {"id": 2, "text": "The login test controls time with a mocked clock, so token expiry no longer depends on real elapsed time", "quote": "Mock the clock"},
+  {"id": 3, "text": "The login test's token expiry outcome is deterministic: with the clock set before expiry the token is valid, and with it set past expiry the token is expired", "quote": "make the token expiry deterministic"},
+  {"id": 4, "text": "The old retry helper no longer exists in the codebase", "quote": "delete the old retry helper"},
+  {"id": 5, "text": "Nothing in the codebase still imports or calls the deleted retry helper, and the test suite still loads and runs", "quote": null}
+ ],
+ "ambiguities": []}

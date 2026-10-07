@@ -286,6 +286,9 @@ def _retry_note(defects, previous, what):
 
 
 USAGE = []  # one record per model call, in call order; main() reads it per case
+# The effort both agents pin in their own definitions since 0.5.0. A run without
+# it would measure whatever the runner's settings say, or the model's default.
+EFFORT = "high"
 
 
 def run_cli(prompt, model, timeout, no_tools=False):
@@ -296,7 +299,7 @@ def run_cli(prompt, model, timeout, no_tools=False):
     # intent-verify does not log every benchmark prompt. (--bare would too, but
     # it ignores OAuth logins.)
     cmd = [shutil.which("claude") or "claude", "-p", "--safe-mode", "--output-format", "json",
-           "--model", model, "--max-turns", "15"]
+           "--model", model, "--effort", EFFORT, "--max-turns", "15"]
     cmd += ["--tools", ""] if no_tools else ["--allowedTools", "Bash,Read,Grep,Glob"]
     try:
         r = subprocess.run(cmd, input=prompt, capture_output=True, text=True,
@@ -371,7 +374,10 @@ def main(argv=None):
     ap.add_argument("--timeout", type=int, default=600, help="[cli] per-case seconds")
     ap.add_argument("--no-write", action="store_true", help="don't write a results file")
     ap.add_argument("--label", help="[cli] suffix for the results file name, so a re-run keeps the earlier one")
+    ap.add_argument("--effort", default=EFFORT, choices=["low", "medium", "high", "xhigh", "max"],
+                    help="[cli] effort level of every model call (default: what the plugin's agents pin)")
     a = ap.parse_args(argv)
+    globals()["EFFORT"] = a.effort
 
     cases = json.loads(_read(os.path.join(HERE, "cases.json")))["cases"]
     if a.suite != "all":
@@ -444,7 +450,7 @@ def main(argv=None):
         out.append("# Benchmark — %s — real verifier: %s%s (suite: %s, n=%d)\n" % (
             stamp, a.verifier, ", two-stage (criteria fixed first, by the same model)" if a.two_stage else "",
             a.suite, len(cases)))
-        out.append("Each call is `claude -p --safe-mode`: none of the runner's own CLAUDE.md, plugins,")
+        out.append("Each call is `claude -p --safe-mode --effort %s`: none of the runner's own CLAUDE.md, plugins," % EFFORT)
         out.append("hooks or MCP servers are loaded. Tokens and cost are as the CLI reports them; the")
         out.append("cost is at list price, whatever plan the runner is on.\n")
         rows = []
@@ -491,6 +497,8 @@ def main(argv=None):
                        % sum(len(m["ambiguities"]) for m in manifests))
             out.append("| ambiguities dropped: no criterion depends on them | %d |"
                        % sum(m.get("unlinked_ambiguities", 0) for m in manifests))
+            out.append("| of those kept, asked before verifying: the request may not ask for a change | %d |"
+                       % sum(1 for m in manifests for x in m["ambiguities"] if x.get("whether")))
         out.append("\n| case | expected | got | retries | manifest criteria | stage-1 tokens | stage-2 tokens | note |\n"
                    "|---|---|---|---|---|---|---|---|")
         for r in rows:

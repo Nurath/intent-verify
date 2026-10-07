@@ -1,0 +1,8 @@
+{"manifest": 1,
+ "criteria": [
+  {"id": 1, "text": "A weekend_surcharge exists, under that name.", "quote": "weekend_surcharge"},
+  {"id": 2, "text": "On a weekend day (Saturday or Sunday), the telephony cost is multiplied by 1.5 (a telephony cost of 10.00 becomes 15.00).", "quote": "multiplies telephony cost only by 1.5 on weekends"},
+  {"id": 3, "text": "On a weekday, the telephony cost is not changed by the weekend_surcharge (the factor is effectively 1).", "quote": "on weekends"},
+  {"id": 4, "text": "Costs other than telephony are not multiplied by the weekend_surcharge, on weekends or on weekdays.", "quote": "telephony cost only"}
+ ],
+ "ambiguities": []}

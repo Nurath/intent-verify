@@ -66,14 +66,18 @@ A MANIFEST is the list of criteria fixed before anyone looked at the code
     {"manifest": 1,
      "criteria": [{"id": 1, "text": "...", "quote": "..." | null}, ...],
      "ambiguities": [{"question": "...", "assumed": "...", "criteria": [1]}, ...]}
+(an ambiguity may also carry "whether": true)
 --check-manifest validates a deriver's reply, which is that object and nothing
 after it: ids run 1..N, each text is one line, no key is unknown or written
 twice, and every quote really occurs in the request as whole words, so a
 criterion cannot be invented and attributed to the user. An ambiguity must name
 existing criteria and the reading they assume; one that names none is dropped
-and counted, since no answer to it could change the verdict. It also lists the
-parts of the request no criterion quotes; that is a hint, since it may be
-context or a missed requirement.
+and counted, since no answer to it could change the verdict. At most one may be
+marked "whether": true, meaning that on the other reading the request asked for
+no change at all. It is printed as ASK FIRST, because it is put to the user
+before anything is verified. The check also lists the parts of the request no
+criterion quotes; that is a hint, since it may be context or a missed
+requirement.
 
 What it cannot do:
   - detect *forged* output -- that is why below-floor models are excluded by
@@ -95,7 +99,8 @@ Usage (use `python` where `python3` is not installed, e.g. stock Windows):
   validate_ledger.py --check-manifest REPLY [--request FILE] [--out MANIFEST]
   validate_ledger.py --manifest-from FILE [--out MANIFEST]
 Exit codes: 0 valid; 1 invalid (defects on stdout, one per line, so they can be
-quoted in the single bounded re-request); 2 usage error or unreadable file;
+quoted in the single bounded re-request; a valid ledger is printed criterion
+by criterion after the VALID line); 2 usage error or unreadable file;
 4 --run holds no captured reply; 3 the validator itself failed, which says
 nothing about what it was given.
 """
@@ -113,6 +118,12 @@ VERDICTS = {"PASS", "FAIL", "NOT-EXERCISED"}
 STRUCTURED_BUDGET = 5
 NOTES_SHOWN = 10
 MIN_QUOTE = 4
+REPORT_FINAL, REPORT_CMD, REPORT_OUT, REPORT_NOTE = 120, 200, 300, 800  # characters of each value that are printed
+# The verifier's remarks are where a caveat to a verdict goes, so they are
+# printed nearly whole. The two verifications kept from real sessions wrote 939
+# and 4,536 characters of them; the limit for other notes cut both, the second
+# one in the middle of the caveat that mattered.
+REPORT_OBSERVATIONS = 6000
 MAX_FAILED_SCANS = 200
 # capture-intent.js --begin-run makes 32 characters; the M4 runs of 2026-10-05 used 16.
 NONCE = re.compile(r"[0-9a-f]{16,64}\Z")
@@ -145,10 +156,15 @@ def _norm(s):
     return _squash(s.translate(_QUOTE_MARKS)).casefold()
 
 
+# Printable as far as Python knows, and blank to a reader: the Hangul and Khmer
+# fillers and the empty Braille cell.
+_BLANK_GLYPHS = frozenset("\u115f\u1160\u17b4\u17b5\u2800\u3164\uffa0")
+
+
 def _blank(s):
     """True for a string that shows nothing: empty, or only spaces and characters
     without a glyph. A zero-width space is not evidence."""
-    return not any(ch.isprintable() and not ch.isspace() for ch in s or "")
+    return not any(ch.isprintable() and not ch.isspace() and ch not in _BLANK_GLYPHS for ch in s or "")
 
 
 def extract_ledger(text):
@@ -538,6 +554,7 @@ def validate_json(text, manifest, nonce, unsealed=False):
         defects.append('"final" must be a string')
     ledger = {"mode": obj.get("mode") if obj.get("mode") in ("FULL", "STRUCTURED") else None,
               "criteria": [], "stray_verdicts": 0,
+              "observations": obj.get("observations") if isinstance(obj.get("observations"), str) else None,
               "final": " ".join(final.split()) if isinstance(final, str) and not _blank(final) else None}
     for position, entry in enumerate(entries, 1):
         if not isinstance(entry, dict):
@@ -559,6 +576,46 @@ def validate_json(text, manifest, nonce, unsealed=False):
             # Kept exactly as written: a command may span lines, and output is data.
             "cmd": said(entry, "cmd"), "out": said(entry, "out"), "reason": said(entry, "reason")})
     return ledger, defects + _check(ledger, manifest, _JSON_NAMES, False)
+
+
+def _one_line(value, limit):
+    """A value as one line of what the validator prints, cut to `limit`
+    characters. Every kind of line break becomes a visible mark and a character
+    without a glyph becomes a space, so nothing a program printed can start a
+    line of its own, or wipe one on a terminal, and pass for the validator's.
+    Everything printed that a reply or a request supplied goes through here."""
+    value = value or ""
+    # Only the start is worked on: a 9 MB value used to be flattened whole to
+    # show 300 characters of it.
+    head = value[:limit * 4 + 64]
+    flat = " \u23ce ".join(" ".join(part.split()) for part in head.splitlines() if part.strip())
+    shown, stacked = [], 0
+    for ch in flat:
+        stacked = stacked + 1 if unicodedata.combining(ch) else 0
+        if stacked <= 2:  # a pile of combining marks is drawn over the lines around it
+            shown.append(ch if ch.isprintable() else " ")
+    flat = "".join(shown)
+    if len(flat) > limit or len(head) < len(value):
+        return f"{flat[:limit]} \u2026 [cut: {len(value)} characters in all]"
+    return flat
+
+
+def ledger_lines(ledger):
+    """A valid ledger as a report shows it: a line per criterion with its
+    evidence beneath, then the verifier's observations. It is printed so that
+    showing the ledger is a paste; the first real run reported "passed all 4
+    criteria" and showed none of them."""
+    lines = ["LEDGER"]
+    for c in ledger["criteria"]:
+        lines.append(f"  {c['n']} {c['verdict']}  {_one_line(c['text'], REPORT_OUT)}")
+        if c["verdict"] == "NOT-EXERCISED":
+            lines.append("      why: " + _one_line(c["reason"], REPORT_OUT))
+        else:
+            lines.append("      ran: " + _one_line(c["cmd"], REPORT_CMD))
+            lines.append("      saw: " + _one_line(c["out"], REPORT_OUT))
+    if not _blank(ledger.get("observations")):
+        lines.append("OBSERVATIONS: " + _one_line(ledger["observations"], REPORT_OBSERVATIONS))
+    return lines
 
 
 def captured_reply(run_dir):
@@ -630,28 +687,44 @@ def check_manifest(text, request=None):
     # One that names none cannot change the verdict, so nobody should be asked
     # it: in the 0.3.1 controlled run the deriver raised 41 such questions on 16
     # one-line requests, and the verdicts needed none of them.
-    ambiguities, unlinked = [], 0
+    ambiguities, unlinked, asked_first = [], 0, 0
     raw_amb = obj.get("ambiguities") or []
     if not isinstance(raw_amb, list):
         defects.append("'ambiguities' must be a list")
         raw_amb = []
     ids = {c["id"] for c in criteria}
     for j, a in enumerate(raw_amb, 1):
+        whether = False
         if isinstance(a, dict):
-            defects += _unknown(a, ("question", "assumed", "criteria"), f"ambiguity {j}")
+            defects += _unknown(a, ("question", "assumed", "criteria", "whether"), f"ambiguity {j}")
+            if "whether" in a and type(a["whether"]) is not bool:
+                defects.append(f"ambiguity {j}: 'whether' must be true or false")
+            whether = a.get("whether") is True
         if isinstance(a, str) or (isinstance(a, dict) and not a.get("criteria")):
-            unlinked += 1
+            if whether:
+                # Not dropped like any other that names no criterion: this one
+                # decides whether there is anything to verify.
+                defects.append(f"ambiguity {j}: one marked 'whether' must name the criteria that take the request to "
+                               "ask for this change (usually all of them)")
+            else:
+                unlinked += 1
             continue
         question, assumed, linked = (a.get(k) for k in ("question", "assumed", "criteria")) if isinstance(a, dict) else (None,) * 3
-        if not isinstance(question, str) or not question.strip():
+        if not isinstance(question, str) or _blank(question):
             defects.append(f"ambiguity {j}: must be an object with 'question', 'assumed' and 'criteria'")
         elif not isinstance(linked, list) or any(type(n) is not int or n not in ids for n in linked):
             defects.append(f"ambiguity {j}: 'criteria' must list ids of this manifest's criteria, found {linked!r}")
-        elif not isinstance(assumed, str) or not assumed.strip():
+        elif not isinstance(assumed, str) or _blank(assumed):
             defects.append(f"ambiguity {j}: 'assumed' must say which reading criteria {linked} were written for")
         else:
             ambiguities.append({"question": " ".join(question.split()), "assumed": " ".join(assumed.split()),
                                 "criteria": linked})
+            if whether:
+                ambiguities[-1]["whether"] = True
+                asked_first += 1
+    if asked_first > 1:
+        # 0.3.1 put 41 questions to the user before checking 16 one-line requests.
+        defects.append("only one ambiguity may be marked 'whether': it is put to the user before anything is verified")
     manifest = {"manifest": 1, "criteria": criteria, "ambiguities": ambiguities}
     if unlinked:
         manifest["unlinked_ambiguities"] = unlinked
@@ -710,16 +783,18 @@ def _emit_manifest(manifest, notes, out):
     data = json.dumps(manifest, ensure_ascii=False, indent=2) + "\n"
     print(f"VALID: {len(manifest['criteria'])} criteria")
     for c in manifest["criteria"]:
-        print(f"  {c['id']}. {c['text']}  " + (f"[quote: {c['quote']!r}]" if c["quote"] else "[no quote]"))
+        print(f"  {c['id']}. {_one_line(c['text'], REPORT_NOTE)}  " + (f"[quote: {c['quote']!r}]" if c["quote"] else "[no quote]"))
     for a in manifest["ambiguities"]:
-        print(f"AMBIGUITY: {a['question']} — criteria {', '.join(map(str, a['criteria']))} assume: {a['assumed']}")
+        label = "ASK FIRST" if a.get("whether") else "AMBIGUITY"
+        print(f"{label}: {_one_line(a['question'], REPORT_NOTE)} — criteria {', '.join(map(str, a['criteria']))} "
+              f"assume: {_one_line(a['assumed'], REPORT_NOTE)}")
     if manifest.get("unlinked_ambiguities"):
         print(f"DROPPED: {manifest['unlinked_ambiguities']} ambiguity question(s) that no criterion depends on; "
               "no answer to them could change the verdict")
     # A hint, so it must stay readable: a long request has hundreds of sentences
     # that are context and not requirements.
     for n in notes[:NOTES_SHOWN]:
-        print(f"NOTE: no criterion quotes this part of the request: {n}")
+        print(f"NOTE: no criterion quotes this part of the request: {_one_line(n, REPORT_NOTE)}")
     if len(notes) > NOTES_SHOWN:
         print(f"NOTE: ... and {len(notes) - NOTES_SHOWN} more parts of the request that no criterion quotes")
     if out:
@@ -824,7 +899,11 @@ def main(argv):
     if defects:
         return _report(defects)
     covered = f" (all {len(manifest['criteria'])} manifest criteria covered)" if manifest else ""
-    print(f"VALID: {len(ledger['criteria'])} criteria{covered}, final = {ledger['final']}" + (f" ({source})" if source else ""))
+    # The conclusion is the verifier's own text and goes through the same filter
+    # as its evidence: escape codes in it used to redraw this line as a match.
+    print(f"VALID: {len(ledger['criteria'])} criteria{covered}, final = {_one_line(ledger['final'], REPORT_FINAL)}"
+          + (f" ({source})" if source else ""))
+    print("\n".join(ledger_lines(ledger)))
     return 0
 
 

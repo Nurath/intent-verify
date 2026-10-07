@@ -1,0 +1,9 @@
+{"manifest": 1,
+ "criteria": [
+  {"id": 1, "text": "A function or method named fetch_user exists where get_user was defined", "quote": "rename get_user to fetch_user"},
+  {"id": 2, "text": "No definition named get_user remains", "quote": "rename get_user to fetch_user"},
+  {"id": 3, "text": "Every call site, import, and other reference that used get_user now uses fetch_user", "quote": "everywhere"},
+  {"id": 4, "text": "No occurrence of get_user remains anywhere in the project, including tests, docs, and comments", "quote": "everywhere"},
+  {"id": 5, "text": "Behavior is unchanged: fetch_user takes the same arguments and returns the same results that get_user did", "quote": null}
+ ],
+ "ambiguities": []}

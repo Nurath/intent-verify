@@ -1,0 +1,13 @@
+{"ledger": 2,
+ "nonce": "d1cabe5608440a9aebc3d446ded00708",
+ "mode": "FULL",
+ "criteria": [
+  {"id": 1, "text": "A username whose length after trimming is between 3 and 20 characters (inclusive) is valid", "verdict": "PASS", "cmd": "cd benchmark/impl/omitted-intent && python -I -c 'from validate import valid_username as v; ...' (inputs: 'abc', 'a'*20, 'a'*10)", "out": "1a abc 'abc' True\n1b 20x 'aaaaaaaaaaaaaaaaaaaa' True\n1c 10x 'aaaaaaaaaa' True"},
+  {"id": 2, "text": "A username whose length after trimming is fewer than 3 characters is not valid", "verdict": "PASS", "cmd": "same script (inputs: 'ab', '')", "out": "2a ab 'ab' False\n2b empty '' False"},
+  {"id": 3, "text": "A username whose length after trimming is more than 20 characters is not valid", "verdict": "PASS", "cmd": "same script (input: 'a'*21)", "out": "3a 21x 'aaaaaaaaaaaaaaaaaaaaa' False"},
+  {"id": 4, "text": "Leading and trailing whitespace does not count toward the length: a 3-character name padded with spaces is valid, even when the padded length exceeds 20", "verdict": "FAIL", "cmd": "same script (inputs: 11 spaces+'abc'+11 spaces; 2 spaces+'a'*20+2 spaces)", "out": "4a pad abc to 25 '           abc           ' False\n4b 20 chars padded '  aaaaaaaaaaaaaaaaaaaa  ' False"},
+  {"id": 5, "text": "Surrounding whitespace cannot make a too-short name valid: a 2-character name padded with spaces to 3 or more characters is not valid", "verdict": "FAIL", "cmd": "same script (inputs: '  ab  ', '    ab    ')", "out": "5a pad ab '  ab  ' True\n5b pad ab 10 '    ab    ' True"}
+ ],
+ "final": "DRIFTED — criteria 4, 5 failed",
+ "observations": "The code measures len(u) without trimming, so surrounding whitespace is counted. The trimming requirement in the original request is missing entirely. Unpadded inputs behave correctly, which is why criteria 1-3 pass.",
+ "seal": "d1cabe5608440a9aebc3d446ded00708"}

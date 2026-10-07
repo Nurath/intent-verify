@@ -1,0 +1,7 @@
+{"manifest": 1,
+ "criteria": [
+  {"id": 1, "text": "After exchange rates have been fetched once, a repeat request for exchange rates within the next hour is answered from the cache without fetching them again from the source", "quote": "cache the exchange rates"},
+  {"id": 2, "text": "Cached exchange rates expire one hour after they were fetched: a request made after that hour fetches fresh rates from the source", "quote": "for an hour"},
+  {"id": 3, "text": "A request served from the cache returns the same rates that the earlier fetch returned", "quote": null}
+ ],
+ "ambiguities": []}

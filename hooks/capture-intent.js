@@ -484,6 +484,26 @@ function sourceOf(entry) {
 // them. session: an id narrows the listing to that session; '' means the
 // caller asked for scoping but had no id to give, which is said out loud
 // because an unscoped listing looks exactly like a scoped one.
+//
+// Which command runs Python 3 here. The skill's other helpers are Python, a
+// stock Windows has no `python3`, and a session that tried it first lost a
+// call finding out. The listing is the skill's first command, so it says.
+// Only this reader asks: the hook itself never starts a process.
+function pythonCommand(run) {
+  const spawn = run || require('child_process').spawnSync;
+  for (const cmd of ['python3', 'python']) {
+    try {
+      const r = spawn(cmd, ['--version'], { encoding: 'utf8', timeout: 5000, windowsHide: true });
+      if (r.status === 0 && /Python 3/.test(`${r.stdout || ''}${r.stderr || ''}`)) return cmd;
+    } catch (_) { /* not installed */ }
+  }
+  return null;
+}
+
+function pythonLine(cmd) {
+  return cmd ? `# python: ${cmd}\n` : '# python: none found (the validator needs Python 3)\n';
+}
+
 function list(roots, project, session, limit, all) {
   const everything = readProject(roots, project);
   let rows = everything;
@@ -650,6 +670,13 @@ function selftest() {
      listing.includes('2 background-agent reports hidden') && list(roots, project, 's1', 20, true).includes('hand-back body'));
   ok('list-keeps-a-message-from-another-session', listing.includes('please also add tests') && listing.includes('  agent-message  '));
   ok('list-flags-unknown-session', list(roots, project, 'nope', 3, false).includes('NO entries for session nope'));
+  // A stock Windows: `python3` is a stub that exits non-zero, `python` is the real one.
+  const fakeSpawn = (cmd) => (cmd === 'python' ? { status: 0, stdout: 'Python 3.14.3\n' } : { status: 9009, stderr: 'Python was not found' });
+  ok('list-names-the-python-that-works', pythonCommand(fakeSpawn) === 'python' &&
+    pythonCommand(() => ({ status: 0, stdout: 'Python 3.12.1\n' })) === 'python3' &&
+    pythonCommand(() => ({ status: 0, stdout: 'Python 2.7.18\n' })) === null &&
+    pythonCommand(() => { throw new Error('ENOENT'); }) === null &&
+    pythonLine('python') === '# python: python\n' && pythonLine(null).startsWith('# python: none found'));
   ok('list-flags-missing-session-id', list(roots, project, '', 3, false).includes('session id unavailable'));
   ok('list-says-where-it-looked', list(roots, path.join(tmp, 'elsewhere'), 's1', 3, false).includes('# looked in: '));
   fs.mkdirSync(path.join(project, '.intent'));
@@ -757,7 +784,8 @@ if (require.main === module) {
   } else if (argv.includes('--list')) {
     const limit = parseInt(arg('--limit'), 10);
     const session = argv.includes('--session') ? (arg('--session') || '') : null;
-    process.stdout.write(list(roots, project, session, Number.isFinite(limit) && limit > 0 ? limit : 10, argv.includes('--all')));
+    process.stdout.write(pythonLine(pythonCommand()) +
+      list(roots, project, session, Number.isFinite(limit) && limit > 0 ? limit : 10, argv.includes('--all')));
     process.exit(0);
   } else if (argv.includes('--show')) {
     const id = arg('--show');

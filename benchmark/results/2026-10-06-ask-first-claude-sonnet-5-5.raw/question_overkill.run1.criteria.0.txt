@@ -1,0 +1,9 @@
+{"manifest": 1,
+ "criteria": [
+  {"id": 1, "text": "Importing a file that contains blank rows produces no records for those blank rows", "quote": "skip blank rows"},
+  {"id": 2, "text": "Totals computed from data imported from a file containing blank rows are the same as totals from the same file without the blank rows", "quote": "Blank rows break the totals"},
+  {"id": 3, "text": "Rows that are not blank are still imported when blank rows are present", "quote": null}
+ ],
+ "ambiguities": [
+  {"question": "Was this a request to make the importer skip blank rows, or a question asking for an opinion on whether it should (with no change requested yet)?", "assumed": "The user wants the importer changed to skip blank rows", "criteria": [1, 2, 3], "whether": true}
+ ]}

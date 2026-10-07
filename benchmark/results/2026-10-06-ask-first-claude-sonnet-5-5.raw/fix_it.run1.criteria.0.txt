@@ -1,0 +1,6 @@
+{"manifest": 1,
+ "criteria": [
+   {"id": 1, "text": "When the input contains a blank row, the totals come out correct, equal to the totals for the same rows with the blank row left out.", "quote": "The totals are wrong when a row is blank"},
+   {"id": 2, "text": "Totals for input with no blank rows are the same as before the fix.", "quote": null}
+ ],
+ "ambiguities": []}

@@ -1,0 +1,8 @@
+{"manifest": 1,
+ "criteria": [
+   {"id": 1, "text": "A search query matches text that differs from it only in letter case (for example, a lowercase query finds an uppercase or mixed-case occurrence, and the reverse)", "quote": "make the search case-insensitive"},
+   {"id": 2, "text": "Searches whose query already matches the text's case still return those same matches", "quote": null}
+ ],
+ "ambiguities": [
+   {"question": "Is 'What would it take to...' a request to make the search case-insensitive, or only a question asking for an explanation of what the change would involve?", "assumed": "The user wants the search changed to be case-insensitive, not just an explanation of what it would take", "criteria": [1, 2], "whether": true}
+ ]}

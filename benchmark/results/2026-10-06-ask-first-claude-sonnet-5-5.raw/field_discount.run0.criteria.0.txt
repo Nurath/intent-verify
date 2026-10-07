@@ -1,0 +1,8 @@
+{"manifest": 1,
+ "criteria": [
+  {"id": 1, "text": "A discount_pct parameter is accepted by the cost calculation", "quote": "Add a discount_pct parameter"},
+  {"id": 2, "text": "With discount_pct set, the LLM cost line is reduced by that percentage", "quote": "discounts the LLM cost"},
+  {"id": 3, "text": "With discount_pct set, every cost line other than the LLM cost keeps the value it has without a discount", "quote": "LLM cost only"},
+  {"id": 4, "text": "The total is computed using the discounted LLM line, so it equals the discounted LLM cost plus the unchanged other lines", "quote": "the total must reflect the discounted LLM line"}
+ ],
+ "ambiguities": []}

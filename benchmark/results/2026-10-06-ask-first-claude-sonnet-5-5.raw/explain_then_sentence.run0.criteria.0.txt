@@ -1,0 +1,6 @@
+{"manifest": 1,
+ "criteria": [
+  {"id": 1, "text": "When an export has written an empty file, the user is shown a warning that says so", "quote": "warn the user"},
+  {"id": 2, "text": "After the warning the user is offered a choice of what to do next, and the export does not pick a remedy for them", "quote": "they can choose what to do"}
+ ],
+ "ambiguities": []}

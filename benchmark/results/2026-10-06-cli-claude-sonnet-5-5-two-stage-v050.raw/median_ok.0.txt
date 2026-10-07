@@ -1,0 +1,12 @@
+{"ledger": 2,
+ "nonce": "58fa13d1d7d3ff29ba4bf73299a68c26",
+ "mode": "FULL",
+ "criteria": [
+  {"id": 1, "text": "A function named middle exists that takes a single list argument, nums", "verdict": "PASS", "cmd": "cd benchmark/impl/correct && python -I -c \"import sys,inspect; sys.path.insert(0,'.'); import median_ok as m; print(inspect.signature(m.middle))\"", "out": "(nums)"},
+  {"id": 2, "text": "For a list of odd length, middle returns the element that sits in the centre once the list is sorted (e.g. [3, 1, 2] gives 2)", "verdict": "PASS", "cmd": "python -I -c \"... print(m.middle([3,1,2])); print(m.middle([5,9,1,7,3]), m.middle([1,3,5,7,9]))\"", "out": "2\n5 5"},
+  {"id": 3, "text": "For a list of even length, middle returns the average of the two central values once sorted (e.g. [4, 1, 3, 2] gives 2.5)", "verdict": "PASS", "cmd": "python -I -c \"... print(m.middle([4,1,3,2])); print(m.middle([10,2,8,4,6,1]))\"", "out": "2.5\n5.0"},
+  {"id": 4, "text": "The result does not depend on the order of the input list: an unsorted list gives the same result as the same values sorted", "verdict": "PASS", "cmd": "python -I -c \"... print(m.middle([5,9,1,7,3]), m.middle([1,3,5,7,9])); print(m.middle([10,2,8,4,6,1]), m.middle(sorted([10,2,8,4,6,1])))\"", "out": "5 5\n5.0 5.0"}
+ ],
+ "final": "MATCHES INTENT",
+ "observations": "python3 is not installed here, so Python 3.14.3 (python) was used. The input list was not mutated: [4, 1, 3, 2] was unchanged after the call. Empty-list input was not exercised, since the request did not specify it.",
+ "seal": "58fa13d1d7d3ff29ba4bf73299a68c26"}

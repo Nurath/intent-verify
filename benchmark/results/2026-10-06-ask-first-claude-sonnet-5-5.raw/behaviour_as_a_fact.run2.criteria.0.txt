@@ -1,0 +1,6 @@
+{"manifest": 1,
+ "criteria": [
+   {"id": 1, "text": "The orders page lists orders with the newest order first", "quote": "shows the newest order first"},
+   {"id": 2, "text": "No page of the orders listing contains more than 50 orders", "quote": "never more than 50 on a page"}
+ ],
+ "ambiguities": []}

@@ -1,0 +1,6 @@
+{"manifest": 1,
+ "criteria": [
+   {"id": 1, "text": "A search returns the same matches whatever the letter case of the query, so a lowercase, uppercase or mixed-case query finds text that differs from it only in case", "quote": "case-insensitive"},
+   {"id": 2, "text": "A search whose query has exactly the same case as the text still finds that text", "quote": null}
+ ],
+ "ambiguities": []}

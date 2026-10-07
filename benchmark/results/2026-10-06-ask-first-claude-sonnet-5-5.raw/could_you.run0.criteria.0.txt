@@ -1,0 +1,8 @@
+{"manifest": 1,
+ "criteria": [
+  {"id": 1, "text": "The importer accepts a --dry-run command-line flag without erroring on it as an unknown option.", "quote": "add a --dry-run flag to the importer"},
+  {"id": 2, "text": "When run with --dry-run, the importer prints a description of the actions it would take for the given input.", "quote": "prints what it would do"},
+  {"id": 3, "text": "When run with --dry-run, the importer writes nothing: no files, database records, or other persistent state are created or modified.", "quote": "without writing anything"},
+  {"id": 4, "text": "When run without --dry-run, the importer behaves as it did before, performing its writes normally.", "quote": null}
+ ],
+ "ambiguities": []}

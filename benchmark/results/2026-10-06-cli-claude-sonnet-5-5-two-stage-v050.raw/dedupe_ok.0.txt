@@ -1,0 +1,11 @@
+{"ledger": 2,
+ "nonce": "233782b4cc64ac059dd9bf11e6fbcd19",
+ "mode": "FULL",
+ "criteria": [
+  {"id": 1, "text": "In the resulting list, no email address appears more than once", "verdict": "PASS", "cmd": "cd benchmark/impl/correct && python -c \"from dedupe_ok import dedupe; inp=['b@x.com','a@x.com','b@x.com','c@x.com','a@x.com','d@x.com','c@x.com']; out=dedupe(inp); print(out); print('nodup',len(out)==len(set(out)))\"", "out": "['b@x.com', 'a@x.com', 'c@x.com', 'd@x.com']\nnodup True"},
+  {"id": 2, "text": "The emails that remain appear in the same relative order as in the original list", "verdict": "PASS", "cmd": "same script: compared out to exp=[e for i,e in enumerate(inp) if e not in inp[:i]] (first-occurrence order) on the unsorted input", "out": "order True (result ['b@x.com', 'a@x.com', 'c@x.com', 'd@x.com'] is not sorted, and matches first-seen order)"},
+  {"id": 3, "text": "Every distinct email address in the original list is still present in the result (only repeats are removed)", "verdict": "PASS", "cmd": "same script: set(out)==set(inp); also dedupe([]) and dedupe(['z@x.com'])", "out": "allpresent True\n[] ['z@x.com']"}
+ ],
+ "final": "MATCHES INTENT",
+ "observations": "Only exact string equality was tested; case variants or whitespace around addresses (e.g. 'A@x.com' vs 'a@x.com') are treated as distinct, which the request did not specify. The input list is not mutated (checked: it printed unchanged). python3 is not installed, so python (3.14.3) was used.",
+ "seal": "233782b4cc64ac059dd9bf11e6fbcd19"}

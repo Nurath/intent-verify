@@ -1,0 +1,10 @@
+{"ledger": 2,
+ "nonce": "27f99902b1c935b27f242a6c75bc5ed5",
+ "mode": "FULL",
+ "criteria": [
+  {"id": 1, "text": "Posts come back ordered by their date, with the most recent post first and the oldest last", "verdict": "PASS", "cmd": "python $TEMP/t_sp.py  (imports sort_posts from sortposts_ok.py; 5 posts with ISO dates, unsorted input, one duplicate date)", "out": "[(2, '2024-01-15'), (4, '2024-01-15'), (1, '2023-05-01'), (5, '2022-07-04'), (3, '2021-12-31')]\ndesc: True"},
+  {"id": 2, "text": "Sorting does not drop or duplicate any posts: the same set of posts is returned, only reordered", "verdict": "PASS", "cmd": "python $TEMP/t_sp.py  (compares sorted ids and lengths of output vs. input copy; also empty input)", "out": "same set: True True\nempty: []"}
+ ],
+ "final": "MATCHES INTENT",
+ "observations": "python3 was not installed, so python was used. Tested only with ISO-format string dates, which sort correctly lexicographically. Date formats like 'MM/DD/YYYY' strings were not tested. The code does no date parsing, so it would sort those incorrectly. The request did not specify a date format. Ties keep their original input order, because sorted with reverse=True is stable. Input order was not mutated.",
+ "seal": "27f99902b1c935b27f242a6c75bc5ed5"}

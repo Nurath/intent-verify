@@ -1,0 +1,9 @@
+{"manifest": 1,
+ "criteria": [
+   {"id": 1, "text": "The cause of the report page loading every user before filtering is explained", "quote": "Why does the report page load every user before it filters?"},
+   {"id": 2, "text": "The report page no longer loads every user before filtering; only users that match the filter are loaded", "quote": "Can that be avoided?"},
+   {"id": 3, "text": "The report page still shows the same filtered set of users as before", "quote": null}
+ ],
+ "ambiguities": [
+   {"question": "Is the user asking only for an explanation and an answer on whether this is avoidable, or asking for the report page to be changed so it stops loading every user?", "assumed": "The user wants the report page changed so that filtering happens before all users are loaded, along with an explanation of the cause", "criteria": [1, 2, 3], "whether": true}
+ ]}

@@ -1,0 +1,12 @@
+{"ledger": 2,
+ "nonce": "a5cbb222eae4f9e1f2b219220cefa821",
+ "mode": "FULL",
+ "criteria": [
+  {"id": 1, "text": "A username whose length after trimming is between 3 and 20 characters inclusive is valid (3 and 20 characters are both valid)", "verdict": "PASS", "cmd": "python -I (import valid_username from validate_ok.py); call valid_username on 'abc', 'a'*20 and 'a b'", "out": "'abc' True True OK\n'aaaaaaaaaaaaaaaaaaaa' True True OK\n'a b' True True OK"},
+  {"id": 2, "text": "A username with fewer than 3 characters after trimming is invalid", "verdict": "PASS", "cmd": "python -I (import valid_username from validate_ok.py); call valid_username on 'ab' and ''", "out": "'ab' False False OK\n'' False False OK"},
+  {"id": 3, "text": "A username with more than 20 characters after trimming is invalid", "verdict": "PASS", "cmd": "python -I (import valid_username from validate_ok.py); call valid_username on 'a'*21", "out": "'aaaaaaaaaaaaaaaaaaaaa' False False OK"},
+  {"id": 4, "text": "Surrounding whitespace is removed before the length is measured: padding does not count toward the length, so 'ab' with surrounding spaces is invalid and 'abc' with surrounding spaces is valid", "verdict": "PASS", "cmd": "python -I (import valid_username from validate_ok.py); call valid_username on '  ab  ', '  abc  ', '  '+'a'*20+'  ', '  '+'a'*21+'  ', '\\t\\nabc\\n'", "out": "'  ab  ' False False OK\n'  abc  ' True True OK\n'  aaaaaaaaaaaaaaaaaaaa  ' True True OK\n'  aaaaaaaaaaaaaaaaaaaaa  ' False False OK\n'\\t\\nabc\\n' True True OK"}
+ ],
+ "final": "MATCHES INTENT",
+ "observations": "All 11 boundary and padding cases matched expectations. The code uses str.strip(), which also removes tabs and newlines, consistent with 'whitespace'.",
+ "seal": "a5cbb222eae4f9e1f2b219220cefa821"}

@@ -1,0 +1,8 @@
+{"manifest": 1,
+ "criteria": [
+   {"id": 1, "text": "A password with fewer than 12 characters is not accepted, even if it contains a digit", "quote": "12 or more characters"},
+   {"id": 2, "text": "A password with no digit is not accepted, even if it has 12 or more characters", "quote": "at least one digit"},
+   {"id": 3, "text": "A password of exactly 12 characters that contains at least one digit is accepted", "quote": "12 or more characters"},
+   {"id": 4, "text": "A password of more than 12 characters that contains one or more digits is accepted", "quote": null}
+ ],
+ "ambiguities": []}

@@ -1,0 +1,8 @@
+{"manifest": 1,
+ "criteria": [
+   {"id": 1, "text": "Looking up the model name gpt-5.4 resolves to a rates entry (it is no longer unknown/unpriced)", "quote": "Add rates for the gpt-5.4 model"},
+   {"id": 2, "text": "The rates gpt-5.4 resolves to are those of the full gpt-5.4 model, not the mini model's rates", "quote": "the full model, NOT the mini"},
+   {"id": 3, "text": "Looking up gpt-5.4-mini still resolves to its own mini rates, the same as before the change", "quote": "gpt-5.4-mini must keep resolving to its own (mini) rates"},
+   {"id": 4, "text": "The gpt-5.4 rates and the gpt-5.4-mini rates are distinct from each other", "quote": null}
+ ],
+ "ambiguities": []}
