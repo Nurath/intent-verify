@@ -371,8 +371,11 @@ that explicit instead of assuming a frontier verifier:
 `models/registry.json` (pinned snapshot, `as_of` dated): different model
 required, different family preferred, floor by change complexity, and a
 `weak-verifier` warning when the verifier trails the implementer by >25 points.
-The snapshot is from 2026-08-02 and does not know models released since; the
-selector refuses to guess a tier for those unless you pass `--assume-tier`.
+Most of the snapshot is from 2026-08-02; the current Claude models were added
+on 2026-10-06 from a newer version of the index. Scores are compared only
+within one version: across versions the selector compares tiers, prefers the
+newer version, and says so. It refuses to guess a tier for a model it does not
+list unless you pass `--assume-tier`.
 Full rationale: [`docs/MODEL-COMPAT.md`](docs/MODEL-COMPAT.md).
 
 ## Bounded by design (no verify↔fix loops)
@@ -638,8 +641,10 @@ to be the discriminators.
 - [x] **v0.5.0** — after the first real use: one question before verifying
       when the request may not ask for a change, the ledger printed in the
       report, and the agents pinned so a run takes minutes less
+- [x] **v0.5.1** — a fifth review: scores from different versions of the index
+      are no longer compared, and every line the validator prints is bounded
 - [ ] Field recall on real *under-specified* tasks with a known intended answer
-- [ ] Registry refresh (the snapshot predates current models)
+- [ ] Registry refresh (other vendors' rows are still the August snapshot)
 
 ## Status
 
@@ -697,6 +702,12 @@ model the benchmark has timed. It reported "passed all 4 criteria" without
 showing them; the validator now prints the ledger. And it verified under a
 reading in which a sentence was the user's decision, when the other reading was
 that no change had been asked for yet; that one question is now asked first.
+
+v0.5.1 is a review's two findings, the same day. Adding the current models to
+the registry row by row had put scores from two versions of the index on one
+scale, and the ranking compared them; it now compares scores only within a
+version. And the filter for what the validator prints had not reached a
+criterion's quote or the text a defect quotes.
 
 ## License
 

@@ -1219,6 +1219,185 @@ class TestAskFirst(unittest.TestCase):
                 self.assertTrue(json.load(f)["ambiguities"][0]["whether"])
 
 
+class TestEverythingPrintedIsFiltered(unittest.TestCase):
+    """Review of 0.5.0. The report filter of that release covered the ledger,
+    the questions and the notes. A criterion's quote was still printed with
+    repr(), and so was whatever a defect quotes: no line break or escape code
+    got through, but a 20,000-character quote and a pile of combining marks
+    did, whole."""
+
+    def check(self, manifest, request, *extra):
+        with tempfile.TemporaryDirectory() as d:
+            for name, text in (("reply.json", json.dumps(manifest, ensure_ascii=False)), ("request.txt", request)):
+                with open(os.path.join(d, name), "w", encoding="utf-8") as f:
+                    f.write(text)
+            out = os.path.join(d, "manifest.json")
+            r = subprocess.run([sys.executable, TOOL, "--check-manifest", os.path.join(d, "reply.json"), "--request",
+                                os.path.join(d, "request.txt"), "--out", out] + list(extra),
+                               capture_output=True, text=True, encoding="utf-8", timeout=30)
+            kept = None
+            if os.path.exists(out):
+                with open(out, encoding="utf-8") as f:
+                    kept = json.load(f)
+        return r, kept
+
+    def manifest(self, quote, **ambiguity):
+        m = {"manifest": 1, "criteria": [{"id": 1, "text": "the importer skips blank rows", "quote": quote}],
+             "ambiguities": []}
+        if ambiguity:
+            m["ambiguities"] = [dict({"question": "Was a change asked for?", "assumed": "yes", "criteria": [1]}, **ambiguity)]
+        return m
+
+    @staticmethod
+    def longest_pile(text):
+        run = best = 0
+        for ch in text:
+            run = run + 1 if unicodedata.category(ch)[0] == "M" else 0
+            best = max(best, run)
+        return best
+
+    def test_a_long_quote_is_shown_cut_and_kept_whole(self):
+        quote = " ".join("word%d" % n for n in range(2800))
+        self.assertGreater(len(quote), 20000)
+        r, kept = self.check(self.manifest(quote, whether=True), "Please: " + quote + ".")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        lines = r.stdout.splitlines()
+        self.assertLess(max(len(l) for l in lines), 500, "the review saw a line of 20,037 characters")
+        self.assertIn("[cut: %d characters in all]" % len(quote), lines[1])
+        self.assertTrue(lines[1].startswith("  1. the importer skips blank rows  [quote: 'word0 word1 "), lines[1][:80])
+        self.assertEqual(len([l for l in lines if l.startswith("ASK FIRST: ")]), 1)
+        self.assertEqual(kept["criteria"][0]["quote"], quote, "the manifest file keeps the quote whole")
+
+    def test_a_pile_of_combining_marks_in_a_quote_is_not_printed(self):
+        quote = "blank rows" + chr(0x301) * 5000
+        r, kept = self.check(self.manifest(quote, whether=True), "Skip " + quote + " please.")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(self.longest_pile(r.stdout), 2)
+        self.assertEqual(kept["criteria"][0]["quote"], quote)
+
+    def test_an_ordinary_quote_reads_as_it_did(self):
+        r, _ = self.check(self.manifest("skip blank rows"), "Should the importer skip blank rows?")
+        self.assertIn("  1. the importer skips blank rows  [quote: 'skip blank rows']", r.stdout.splitlines())
+        r, _ = self.check(self.manifest("the user's rows"), "Skip the user's rows when blank.")
+        self.assertIn("""  1. the importer skips blank rows  [quote: "the user's rows"]""", r.stdout.splitlines())
+
+    def test_a_defect_line_is_bounded_whatever_it_quotes(self):
+        """The same gap one step along: a defect quotes the reply."""
+        absent = "x" * 20000
+        deep = 1
+        for _ in range(400):
+            deep = [deep]
+        cases = {
+            "a quote that is not in the request": self.manifest(absent),
+            "a quote that is a pile of marks": self.manifest("rows" + chr(0x301) * 5000),
+            "ids nested 400 deep": dict(self.manifest("skip blank rows"),
+                                         ambiguities=[{"question": "q?", "assumed": "a", "criteria": deep}]),
+            "an unknown key 20,000 characters long": dict(self.manifest("skip blank rows"), **{"k" * 20000: 1}),
+        }
+        for name, manifest in cases.items():
+            r, kept = self.check(manifest, "Should the importer skip blank rows?")
+            self.assertEqual(r.returncode, 1, name)
+            self.assertIsNone(kept, name)
+            lines = r.stdout.splitlines()
+            self.assertTrue(lines[0].startswith("DEFECT: "), name)
+            self.assertEqual(lines[-1], "INVALID (%d defect(s))" % (len(lines) - 1), name)
+            self.assertLess(max(len(l) for l in lines), 900, name)
+            self.assertLessEqual(self.longest_pile(r.stdout), 2, name)
+
+    def test_a_ledger_defect_is_bounded_too(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "ledger.txt")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(jledger(final="MATCHES INTENT " + "y" * 20000 + chr(0x301) * 3000))
+            r = subprocess.run([sys.executable, TOOL, path, "--nonce", NONCE], capture_output=True, text=True,
+                               encoding="utf-8", timeout=30)
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertLess(max(len(l) for l in r.stdout.splitlines()), 900)
+        self.assertLessEqual(self.longest_pile(r.stdout), 2)
+        self.assertTrue(any("expected MATCHES INTENT and nothing after it" in l or "[cut:" in l for l in r.stdout.splitlines()))
+
+    def test_a_mark_without_a_combining_class_is_a_mark(self):
+        """Found by attacking the fix. The filter counted characters with a
+        combining class; 1,567 printable marks have class 0 (an enclosing circle,
+        a variation selector, a Thai vowel sign) and went through in piles of 795."""
+        for mark in (0x20DD, 0xFE0F, 0x0E31, 0x034F, 0x0903, 0x0489):
+            pile = "rows" + chr(mark) * 5000
+            m = self.manifest(pile, whether=True)
+            m["criteria"][0]["text"] = "skips blank " + pile
+            m["ambiguities"][0]["question"] = "Asked for " + pile + "?"
+            r, _ = self.check(m, "Skip " + pile + " please.")
+            self.assertEqual(r.returncode, 0, hex(mark))
+            self.assertLessEqual(self.longest_pile(r.stdout), 2, hex(mark))
+        self.assertEqual(vl._one_line("a" + chr(0x3164) * 3 + chr(0x2800) + "b", 50), "a    b")
+
+    def test_the_ids_an_ambiguity_names_are_bounded(self):
+        """Found by attacking the fix: one id repeated a million times is a valid
+        list, and it was printed whole, a line of three million characters."""
+        m = self.manifest("skip blank rows", whether=True)
+        m["ambiguities"][0]["criteria"] = [1] * 100000
+        r, kept = self.check(m, "Should the importer skip blank rows?")
+        self.assertEqual(r.returncode, 0, r.stdout[:300] + r.stderr)
+        asked = [l for l in r.stdout.splitlines() if l.startswith("ASK FIRST: ")][0]
+        self.assertLess(len(asked), 400)
+        self.assertIn("[100000 in all]", asked)
+        self.assertEqual(len(kept["ambiguities"][0]["criteria"]), 100000, "the manifest file is not what is cut")
+        few, _ = self.check(self.manifest("skip blank rows", whether=True), "Should the importer skip blank rows?")
+        self.assertIn("\u2014 criteria 1 assume: yes", few.stdout)
+
+    def test_a_thousand_defects_are_fifty_lines_and_a_count(self):
+        m = self.manifest("skip blank rows")
+        m["criteria"] = [5] * 1000
+        r, _ = self.check(m, "Should the importer skip blank rows?")
+        self.assertEqual(r.returncode, 1)
+        lines = r.stdout.splitlines()
+        self.assertEqual(len(lines), 52)
+        self.assertRegex(lines[-2], r"^DEFECT: \.\.\. and \d+ more$")
+        shown, more = len(lines) - 2, int(lines[-2].split()[3])
+        self.assertEqual(lines[-1], "INVALID (%d defect(s))" % (shown + more))
+
+    def test_a_numbering_defect_names_the_entry_when_the_list_is_long(self):
+        """The defect used to print every number. Cut at 800 characters, a wrong
+        number at entry 350 of 400 was no longer in it."""
+        crits = [{"id": n, "text": "criterion %d" % n, "verdict": "PASS", "cmd": "run", "out": "ok"} for n in range(1, 401)]
+        crits[349]["id"] = 999
+        _, defects = vl.validate_json(jledger(criteria=crits), None, NONCE)
+        self.assertIn("criteria must be numbered 1..N in order with no gaps or repeats, and entry 350 of 400 is numbered 999",
+                      defects)
+        short = failing_first()
+        short[1]["id"] = 3
+        _, defects = vl.validate_json(jledger(criteria=short, final="DRIFTED \u2014 criteria 1 failed"), None, NONCE)
+        self.assertIn("criteria must be numbered 1..N in order with no gaps or repeats, found [1, 3]", defects)
+
+    def test_a_file_name_beside_the_run_is_filtered(self):
+        """The hook names the files it leaves. Code under test that can write
+        beside the run could name one anything, and the name was printed as it was."""
+        with tempfile.TemporaryDirectory() as d:
+            run = os.path.join(d, "runs", NONCE)
+            os.makedirs(run)
+            with open(os.path.join(run, "run.json"), "w", encoding="utf-8") as f:
+                json.dump({"nonce": NONCE}, f)
+            os.makedirs(os.path.join(d, "runs", "_unmatched"))
+            name = "reply-" + chr(0x202E) + chr(0x301) * 6 + chr(0x20DD) * 6 + "evil.txt"
+            with open(os.path.join(d, "runs", "_unmatched", name), "w", encoding="utf-8") as f:
+                f.write("x")
+            r = subprocess.run([sys.executable, TOOL, "--run", run], capture_output=True, text=True, encoding="utf-8", timeout=30)
+            self.assertEqual(r.returncode, 4, r.stdout + r.stderr)
+            shown = r.stdout.replace(d, "")
+            self.assertTrue(all(ch.isprintable() for ch in shown.replace("\n", "")), repr(shown))
+            self.assertLessEqual(self.longest_pile(shown), 2)
+            self.assertIn("evil.txt in _unmatched", shown)
+            with open(os.path.join(run, "run.json"), "w", encoding="utf-8") as f:
+                f.write("[" * 100000)
+            r = subprocess.run([sys.executable, TOOL, "--run", run], capture_output=True, text=True, encoding="utf-8", timeout=30)
+            self.assertEqual(r.returncode, 2, "a run.json that cannot be read is a usage error, not a crash")
+            self.assertNotIn("Traceback", r.stderr)
+
+    def test_what_a_defect_says_is_still_all_there_when_it_is_short(self):
+        r, _ = self.check(self.manifest("skip the header"), "Should the importer skip blank rows?")
+        self.assertEqual(r.stdout.splitlines()[0],
+                         "DEFECT: criterion 1: its quote does not occur in the request: 'skip the header'")
+
+
 class TestLedgerReport(unittest.TestCase):
     """0.5.0: the validator prints the ledger. In its first real use the plugin
     reported "passed all 4 criteria" and never showed them; printing the block

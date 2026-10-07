@@ -12,7 +12,9 @@ differed was the wait. In the first real run the most capable candidate
 verified for nine minutes, and the timed one takes seconds on the benchmark's
 fixtures. A model the index does not list yet has no score to rank by; its
 registry row may name the listed model it ranks just above (ranks_above), and
-the output says when a pick rests on that. Encodes the
+the output says when a pick rests on that. Scores are compared only within
+one version of the index (a row's "scale"): between versions the tiers are
+compared, then the newer version comes first, and a warning says so. Encodes the
 policy in skills/intent-verify/SKILL.md against models/registry.json — usable
 as a CLI by the orchestrating agent or imported by the benchmark harness.
 
@@ -75,6 +77,10 @@ def select(implementer, candidates, complexity, reg, index, assume_tier=None, pr
     bounds = reg["tier_bounds"]
     floor = reg["floor_by_complexity"][complexity]
     max_gap = reg.get("max_gap_below_implementer", 25)
+    # Versions of the index the scores were read from, newest first. A row with
+    # no "scale" is on the last one. A number means something only next to
+    # numbers from the same version.
+    scales = reg.get("scales") or [None]
 
     impl = resolve(implementer, index) if implementer else None
     if implementer and not impl:
@@ -99,6 +105,8 @@ def select(implementer, candidates, complexity, reg, index, assume_tier=None, pr
             entry["verify_seconds"] = m["verify_seconds"]
         if m.get("aa_intelligence") is None and m.get("ranks_above"):
             entry["ranks_above"] = m["ranks_above"]
+        if m.get("aa_intelligence") is not None:
+            entry["scale"] = m.get("scale", scales[-1])
         if m["id"] == impl_id:
             entry["excluded"] = "same model as implementer"
         elif t is None:
@@ -124,25 +132,51 @@ def select(implementer, candidates, complexity, reg, index, assume_tier=None, pr
         preferred over every listed model of the implementer's family."""
         return bool(impl_family) and m.get("family") not in (None, "unknown", impl_family)
 
+    def scored(m):
+        """The row whose score ranks this model: its own, or for a model the index
+        does not list yet, the listed model its row says it ranks above."""
+        if m.get("aa_intelligence") is None and m.get("ranks_above"):
+            m = resolve(m["ranks_above"], index) or {}
+        # A score on a scale the registry does not list cannot be placed.
+        if m.get("aa_intelligence") is None or m.get("scale", scales[-1]) not in scales:
+            return None
+        return m
+
+    def scale(m):
+        return scored(m).get("scale", scales[-1]) if scored(m) else None
+
     def capability(m):
         """The published score. A model the index does not list yet has none; if
         its registry row names a listed model it ranks above, it is placed just
         above that one and below everything scored higher."""
-        score = m.get("aa_intelligence")
-        if score is None and m.get("ranks_above"):
-            below = (resolve(m["ranks_above"], index) or {}).get("aa_intelligence")
-            return below + 0.1 if below is not None else 0.0
-        return score or 0.0
+        if scored(m) is None:
+            return 0.0
+        return scored(m)["aa_intelligence"] + (0.0 if scored(m) is m else 0.1)
+
+    def most_capable_first(m, t):
+        """Two scores are compared only when they come from the same version of
+        the index. Tiers are what the registry says can be compared across
+        versions, so the tier goes first, then the newer version, then the
+        score. Within one version that is the order of the scores."""
+        # A model with a score comes before one known only by an assumed tier,
+        # whatever that tier is: what was measured outranks what was assumed.
+        if scored(m) is None:
+            return (1, TIER_ORDER[t], 0, 0.0)
+        return (0, TIER_ORDER[t], scales.index(scale(m)), -capability(m))
 
     def rank_key(item):
         m, t, _ = item
         diff_family = 0 if other_family(m) else 1
-        score = capability(m)
         seconds = m.get("verify_seconds")
         if prefer == "fast":
             # Timed candidates first, fastest first; the rest by capability.
-            return (diff_family, seconds is None, seconds or 0.0, -score)
-        return (diff_family, -score)
+            return (diff_family, seconds is None, seconds or 0.0) + most_capable_first(m, t)
+        return (diff_family,) + most_capable_first(m, t)
+
+    for m, _, _ in eligible:
+        if m.get("aa_intelligence") is not None and m.get("scale", scales[-1]) not in scales:
+            warnings.append(f"{m['id']}: its score is on a scale the registry does not list ({m.get('scale')}), "
+                            "so the score was not used to rank it")
 
     eligible.sort(key=rank_key)
     chosen, chosen_tier, chosen_entry = eligible[0]
@@ -155,10 +189,34 @@ def select(implementer, candidates, complexity, reg, index, assume_tier=None, pr
     if chosen_score is None:
         warnings.append("verifier has no published score (explicit tier only); treat capability margin as unknown"
                         + ("; it is ranked above %s by the registry's assumption, not by a measurement" % chosen["ranks_above"]
-                           if chosen.get("ranks_above") else ""))
-    if impl_score is not None and chosen_score is not None and impl_score - chosen_score > max_gap:
-        warnings.append(f"weak-verifier: verifier is {impl_score - chosen_score:.1f} points below the implementer "
-                        f"(gap cap {max_gap}); attach this warning to the verification report")
+                           if chosen.get("ranks_above") and scored(chosen) else ""))
+
+    def on_capability(m):
+        """Whether the chosen one came before this candidate on capability and not on time."""
+        return prefer != "fast" or m.get("verify_seconds") == chosen.get("verify_seconds")
+
+    passed_over = [m["id"] for m, t, _ in eligible[1:]
+                   if on_capability(m) and t == chosen_tier and other_family(m) == other_family(chosen)
+                   and scale(m) is not None and scale(chosen) is not None and scale(m) != scale(chosen)]
+    if passed_over:
+        warnings.append("scores from different versions of the index are not compared: %s (%s) is ranked ahead of %s "
+                        "in the same tier because its index is the newer one, not because of the numbers"
+                        % (chosen["id"], scale(chosen), ", ".join(passed_over)))
+    impl_tier = tier_of(impl, bounds) if impl else None
+    if impl_score is not None and chosen_score is not None and scale(impl) is not None and scale(impl) == scale(chosen):
+        if impl_score - chosen_score > max_gap:
+            warnings.append(f"weak-verifier: verifier is {impl_score - chosen_score:.1f} points below the implementer "
+                            f"(gap cap {max_gap}); attach this warning to the verification report")
+    elif impl_tier:
+        # No two numbers to subtract: one of them has no score, or they are on
+        # different versions of the index. Tiers are what is left.
+        if impl_score is not None and chosen_score is not None:
+            warnings.append("implementer and verifier are scored on different versions of the index (%s, %s): the gap "
+                            "between them is not measured"
+                            % (impl.get("scale", scales[-1]), chosen.get("scale", scales[-1])))
+        if TIER_ORDER[chosen_tier] - TIER_ORDER[impl_tier] >= 2:
+            warnings.append(f"weak-verifier: verifier is in {chosen_tier}, the implementer in {impl_tier}; "
+                            "attach this warning to the verification report")
 
     mode = "STRUCTURED" if chosen_tier == "T3" else "FULL"
     return {

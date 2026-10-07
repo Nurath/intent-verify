@@ -52,9 +52,9 @@ The version is `version` in `.claude-plugin/plugin.json`; the top heading of
 `CHANGELOG.md` must match it (a test enforces that). An installed copy changes
 only when someone runs the two update commands in the runbook and restarts.
 
-## Test baseline (0.5.0)
+## Test baseline (0.5.1)
 
-- `python3 -m unittest discover -s tests`: 290 tests. On Windows 18 skip (POSIX
+- `python3 -m unittest discover -s tests`: 315 tests. On Windows 18 skip (POSIX
   shell tests and one layout-specific test); on Linux and macOS the PowerShell
   classes skip instead.
 - `node hooks/capture-intent.js --selftest`: 35 of 35.
@@ -145,10 +145,12 @@ hand-back before suspecting the verifier.
 3. **Cross-model ablation** not run. On the controlled set the drift is planted
    and both arms would likely sit at the ceiling. A fair test needs drift a
    model produced itself, which is the field-recall work.
-4. **`models/registry.json` knows the current Claude models from 0.5.0.** Fable
-   5.1 has an assumed tier, no score, and `ranks_above` Sonnet 5.5 for complex
-   changes: drop that field when the index lists it. The other vendors' rows
-   are still the August snapshot, and only Sonnet 5.5 and Haiku 4.5 are timed.
+4. **`models/registry.json` holds scores from two versions of the index**
+   (`scales`): the current Claude models on the newer one, every other row on
+   the August snapshot. Scores are compared only within a scale (0.5.1). A
+   whole refresh would end that. Fable 5.1 has an assumed tier, no score, and
+   `ranks_above` Sonnet 5.5: drop that field when the index lists it. Only
+   Sonnet 5.5 and Haiku 4.5 are timed.
 5. **The alternate hooks** still use the in-project layout. Port them or retire
    them; today they cannot serve the skill without Node either way.
 6. **The verifier's command budget** ("about 15") is exceeded in practice.
