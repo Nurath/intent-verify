@@ -157,15 +157,26 @@ def _norm(s):
     return _squash(s.translate(_QUOTE_MARKS)).casefold()
 
 
-# Printable as far as Python knows, and blank to a reader: the Hangul and Khmer
-# fillers and the empty Braille cell.
-_BLANK_GLYPHS = frozenset("\u115f\u1160\u17b4\u17b5\u2800\u3164\uffa0")
+# Printable as far as Python knows, not marks, and blank to a reader: the Hangul
+# fillers, the empty Braille cell, the hieroglyphic blanks and the null notehead.
+_BLANK_GLYPHS = frozenset(map(chr, (0x115F, 0x1160, 0x2800, 0x3164, 0xFFA0, 0x13441, 0x13442, 0x1D159)))
+
+
+def _shows(ch):
+    """Whether a character puts something on the page by itself. A combining
+    mark does not: it needs a letter to sit on. That one rule covers every
+    invisible mark without a list of them: the grapheme joiner, the variation
+    selectors and the script fillers are all marks, and Python calls them
+    printable."""
+    return (ch.isprintable() and not ch.isspace() and unicodedata.category(ch)[0] != "M"
+            and ch not in _BLANK_GLYPHS)
 
 
 def _blank(s):
-    """True for a string that shows nothing: empty, or only spaces and characters
-    without a glyph. A zero-width space is not evidence."""
-    return not any(ch.isprintable() and not ch.isspace() and ch not in _BLANK_GLYPHS for ch in s or "")
+    """True for a string that shows nothing: empty, or only spaces, marks and
+    characters without a glyph. A zero-width space is not evidence, and
+    neither is a grapheme joiner."""
+    return not any(_shows(ch) for ch in s or "")
 
 
 def extract_ledger(text):

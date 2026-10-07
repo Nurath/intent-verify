@@ -1398,6 +1398,96 @@ class TestEverythingPrintedIsFiltered(unittest.TestCase):
                          "DEFECT: criterion 1: its quote does not occur in the request: 'skip the header'")
 
 
+class TestAValueOfMarksShowsNothing(unittest.TestCase):
+    """Review of 0.5.1. "PASS needs a command and output that show something"
+    was decided by a test that took every character Python calls printable for
+    visible. U+034F COMBINING GRAPHEME JOINER is printable and draws nothing, so
+    a ledger whose command and output were that one character validated as
+    MATCHES INTENT. The same was true of the variation selectors, the Mongolian
+    ones, the Khitan filler and the null notehead. 0.5.1 had taught the filter
+    for what is printed about these and left the test for blankness alone."""
+
+    # Default_Ignorable_Code_Point, from the Unicode Character Database
+    # (DerivedCoreProperties.txt): the characters a renderer shows nothing for.
+    # An oracle that does not come from the code under test.
+    DEFAULT_IGNORABLE = [(0x00AD, 0x00AD), (0x034F, 0x034F), (0x061C, 0x061C), (0x115F, 0x1160), (0x17B4, 0x17B5),
+                         (0x180B, 0x180F), (0x200B, 0x200F), (0x202A, 0x202E), (0x2060, 0x206F), (0x3164, 0x3164),
+                         (0xFE00, 0xFE0F), (0xFEFF, 0xFEFF), (0xFFA0, 0xFFA0), (0xFFF0, 0xFFF8), (0x1BCA0, 0x1BCA3),
+                         (0x1D173, 0x1D17A), (0xE0000, 0xE0FFF)]
+    NOTHING = [chr(0x034F), chr(0x180B), chr(0xFE0F), chr(0xE0100), chr(0x16FE4), chr(0x1D159), chr(0x2800), chr(0x13441),
+               chr(0x034F) * 40, " " + chr(0x034F) + chr(0x200B) + chr(0xFE0F) + "\t", chr(0x301) + chr(0x20DD)]
+    SOMETHING = ["2", "a" + chr(0x034F), "e" + chr(0x301), chr(0x2764) + chr(0xFE0F), chr(0x2713), chr(0x0E01) + chr(0x0E31)]
+
+    def test_every_default_ignorable_character_is_blank(self):
+        shown = [hex(cp) for lo, hi in self.DEFAULT_IGNORABLE for cp in range(lo, hi + 1) if not vl._blank(chr(cp))]
+        self.assertEqual(shown, [])
+
+    def test_no_mark_shows_anything_by_itself(self):
+        shown = [hex(cp) for cp in range(sys.maxunicode + 1)
+                 if unicodedata.category(chr(cp))[0] == "M" and not vl._blank(chr(cp) * 3)]
+        self.assertEqual(shown, [])
+
+    def test_text_with_a_mark_in_it_is_still_text(self):
+        for value in self.SOMETHING:
+            self.assertFalse(vl._blank(value), ascii(value))
+
+    def test_the_reviews_ledger(self):
+        """cmd and out of one grapheme joiner each: exit 0 and MATCHES INTENT on 0.5.1."""
+        crits = json.loads(jledger())["criteria"]
+        crits[0]["cmd"] = crits[0]["out"] = chr(0x034F)
+        with tempfile.TemporaryDirectory() as d:
+            for name, text in (("ledger.json", jledger(criteria=crits)), ("manifest.json", json.dumps(JMANIFEST))):
+                with open(os.path.join(d, name), "w", encoding="utf-8") as f:
+                    f.write(text)
+            r = subprocess.run([sys.executable, TOOL, os.path.join(d, "ledger.json"), "--nonce", NONCE, "--manifest",
+                                os.path.join(d, "manifest.json")], capture_output=True, text=True, encoding="utf-8", timeout=30)
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn('DEFECT: criterion 1: PASS without "cmd"', r.stdout.splitlines())
+        self.assertEqual(r.stdout.splitlines()[-1], "INVALID (2 defect(s))")
+
+    def test_every_field_that_has_to_show_something(self):
+        for nothing in self.NOTHING:
+            for field in ("cmd", "out"):
+                crits = json.loads(jledger())["criteria"]
+                crits[0][field] = nothing
+                _, defects = vl.validate_json(jledger(criteria=crits), JMANIFEST, NONCE)
+                self.assertTrue(any('criterion 1: PASS without "%s"' % field in d for d in defects), (field, ascii(nothing)))
+            crits = json.loads(jledger())["criteria"]
+            crits[1] = {"id": 2, "text": crits[1]["text"], "verdict": "NOT-EXERCISED", "reason": nothing}
+            _, defects = vl.validate_json(jledger(criteria=crits, final="INCONCLUSIVE \u2014 one not exercised"), JMANIFEST, NONCE)
+            self.assertTrue(any("criterion 2" in d and "reason" in d for d in defects), (ascii(nothing), defects))
+            _, defects = vl.validate_json(jledger(final=nothing), JMANIFEST, NONCE)
+            self.assertTrue(defects, ("final", ascii(nothing)))
+            text = L("INTENT-VERIFY LEDGER v1", "mode: FULL", "CRITERION 1: returns the median", "VERDICT: PASS",
+                     "EVIDENCE-CMD: " + nothing.replace("\t", " "), "EVIDENCE-OUT: 2", *passing(2, "leaves the input list unchanged"),
+                     "FINAL: MATCHES INTENT")
+            self.assertTrue(vl.validate(text)[1], ("text ledger", ascii(nothing)))
+
+    def test_a_manifest_made_of_nothing(self):
+        request = "Should the importer skip blank rows?"
+        base = {"manifest": 1, "criteria": [{"id": 1, "text": "skips blank rows", "quote": "skip blank rows"}],
+                "ambiguities": [{"question": "Was a change asked for?", "assumed": "yes", "criteria": [1], "whether": True}]}
+        self.assertEqual(vl.check_manifest(json.dumps(base), request)[1], [])
+        for nothing in self.NOTHING:
+            for where, key in ((("criteria", 0), "text"), (("criteria", 0), "quote"), (("ambiguities", 0), "question"),
+                               (("ambiguities", 0), "assumed")):
+                m = json.loads(json.dumps(base))
+                m[where[0]][where[1]][key] = nothing
+                self.assertTrue(vl.check_manifest(json.dumps(m, ensure_ascii=False), request + nothing)[1],
+                                (key, ascii(nothing)))
+
+    def test_a_line_of_nothing_is_not_a_criterion(self):
+        with tempfile.TemporaryDirectory() as d:
+            src, out = os.path.join(d, "criteria.txt"), os.path.join(d, "manifest.json")
+            with open(src, "w", encoding="utf-8") as f:
+                f.write("returns the median\n" + chr(0x034F) + "\n- " + chr(0xFE0F) * 3 + "\nleaves the list unchanged\n")
+            r = subprocess.run([sys.executable, TOOL, "--manifest-from", src, "--out", out], capture_output=True, text=True,
+                               encoding="utf-8", timeout=30)
+            self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+            with open(out, encoding="utf-8") as f:
+                self.assertEqual([c["text"] for c in json.load(f)["criteria"]], ["returns the median", "leaves the list unchanged"])
+
+
 class TestLedgerReport(unittest.TestCase):
     """0.5.0: the validator prints the ledger. In its first real use the plugin
     reported "passed all 4 criteria" and never showed them; printing the block

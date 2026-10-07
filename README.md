@@ -643,6 +643,8 @@ to be the discriminators.
       report, and the agents pinned so a run takes minutes less
 - [x] **v0.5.1** — a fifth review: scores from different versions of the index
       are no longer compared, and every line the validator prints is bounded
+- [x] **v0.5.2** — a sixth review: a value made only of invisible marks is not
+      evidence
 - [ ] Field recall on real *under-specified* tasks with a known intended answer
 - [ ] Registry refresh (other vendors' rows are still the August snapshot)
 
@@ -708,6 +710,10 @@ the registry row by row had put scores from two versions of the index on one
 scale, and the ranking compared them; it now compares scores only within a
 version. And the filter for what the validator prints had not reached a
 criterion's quote or the text a defect quotes.
+
+v0.5.2 is one finding of the review after that. The rule that a `PASS` needs
+evidence that shows something trusted Python's notion of a printable
+character, and a combining mark with no glyph of its own passed for evidence.
 
 ## License
 
