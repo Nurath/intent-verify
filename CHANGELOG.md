@@ -1,5 +1,67 @@
 # Changelog
 
+## 0.5.3 — 2026-10-08
+
+0.5.2 was merged on green CI while another model was still attacking its fix.
+That pass reported afterwards. It found no ledger that validates with evidence
+nobody can see: of all 1,114,112 code points only letters, numbers,
+punctuation and symbols count as showing, and 68,000 generated ledgers and
+manifests differed from 0.5.1 only where a value that shows nothing is now
+rejected. It also found two small things, and this release is those two.
+
+### Fixed
+- **Characters that draw nothing are not printed.** 0.5.2 took the Khmer
+  inherent vowels off its list of blank glyphs, because its new rule about
+  marks covered them as evidence. The filter for what is printed read the
+  same list, so those two went back to being printed as they were, where
+  0.5.1 had printed a space. The grapheme joiner and the variation selectors
+  had always been printed. All of them are now left out of every printed line,
+  with the joiners and selectors of single scripts, before the line is put
+  together: none leaves a gap, a line of its own, or a place among the two
+  marks a letter may carry.
+- **A quote cannot be padded to the minimum length.** A quote has to be four
+  characters or more, so that it ties a criterion to the request; "a" does
+  not. It was measured with invisible characters counted, so "a" and three
+  zero-width spaces passed when the manifest was checked without the request.
+  With the request it was rejected for not occurring in it, which is how the
+  skill always runs the check. The length is now what a reader sees: each
+  character that shows, the gaps between them, and up to two marks on a
+  letter, which is as many as are printed. It is measured as written and as
+  composed, and the smaller is taken.
+
+### Checked
+- 331 unit tests (were 322). The new ones fail on 0.5.2 apart from the
+  controls: quotes that were long enough still are, in Thai, Devanagari,
+  Arabic with its vowel marks, and emoji.
+- All 180 recorded verdicts replay unchanged, and all 194 stored stage-1
+  replies are judged as they were.
+- **Another model was set on the two fixes before this release, and the merge
+  waited for it.** The print fix held: no character that draws nothing in
+  200,000 generated strings, nor with every code point placed in every field
+  of manifests and ledgers in every mode. The quote fix did not go far enough:
+  "a" and four accents was still a quote of five characters, because visible
+  accents were counted without limit, and composing takes eleven single
+  characters apart into three. It also found eight more marks that draw
+  nothing, and that a dropped mark left a gap or an empty line behind. All
+  fixed, each with a test. Its reproductions and its scan of every code point
+  were run again on the released code, and its comparison with 0.5.2 over
+  12,000 generated cases shows no change of exit code other than quotes that
+  are now too short.
+
+### Known, and left
+- U+303F IDEOGRAPHIC HALF FILL SPACE counts as showing. The pass could not
+  settle whether fonts draw it: two drew a box, one drew nothing.
+- A value of 10 MB made only of invisible characters takes about three
+  seconds to reject.
+- A quote made of private-use characters, or of characters newer than the
+  Python that runs the validator, is measured as if they were not there.
+- A value that begins with more than about a thousand characters that draw
+  nothing is printed as a cut marker alone.
+
+### Not changed
+- Verdicts on anything a reader can see, the formats, the prompts. No model
+  run was repeated.
+
 ## 0.5.2 — 2026-10-07
 
 A sixth review, of 0.5.1, the same day. It confirmed both findings of the

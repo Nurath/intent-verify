@@ -645,6 +645,8 @@ to be the discriminators.
       are no longer compared, and every line the validator prints is bounded
 - [x] **v0.5.2** — a sixth review: a value made only of invisible marks is not
       evidence
+- [x] **v0.5.3** — what attacking that fix found: characters that draw nothing
+      are neither printed nor counted towards a quote's length
 - [ ] Field recall on real *under-specified* tasks with a known intended answer
 - [ ] Registry refresh (other vendors' rows are still the August snapshot)
 

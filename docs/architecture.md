@@ -225,7 +225,8 @@ Each value is one line. A command is cut at 200 characters and its output at
 6,000: a caveat to a verdict goes there, and the first real ledger of 0.5.0
 wrote 4,536. Every kind of line break becomes `⏎` and a character without a glyph
 becomes a space, so nothing a program printed can start a line of the report
-and pass for one of the validator's.
+and pass for one of the validator's. A mark that draws nothing even on a
+letter (a grapheme joiner, a variation selector) is left out (0.5.3).
 
 The same filter covers the rest of what a reply can make the validator print
 (0.5.1): a criterion's quote is shown up to 300 characters, a defect line up to
