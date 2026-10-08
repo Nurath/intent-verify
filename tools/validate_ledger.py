@@ -160,6 +160,16 @@ def _norm(s):
 # Printable as far as Python knows, not marks, and blank to a reader: the Hangul
 # fillers, the empty Braille cell, the hieroglyphic blanks and the null notehead.
 _BLANK_GLYPHS = frozenset(map(chr, (0x115F, 0x1160, 0x2800, 0x3164, 0xFFA0, 0x13441, 0x13442, 0x1D159)))
+# Marks that draw nothing even on a letter: the grapheme joiner, the Khmer
+# inherent vowels, the variation selectors of Mongolian and of everything else,
+# the Khitan filler, and the joiners and selectors of single scripts. Python
+# calls them printable.
+_UNSEEN_MARKS = frozenset(chr(c) for lo, hi in ((0x034F, 0x034F), (0x17B4, 0x17B5), (0x180B, 0x180D), (0x180F, 0x180F),
+                                               (0x2D7F, 0x2D7F), (0xFE00, 0xFE0F), (0x1107F, 0x1107F),
+                                               (0x113D0, 0x113D0), (0x11A47, 0x11A47), (0x11A99, 0x11A99),
+                                               (0x11F42, 0x11F42), (0x13440, 0x13440), (0x16FE4, 0x16FE4),
+                                               (0x1BC9D, 0x1BC9D), (0xE0100, 0xE01EF))
+                          for c in range(lo, hi + 1))
 
 
 def _shows(ch):
@@ -177,6 +187,34 @@ def _blank(s):
     characters without a glyph. A zero-width space is not evidence, and
     neither is a grapheme joiner."""
     return not any(_shows(ch) for ch in s or "")
+
+
+def _seen_length(s, enough):
+    """How much of a string a reader sees, counted as far as `enough`: each
+    character that shows, one for a gap between two of them, and up to two
+    marks on a letter, which is as many as are printed. What draws nothing is
+    not counted, and neither is a mark with no letter under it or a third
+    accent on one."""
+    n, marks, gap = 0, None, False
+    for ch in s:
+        if _shows(ch):
+            n += 2 if gap and n else 1
+            marks, gap = 0, False
+        elif ch.isspace():
+            marks, gap = None, True
+        elif marks is not None and marks < 2 and unicodedata.category(ch)[0] == "M" and ch not in _UNSEEN_MARKS:
+            n, marks = n + 1, marks + 1
+        if n >= enough:
+            break
+    return n
+
+
+def _too_short(quote):
+    """Whether a quote is under MIN_QUOTE characters to a reader. Measured as
+    written and as composed, and the smaller taken: composing turns a letter
+    and its accent into one character, and takes a few single characters
+    apart into three."""
+    return min(_seen_length(quote, MIN_QUOTE), _seen_length(unicodedata.normalize("NFC", quote), MIN_QUOTE)) < MIN_QUOTE
 
 
 def extract_ledger(text):
@@ -605,16 +643,22 @@ def _one_line(value, limit):
     # Only the start is worked on: a 9 MB value used to be flattened whole to
     # show 300 characters of it.
     head = value[:limit * 4 + 64]
+    more = len(head) < len(value)
+    # What draws nothing goes first, so that it leaves no gap, no line of its
+    # own and no place in a pile of marks: an unseen mark is dropped, and a
+    # character without a glyph becomes a space unless it breaks the line.
+    head = "".join(ch if ch.isspace() or (ch.isprintable() and ch not in _BLANK_GLYPHS) else " "
+                   for ch in head if ch not in _UNSEEN_MARKS)
     flat = " \u23ce ".join(" ".join(part.split()) for part in head.splitlines() if part.strip())
     shown, stacked = [], 0
     for ch in flat:
         # Every mark, not only those with a combining class: an enclosing
-        # circle or a variation selector has class 0 and stacks like the rest.
+        # circle has class 0 and stacks like the rest.
         stacked = stacked + 1 if unicodedata.category(ch)[0] == "M" else 0
         if stacked <= 2:  # a pile of combining marks is drawn over the lines around it
-            shown.append(ch if ch.isprintable() and ch not in _BLANK_GLYPHS else " ")
+            shown.append(ch)
     flat = "".join(shown)
-    if len(flat) > limit or len(head) < len(value):
+    if len(flat) > limit or more:
         return f"{flat[:limit]} \u2026 [cut: {len(value)} characters in all]"
     return flat
 
@@ -694,8 +738,9 @@ def check_manifest(text, request=None):
         if quote is not None and (not isinstance(quote, str) or _blank(quote)):
             defects.append(f"criterion {i}: 'quote' must be a piece of the request, or null")
             quote = None
-        elif quote is not None and len(_squash(quote)) < MIN_QUOTE:
+        elif quote is not None and _too_short(quote):
             # "a" and "the" occur in any request and tie a criterion to nothing.
+            # Nor does "a" followed by three characters nobody sees.
             defects.append(f"criterion {i}: its quote {quote!r} is too short to tie the criterion to the request; "
                            f"quote {MIN_QUOTE} characters of it or more, or use null")
         elif quote is not None and wanted is not None and not _occurs(quote, wanted):

@@ -52,9 +52,9 @@ The version is `version` in `.claude-plugin/plugin.json`; the top heading of
 `CHANGELOG.md` must match it (a test enforces that). An installed copy changes
 only when someone runs the two update commands in the runbook and restarts.
 
-## Test baseline (0.5.2)
+## Test baseline (0.5.3)
 
-- `python3 -m unittest discover -s tests`: 322 tests. On Windows 18 skip (POSIX
+- `python3 -m unittest discover -s tests`: 331 tests. On Windows 18 skip (POSIX
   shell tests and one layout-specific test); on Linux and macOS the PowerShell
   classes skip instead.
 - `node hooks/capture-intent.js --selftest`: 35 of 35.
@@ -83,15 +83,13 @@ only when someone runs the two update commands in the runbook and restarts.
   `validate_ledger.py`, have a different model attack it, with the code and the
   rules and without your conclusions, and attack again after fixing what it
   finds.
-- **A property test has to be able to fail.** A seeded test that pasted random
-  pieces of ledger syntax into a ledger found nothing with every protection
-  switched off, because random pieces almost never form the one sequence that
-  works. The test that replaced it enumerates a grammar that contains the known
-  attack and counts the payloads that only the new rules stop.
+- **A property test has to be able to fail.** A seeded fuzz of ledger syntax
+  found nothing even with every protection switched off. Its replacement
+  enumerates a grammar that contains the known attack and counts the payloads
+  only the new rules stop.
 - **A check on what a reply contains has two readings: as written and as
-  decoded.** The nonce rule counted the nonce in the raw text, and a JSON
-  escape for one character hid it (0.4.3). When a rule is about content, apply
-  it to the decoded values too.
+  decoded.** A JSON escape for one character hid the nonce from a rule that
+  read the raw text (0.4.3).
 - **Locate, do not count.** Two counts can be balanced: an escape takes an
   occurrence out of one place and a copy puts it back elsewhere. A rule about
   where something may be has to look at each place separately.
@@ -107,9 +105,10 @@ only when someone runs the two update commands in the runbook and restarts.
   scored, and every case is run three times. And rules revised after misses
   on a set are fitted to that set: keep requests they never saw, and write
   down the expected answer before running them.
-- **When one rule is fixed, look at the rule beside it.** 0.5.1 taught the
-  print filter about marks with no glyph and left `_blank`, three lines above
-  it, calling the same character evidence (0.5.2).
+- **When one rule is fixed, look at the rule beside it, and at what else
+  reads the same list.** 0.5.1 taught the print filter about marks with no
+  glyph and left `_blank` calling them evidence (0.5.2); 0.5.2 then took two
+  characters off a list the print filter also read (0.5.3).
 - **Version 1 ledgers need `--unsealed`.** The runs kept from 0.4.0 and 0.4.1
   are version 1 objects. The default path rejects them and says so.
 - **A harness is a thing to test.** The verifier-capture hook worked headless

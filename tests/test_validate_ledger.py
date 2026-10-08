@@ -1328,7 +1328,7 @@ class TestEverythingPrintedIsFiltered(unittest.TestCase):
             r, _ = self.check(m, "Skip " + pile + " please.")
             self.assertEqual(r.returncode, 0, hex(mark))
             self.assertLessEqual(self.longest_pile(r.stdout), 2, hex(mark))
-        self.assertEqual(vl._one_line("a" + chr(0x3164) * 3 + chr(0x2800) + "b", 50), "a    b")
+        self.assertEqual(vl._one_line("a" + chr(0x3164) * 3 + chr(0x2800) + "b", 50), "a b")
 
     def test_the_ids_an_ambiguity_names_are_bounded(self):
         """Found by attacking the fix: one id repeated a million times is a valid
@@ -1486,6 +1486,105 @@ class TestAValueOfMarksShowsNothing(unittest.TestCase):
             self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
             with open(out, encoding="utf-8") as f:
                 self.assertEqual([c["text"] for c in json.load(f)["criteria"]], ["returns the median", "leaves the list unchanged"])
+
+
+class TestWhatNobodySeesIsNotPrintedOrCounted(unittest.TestCase):
+    """0.5.3. Two things the adversarial pass on 0.5.2 found after that release
+    was merged. 0.5.2 took the Khmer inherent vowels off the list of blank
+    glyphs, because its new rule about marks covered them for evidence, and
+    the filter for what is printed read the same list: they went back to
+    being printed as they were. And a quote of one letter could be brought up
+    to the minimum length with characters nobody sees."""
+
+    UNSEEN = [0x034F, 0x17B4, 0x17B5, 0x180B, 0x180C, 0x180D, 0x180F, 0xFE00, 0xFE0F, 0x16FE4, 0xE0100, 0xE01EF,
+              0x2D7F, 0x1107F, 0x113D0, 0x11A47, 0x11A99, 0x11F42, 0x13440, 0x1BC9D]
+    NOT_PRINTABLE = [0x00AD, 0x061C, 0x180E, 0x200B, 0x200D, 0x202E, 0x2060, 0x2066, 0xFEFF, 0xE0001, 0xE0020]
+    BLANK = [0x115F, 0x1160, 0x2800, 0x3164, 0xFFA0, 0x13441, 0x13442, 0x1D159]
+
+    def test_no_invisible_character_is_printed(self):
+        for cp in self.UNSEEN + self.NOT_PRINTABLE + self.BLANK:
+            line = vl._one_line("run" + chr(cp) + "x ok" + chr(cp) * 3 + " fine", 200)
+            self.assertNotIn(chr(cp), line, hex(cp))
+            self.assertTrue(line.startswith("run") and line.endswith("fine"), (hex(cp), ascii(line)))
+        self.assertEqual(vl._one_line("run" + chr(0x17B4) + "x", 200), "runx", "the regression of 0.5.2")
+
+    def test_through_the_command_line(self):
+        crits = failing_first(out="ok" + chr(0x17B5) + chr(0x17B4) + " fine")
+        crits[0]["cmd"] = "run" + chr(0x17B4) + "x" + chr(0x034F) + chr(0xFE0F)
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "ledger.json")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(jledger(criteria=crits, final="DRIFTED \u2014 criteria 1 failed",
+                                observations="note" + chr(0x180B) + chr(0xE0100)))
+            r = subprocess.run([sys.executable, TOOL, path, "--nonce", NONCE], capture_output=True, text=True,
+                               encoding="utf-8", timeout=30)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("      ran: runx", r.stdout.splitlines())
+        self.assertIn("      saw: ok fine", r.stdout.splitlines())
+        self.assertIn("OBSERVATIONS: note", r.stdout.splitlines())
+        self.assertFalse([hex(ord(ch)) for ch in r.stdout if ch in vl._UNSEEN_MARKS])
+
+    def test_a_visible_accent_and_an_emoji_are_still_printed(self):
+        self.assertEqual(vl._one_line("cafe" + chr(0x301), 50), "cafe" + chr(0x301))
+        self.assertEqual(vl._one_line(chr(0x2764) + chr(0xFE0F) + " ok", 50), chr(0x2764) + " ok")
+        self.assertEqual(vl._one_line(chr(0x0E01) + chr(0x0E34) + chr(0x0E19), 50), chr(0x0E01) + chr(0x0E34) + chr(0x0E19))
+
+    def test_an_unseen_mark_does_not_use_up_the_two_marks_a_letter_may_carry(self):
+        value = "e" + chr(0x034F) * 5 + chr(0x301) + chr(0x302) + chr(0x303)
+        self.assertEqual(vl._one_line(value, 50), "e" + chr(0x301) + chr(0x302))
+
+    def test_what_is_dropped_leaves_no_gap_and_no_line(self):
+        """Found by attacking the fix: white space was tidied before the unseen
+        marks were dropped, so each one left a space, and a line holding only
+        such marks was printed as a line."""
+        vs, br = chr(0xFE0F), chr(0x23CE)
+        self.assertEqual(vl._one_line("x %s %s %s y" % (vs, vs, vs), 50), "x y")
+        self.assertEqual(vl._one_line("x " + chr(0x200B) + " " + chr(0x2800) + " y", 50), "x y")
+        self.assertEqual(vl._one_line("c\n" + vs, 50), "c")
+        self.assertEqual(vl._one_line("a\n" + vs + "\nb", 50), "a %s b" % br)
+        self.assertEqual(vl._one_line("V" + vs + "ALID: 9 criteria", 50), "VALID: 9 criteria")
+
+    def test_a_quote_is_as_long_as_what_a_reader_sees_of_it(self):
+        """Found by attacking the fix: visible accents were counted without limit,
+        so "a" and four of them was a quote of five characters that prints as
+        one letter. And composing a few single characters takes them apart into
+        three."""
+        one_glyph = ["a" + chr(0x301) * 4, "x" + chr(0x20DD) * 3, "a" + chr(0x0E31) * 3, "a " + chr(0x301) * 3,
+                     "x" + chr(0xFB2C), "a" + chr(0x1D161), "a" + chr(0x2D7F) * 3, "a" + chr(0x1107F) * 3,
+                     chr(0x301) * 6, "a" + chr(0x301) * 9]
+        for quote in one_glyph:
+            self.assertTrue(any("too short" in d or "must be a piece of the request" in d for d in self.check(quote)),
+                            ascii(quote))
+        thai = chr(0x0E01) + chr(0x0E34) + chr(0x0E19) + chr(0x0E02) + chr(0x0E49) + chr(0x0E32) + chr(0x0E27)
+        arabic = chr(0x0643) + chr(0x064E) + chr(0x062A) + chr(0x064E) + chr(0x0628) + chr(0x064E)
+        family = chr(0x1F468) + chr(0x200D) + chr(0x1F469) + chr(0x200D) + chr(0x1F467) + " ok"
+        for quote in (thai, arabic, family, "ok " + chr(0x2764) + chr(0xFE0F), "na" + chr(0x303) + "os", "e" + chr(0x301) + "te" + chr(0x301) + "s"):
+            self.assertEqual(self.check(quote), [], ascii(quote))
+
+    def test_measuring_a_huge_quote_stops_at_four(self):
+        started = time.time()
+        self.assertFalse(vl._too_short("word " * 2000000))
+        self.assertLess(time.time() - started, 1.0)
+
+    def check(self, quote, request=None):
+        reply = json.dumps({"manifest": 1, "criteria": [{"id": 1, "text": "does the thing", "quote": quote}],
+                            "ambiguities": []}, ensure_ascii=False)
+        return vl.check_manifest(reply, request)[1]
+
+    def test_a_quote_cannot_be_padded_to_the_minimum_with_what_nobody_sees(self):
+        for pad in (chr(0x200B) * 3, chr(0x034F) * 5, chr(0x2800) * 3, chr(0xFE0F) * 4, chr(0x200B) + chr(0x3164) + chr(0x180B)):
+            for quote in ("a" + pad, pad + "a", "a" + pad + "b"):
+                defects = self.check(quote)
+                self.assertTrue(any("too short to tie the criterion to the request" in d for d in defects), ascii(quote))
+                self.assertTrue(self.check(quote, "a request with " + quote + " in it"), ascii(quote))
+
+    def test_a_quote_that_is_long_enough_reads_as_it_did(self):
+        devanagari = chr(0x092A) + chr(0x093E) + chr(0x0928) + chr(0x0940)   # two letters, two vowel signs
+        for quote in ("is a", "skip", "cafe" + chr(0x301), devanagari, "a b c", "ab" + chr(0x301) * 2):
+            self.assertEqual(self.check(quote), [], ascii(quote))
+            self.assertEqual(self.check(quote, "They said " + quote + " and no more."), [], ascii(quote))
+        for quote in ("abc", "a b", "the", "na" + chr(0x303) + "o"):  # the last is three letters once composed
+            self.assertTrue(self.check(quote), quote)
 
 
 class TestLedgerReport(unittest.TestCase):
